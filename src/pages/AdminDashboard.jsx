@@ -99,7 +99,7 @@ const AdminDashboard = () => {
             alert('Error saving product');
         }
     };
-
+    //fuck
     const handleEditProduct = (product) => {
         setNewProduct({
             name: product.name,
