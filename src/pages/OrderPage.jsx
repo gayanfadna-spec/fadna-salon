@@ -127,8 +127,14 @@ const OrderPage = () => {
         return (
             <div className="container" style={{ textAlign: 'center', marginTop: '2rem', color: '#ef4444' }}>
                 <h2>Something went wrong</h2>
-                <p>{error}</p>
-                <p style={{ fontSize: '0.8rem', opacity: 0.7 }}>Salon ID: {salonId}</p>
+                {/* Displaying detailed error for debugging */}
+                <p style={{ fontWeight: 'bold' }}>{error}</p>
+                <div style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: '1rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px' }}>
+                    <p>Debug Info:</p>
+                    <p>Salon ID: {salonId}</p>
+                    <p>API URL: {API_URL}</p>
+                    <p>Timestamp: {new Date().toISOString()}</p>
+                </div>
             </div>
         );
     }
