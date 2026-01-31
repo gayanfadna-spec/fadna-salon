@@ -190,7 +190,8 @@ const AdminDashboard = () => {
 
     const handleDownloadQR = async (salon) => {
         try {
-            const baseUrl = import.meta.env.VITE_FRONTEND_URL || 'https://fadna-salon.onrender.com';
+            // Force production URL for QR codes regardless of environment
+            const baseUrl = 'https://fadna-salon.onrender.com';
             const qrUrl = `${baseUrl}/order/${salon._id}`;
             const qrDataUrl = await QRCode.toDataURL(qrUrl);
 
