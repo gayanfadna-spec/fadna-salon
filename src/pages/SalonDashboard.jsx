@@ -15,6 +15,7 @@ const SalonDashboard = () => {
         // Check authentication
         const storedSalon = localStorage.getItem('salonUser');
         if (!storedSalon) {
+            console.log("SalonDashboard: No user found, redirecting to salon-login");
             navigate('/salon-login');
             return;
         }
