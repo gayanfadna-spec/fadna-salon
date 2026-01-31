@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "start": "npx serve -s dist",
-    "build": "vite build",
+    "build": "vite build && node copy-404.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
