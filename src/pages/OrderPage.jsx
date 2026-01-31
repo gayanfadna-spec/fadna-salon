@@ -9,6 +9,7 @@ const OrderPage = () => {
     const [salon, setSalon] = useState(null);
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null); // Added error state
     const [cart, setCart] = useState({});
     const [formData, setFormData] = useState({
         customerName: '',
@@ -21,15 +22,39 @@ const OrderPage = () => {
     const payhereFormRef = React.useRef(null);
 
     useEffect(() => {
+        console.log("OrderPage Mounted. SalonID:", salonId);
+        console.log("API URL:", API_URL);
+
+        if (!salonId) {
+            setError("No Salon ID provided in URL.");
+            setLoading(false);
+            return;
+        }
+
         const fetchData = async () => {
             try {
-                const salonRes = await axios.get(`${API_URL}/salons/${salonId}`);
-                if (salonRes.data.success) setSalon(salonRes.data.salon);
+                setLoading(true);
+                setError(null);
 
+                // Fetch Salon
+                console.log(`Fetching salon data for: ${salonId}`);
+                const salonRes = await axios.get(`${API_URL}/salons/${salonId}`);
+                console.log("Salon Response:", salonRes.data);
+
+                if (salonRes.data.success) {
+                    setSalon(salonRes.data.salon);
+                } else {
+                    throw new Error(salonRes.data.message || "Failed to load salon data");
+                }
+
+                // Fetch Products
                 const productRes = await axios.get(`${API_URL}/products`);
-                if (productRes.data.success) setProducts(productRes.data.products);
+                if (productRes.data.success) {
+                    setProducts(productRes.data.products);
+                }
             } catch (err) {
                 console.error("Error fetching data", err);
+                setError(err.response?.data?.message || err.message || "Failed to load shop data.");
             } finally {
                 setLoading(false);
             }
@@ -96,8 +121,19 @@ const OrderPage = () => {
         }
     }, [payhereParams]);
 
-    if (loading) return <div className="container">Loading...</div>;
-    if (!salon) return <div className="container">Invalid QR Code</div>;
+    if (loading) return <div className="container" style={{ textAlign: 'center', marginTop: '2rem' }}>Loading Shop Details...</div>;
+
+    if (error) {
+        return (
+            <div className="container" style={{ textAlign: 'center', marginTop: '2rem', color: '#ef4444' }}>
+                <h2>Something went wrong</h2>
+                <p>{error}</p>
+                <p style={{ fontSize: '0.8rem', opacity: 0.7 }}>Salon ID: {salonId}</p>
+            </div>
+        );
+    }
+
+    if (!salon) return <div className="container">Salon not found.</div>;
     if (payhereParams) {
         return (
             <div className="container" style={{ textAlign: 'center', marginTop: '50px' }}>
