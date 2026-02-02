@@ -122,6 +122,8 @@ const AdminDashboard = () => {
         }
     };
 
+    const [createdSalon, setCreatedSalon] = useState(null);
+
     const handleCreateSalon = async (e) => {
         e.preventDefault();
         try {
@@ -133,6 +135,7 @@ const AdminDashboard = () => {
 
                 // Set Credentials for display
                 setNewCredentials(res.data.credentials);
+                setCreatedSalon(res.data.salon); // Save created salon to show code
             }
         } catch (err) {
             alert('Error creating salon');
@@ -162,8 +165,10 @@ const AdminDashboard = () => {
         });
         setEditingSalonId(salon._id);
         setEditingSalonId(salon._id);
+        setEditingSalonId(salon._id);
         setQrCode(null);
         setNewCredentials(null);
+        setCreatedSalon(null);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -192,15 +197,46 @@ const AdminDashboard = () => {
         try {
             // Force production URL for QR codes regardless of environment
             const baseUrl = 'https://fadna-salon.onrender.com';
-            const qrUrl = `${baseUrl}/order/${salon.uniqueId}`;
-            const qrDataUrl = await QRCode.toDataURL(qrUrl);
 
-            const link = document.createElement('a');
-            link.href = qrDataUrl;
-            link.download = `${salon.name.replace(/\s+/g, '_')}-qr.png`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            // Use salonCode if available, otherwise just use uniqueId (fallback)
+            // But URL still uses uniqueId as per current logic, we just want to PRINT the salonCode
+            const qrUrl = `${baseUrl}/order/${salon.uniqueId}`;
+
+            const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2 });
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.width + 50; // Add space for text at bottom
+
+                // Draw White Background
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Draw QR Code
+                ctx.drawImage(img, 0, 0);
+
+                // Draw Text
+                ctx.font = 'bold 24px Arial';
+                ctx.fillStyle = '#000000';
+                ctx.textAlign = 'center';
+
+                const codeText = `Salon Code: ${salon.salonCode || 'N/A'}`;
+                ctx.fillText(codeText, canvas.width / 2, img.height + 30);
+
+                // Download
+                const link = document.createElement('a');
+                link.download = `${salon.name.replace(/\s+/g, '_')}-qr.png`;
+                link.href = canvas.toDataURL('image/png');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            img.src = qrDataUrl;
         } catch (err) {
             console.error('Error generating QR', err);
             alert('Failed to generate QR');
@@ -430,8 +466,17 @@ const AdminDashboard = () => {
 
                                     <div style={{ marginBottom: '2rem' }}>
                                         <img src={qrCode} alt="Salon QR" style={{ borderRadius: '8px', border: '5px solid white', maxWidth: '200px' }} />
+                                        <div style={{ marginTop: '1rem', fontSize: '1.2rem', fontWeight: 'bold', color: 'white' }}>
+                                            CODE: <span style={{ color: 'var(--secondary-color)' }}>{createdSalon?.salonCode}</span>
+                                        </div>
                                         <br />
-                                        <a href={qrCode} download={`salon-qr.png`} style={{ color: 'var(--secondary-color)', marginTop: '1rem', display: 'inline-block' }}>Download QR</a>
+                                        <button
+                                            onClick={() => handleDownloadQR(createdSalon)}
+                                            className="btn-primary"
+                                            style={{ display: 'inline-block', marginTop: '1rem', cursor: 'pointer' }}
+                                        >
+                                            Download QR with Code
+                                        </button>
                                     </div>
 
                                     {newCredentials && (
@@ -463,7 +508,8 @@ const AdminDashboard = () => {
                                         return (
                                             salon.name.toLowerCase().includes(term) ||
                                             (salon.location && salon.location.toLowerCase().includes(term)) ||
-                                            (salon.username && salon.username.toLowerCase().includes(term))
+                                            (salon.username && salon.username.toLowerCase().includes(term)) ||
+                                            (salon.salonCode && salon.salonCode.toLowerCase().includes(term))
                                         );
                                     })
                                     .map(salon => (
@@ -474,6 +520,9 @@ const AdminDashboard = () => {
                                                     <div className="salon-meta" style={{ marginTop: '0.25rem' }}>
                                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                                                         {salon.location || 'No Location'}
+                                                    </div>
+                                                    <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--secondary-color)', fontWeight: 'bold' }}>
+                                                        Code: {salon.salonCode || 'N/A'}
                                                     </div>
                                                 </div>
                                             </div>
