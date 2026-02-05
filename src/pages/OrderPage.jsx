@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onrender.com/api';
 
 const OrderPage = () => {
     const { salonId } = useParams();
+    const navigate = useNavigate();
+    const [paymentMethod, setPaymentMethod] = useState('Online');
     const [salon, setSalon] = useState(null);
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -81,6 +83,40 @@ const OrderPage = () => {
         }, 0);
     };
 
+    const handleSearchMobile = async () => {
+        if (!formData.customerPhone) {
+            alert("Please enter a phone number to search.");
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const res = await axios.get(`${API_URL}/orders/customer/${formData.customerPhone}`);
+            if (res.data.success) {
+                const { customerName, address, city, additionalPhone } = res.data.customer;
+                setFormData(prev => ({
+                    ...prev,
+                    customerName: customerName || '',
+                    address: address || '',
+                    city: city || '',
+                    additionalPhone: additionalPhone || ''
+                }));
+                // Optional: You could show a success toast here
+            } else {
+                alert("Customer not found.");
+            }
+        } catch (err) {
+            if (err.response && err.response.status === 404) {
+                alert("Customer not found.");
+            } else {
+                console.error("Search error:", err);
+                alert("Error searching for customer.");
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         const items = Object.entries(cart).map(([itemId, qty]) => {
@@ -104,11 +140,17 @@ const OrderPage = () => {
                 address: formData.address,
                 city: formData.city,
                 items,
-                totalAmount: calculateTotal()
+                totalAmount: calculateTotal(),
+                paymentMethod // 'Online' or 'Cash on Delivery'
             });
 
             if (res.data.success) {
-                setPayhereParams(res.data.payhere);
+                if (paymentMethod === 'Cash on Delivery') {
+                    // Redirect to success page directly
+                    navigate('/payment/success');
+                } else {
+                    setPayhereParams(res.data.payhere);
+                }
             }
         } catch (err) {
             alert('Failed to place order');
@@ -174,15 +216,25 @@ const OrderPage = () => {
                         required
                         style={{ width: '100%', padding: '0.8rem', marginBottom: '1rem', borderRadius: '8px', border: '1px solid #ccc' }}
                     />
-                    <div className="order-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                        <input
-                            type="tel"
-                            placeholder="Phone Number"
-                            value={formData.customerPhone}
-                            onChange={e => setFormData({ ...formData, customerPhone: e.target.value })}
-                            required
-                            style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }}
-                        />
+                    <div className="order-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '1rem', marginBottom: '1rem', alignItems: 'center' }}>
+                        <div style={{ position: 'relative', width: '100%' }}>
+                            <input
+                                type="tel"
+                                placeholder="Phone Number"
+                                value={formData.customerPhone}
+                                onChange={e => setFormData({ ...formData, customerPhone: e.target.value })}
+                                required
+                                style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }}
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleSearchMobile}
+                            className="btn-primary"
+                            style={{ padding: '0.8rem 1.2rem', whiteSpace: 'nowrap', height: '100%' }}
+                        >
+                            Search
+                        </button>
                         <input
                             type="tel"
                             placeholder="Additional Phone (Optional)"
@@ -253,6 +305,32 @@ const OrderPage = () => {
                     ))}
                 </div>
 
+                <div style={{ marginBottom: '2rem' }}>
+                    <h3>Payment Method</h3>
+                    <div style={{ display: 'flex', gap: '1rem', flexDirection: 'column' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', cursor: 'pointer', border: paymentMethod === 'Online' ? '1px solid var(--secondary-color)' : '1px solid transparent' }}>
+                            <input
+                                type="radio"
+                                name="paymentMethod"
+                                value="Online"
+                                checked={paymentMethod === 'Online'}
+                                onChange={(e) => setPaymentMethod(e.target.value)}
+                            />
+                            <span>Online Payment (Cards, EzCash, M-Cash)</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', cursor: 'pointer', border: paymentMethod === 'Cash on Delivery' ? '1px solid var(--secondary-color)' : '1px solid transparent' }}>
+                            <input
+                                type="radio"
+                                name="paymentMethod"
+                                value="Cash on Delivery"
+                                checked={paymentMethod === 'Cash on Delivery'}
+                                onChange={(e) => setPaymentMethod(e.target.value)}
+                            />
+                            <span>Cash on Delivery</span>
+                        </label>
+                    </div>
+                </div>
+
                 <div className="glass-container" style={{ position: 'sticky', bottom: '1rem', background: 'rgba(15, 23, 42, 0.9)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                         <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Total</span>
@@ -260,8 +338,8 @@ const OrderPage = () => {
                     </div>
                     <button type="submit" className="btn-primary" style={{ width: '100%', fontSize: '1.1rem' }}>Proceed to Payment</button>
                 </div>
-            </form>
-        </div>
+            </form >
+        </div >
     );
 };
 

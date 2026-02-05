@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import QRCode from 'qrcode';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onrender.com/api';
 
@@ -193,6 +195,44 @@ const AdminDashboard = () => {
         setEditingSalonId(null);
     };
 
+    const [bulkCount, setBulkCount] = useState('');
+    const [newBulkSalons, setNewBulkSalons] = useState([]);
+    const [selectedSalons, setSelectedSalons] = useState([]);
+
+    const handleSelectSalon = (id) => {
+        setSelectedSalons(prev => {
+            if (prev.includes(id)) {
+                return prev.filter(sId => sId !== id);
+            } else {
+                return [...prev, id];
+            }
+        });
+    };
+
+    const handleSelectAll = (filteredSalons) => {
+        if (selectedSalons.length === filteredSalons.length) {
+            setSelectedSalons([]);
+        } else {
+            setSelectedSalons(filteredSalons.map(s => s._id));
+        }
+    };
+
+    const handleBulkCreate = async () => {
+        try {
+            if (!bulkCount || bulkCount <= 0) return;
+            const res = await axios.post(`${API_URL}/salons/bulk`, { count: bulkCount });
+            if (res.data.success) {
+                setNewBulkSalons(res.data.salons);
+                setBulkCount('');
+                fetchSalons();
+                alert(`${res.data.salons.length} Salons registered successfully!`);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Error creating bulk salons');
+        }
+    };
+
     const handleDownloadQR = async (salon) => {
         try {
             // Force production URL for QR codes regardless of environment
@@ -242,6 +282,110 @@ const AdminDashboard = () => {
             alert('Failed to generate QR');
         }
     };
+
+    const generateQRImage = async (salon) => {
+        const baseUrl = 'https://fadna-salon.onrender.com';
+        const qrUrl = `${baseUrl}/order/${salon.uniqueId}`;
+        const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2 });
+
+        return new Promise((resolve) => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.width + 40; // Reduced space, removed name
+
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+
+                ctx.font = 'bold 24px Arial'; // Slightly larger for code
+                ctx.fillStyle = '#000000';
+                ctx.textAlign = 'center';
+                // ctx.fillText(`${salon.name}`, canvas.width / 2, img.height + 20); // Removed Name
+                ctx.fillText(`Code: ${salon.salonCode}`, canvas.width / 2, img.height + 30);
+
+                resolve(canvas.toDataURL('image/png'));
+            };
+            img.src = qrDataUrl;
+        });
+    };
+
+    const handleBatchPrint = async (salonsToPrint) => {
+        if (!salonsToPrint || salonsToPrint.length === 0) return;
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write('<html><head><title>Print QR Codes</title>');
+        printWindow.document.write('<style>body{font-family: Arial, sans-serif; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;} .qr-card{border: 1px solid #ccc; padding: 10px; text-align: center; page-break-inside: avoid; width: 200px;} img{width: 100%;} @media print { .no-print { display: none; } }</style>');
+        printWindow.document.write('</head><body>');
+        printWindow.document.write('<div class="no-print" style="width: 100%; text-align: center; margin-bottom: 20px;"><button onclick="window.print()" style="padding: 10px 20px; font-size: 16px;">PRINT NOW</button></div>');
+
+        for (const salon of salonsToPrint) {
+            try {
+                const imgData = await generateQRImage(salon);
+                printWindow.document.write(`
+                    <div class="qr-card">
+                        <img src="${imgData}" />
+                    </div>
+                `);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        printWindow.document.write('</body></html>');
+        printWindow.document.close();
+    };
+
+    const handleBatchDownloadZip = async (salonsToDownload) => {
+        if (!salonsToDownload || salonsToDownload.length === 0) return;
+
+        const zip = new JSZip();
+
+        for (const salon of salonsToDownload) {
+            const imgData = await generateQRImage(salon);
+            // new JSZip().file needs base64 without prefix
+            const base64Data = imgData.replace(/^data:image\/(png|jpg);base64,/, "");
+            zip.file(`${salon.name.replace(/\s+/g, '_')}_${salon.salonCode}.png`, base64Data, { base64: true });
+        }
+
+        zip.generateAsync({ type: "blob" })
+            .then(function (content) {
+                saveAs(content, "salons_qr_codes.zip");
+            });
+    };
+
+    const handleBatchDelete = async (salonsToDelete) => {
+        if (!salonsToDelete || salonsToDelete.length === 0) return;
+        if (!window.confirm(`Are you sure you want to delete ${salonsToDelete.length} salons? This cannot be undone.`)) return;
+
+        try {
+            // Sequential delete to avoid overwhelming the server (could be optimized with a bulk delete endpoint)
+            for (const salon of salonsToDelete) {
+                await axios.delete(`${API_URL}/salons/${salon._id}`);
+            }
+            setSelectedSalons([]);
+            fetchSalons();
+            alert('Batch delete completed successfully');
+        } catch (err) {
+            console.error('Batch delete error', err);
+            alert('Error deleting one or more salons');
+        }
+    };
+
+    const filteredSalons = salons.filter(salon => {
+        if (selectedSalonId && salon._id !== selectedSalonId) return false;
+        if (!searchTerm) return true;
+        const term = searchTerm.toLowerCase();
+        return (
+            salon.name.toLowerCase().includes(term) ||
+            (salon.location && salon.location.toLowerCase().includes(term)) ||
+            (salon.username && salon.username.toLowerCase().includes(term)) ||
+            (salon.salonCode && salon.salonCode.toLowerCase().includes(term))
+        );
+    });
 
     return (
         <div className="container animate-fade-in">
@@ -297,21 +441,26 @@ const AdminDashboard = () => {
                     {/* Bottom Row: Search and Filters */}
                     <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'flex-end', width: '100%' }}>
                         {(activeTab === 'orders' || activeTab === 'monitor' || activeTab === 'salons') && (
-                            <input
-                                type="text"
-                                placeholder="Search..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="header-control"
-                                style={{
-                                    borderRadius: '8px',
-                                    border: '1px solid rgba(255,255,255,0.2)',
-                                    background: 'rgba(255,255,255,0.1)',
-                                    color: 'white',
-                                    outline: 'none',
-                                    maxWidth: '300px'
-                                }}
-                            />
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <input
+                                    type="text"
+                                    placeholder="Search..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="header-control"
+                                    style={{
+                                        borderRadius: '8px',
+                                        border: '1px solid rgba(255,255,255,0.2)',
+                                        background: 'rgba(255,255,255,0.1)',
+                                        color: 'white',
+                                        outline: 'none',
+                                        maxWidth: '300px'
+                                    }}
+                                />
+                                <button className="btn-primary" style={{ padding: '0.5rem 1rem' }}>
+                                    Search
+                                </button>
+                            </div>
                         )}
                         <select
                             className="header-control"
@@ -498,83 +647,237 @@ const AdminDashboard = () => {
                         </section>
 
                         <section className="glass-container">
-                            <h2>Registered Salons</h2>
-                            <div className="salon-grid">
-                                {salons
-                                    .filter(salon => {
-                                        if (selectedSalonId && salon._id !== selectedSalonId) return false;
-                                        if (!searchTerm) return true;
-                                        const term = searchTerm.toLowerCase();
-                                        return (
-                                            salon.name.toLowerCase().includes(term) ||
-                                            (salon.location && salon.location.toLowerCase().includes(term)) ||
-                                            (salon.username && salon.username.toLowerCase().includes(term)) ||
-                                            (salon.salonCode && salon.salonCode.toLowerCase().includes(term))
-                                        );
-                                    })
-                                    .map(salon => (
-                                        <div key={salon._id} className="salon-card">
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                <div>
-                                                    <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'white' }}>{salon.name}</h3>
-                                                    <div className="salon-meta" style={{ marginTop: '0.25rem' }}>
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                                                        {salon.location || 'No Location'}
-                                                    </div>
-                                                    <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--secondary-color)', fontWeight: 'bold' }}>
-                                                        Code: {salon.salonCode || 'N/A'}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="credential-box">
-                                                <div className="credential-row">
-                                                    <span style={{ opacity: 0.6 }}>User:</span>
-                                                    <span className="mono-text">{salon.username}</span>
-                                                </div>
-                                                <div className="credential-row">
-                                                    <span style={{ opacity: 0.6 }}>Pass:</span>
-                                                    <span className="mono-text" style={{ color: salon.plainPassword ? '#4ade80' : 'inherit' }}>
-                                                        {salon.plainPassword || '••••••'}
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            <div className="card-actions">
-                                                <button
-                                                    onClick={() => handleDownloadQR(salon)}
-                                                    className="icon-btn success"
-                                                    title="Download QR"
-                                                >
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-                                                </button>
-                                                <a
-                                                    href={`/order/${salon.uniqueId}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="icon-btn primary"
-                                                    title="Visit Shop"
-                                                >
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                                                </a>
-                                                <button
-                                                    onClick={() => handleEditClick(salon)}
-                                                    className="icon-btn primary"
-                                                    title="Edit Salon"
-                                                >
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteSalon(salon._id)}
-                                                    className="icon-btn danger"
-                                                    title="Delete Salon"
-                                                >
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
+                            <h2>Bulk Registration</h2>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                                <input
+                                    type="number"
+                                    placeholder="Number of Salons"
+                                    value={bulkCount}
+                                    onChange={(e) => setBulkCount(e.target.value)}
+                                    min="1"
+                                    max="50"
+                                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', width: '150px' }}
+                                />
+                                <button
+                                    onClick={handleBulkCreate}
+                                    className="btn-primary"
+                                    disabled={!bulkCount || bulkCount <= 0}
+                                >
+                                    Register {bulkCount || 0} Salons
+                                </button>
                             </div>
+
+                            {newBulkSalons.length > 0 && (
+                                <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                        <h3 style={{ margin: 0 }}>Newly Registered Salons ({newBulkSalons.length})</h3>
+                                        <div style={{ display: 'flex', gap: '1rem' }}>
+                                            <button
+                                                onClick={() => handleBatchPrint(newBulkSalons)}
+                                                className="btn-primary"
+                                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
+                                            >
+                                                Print All New
+                                            </button>
+                                            <button
+                                                onClick={() => handleBatchDownloadZip(newBulkSalons)}
+                                                className="btn-primary"
+                                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
+                                            >
+                                                Download All ZIP
+                                            </button>
+                                            <button
+                                                onClick={() => setNewBulkSalons([])}
+                                                className="btn-primary outline"
+                                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
+                                            >
+                                                Clear List
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                                        <table className="styled-table" style={{ fontSize: '0.9rem' }}>
+                                            <thead>
+                                                <tr>
+                                                    <th>Name</th>
+                                                    <th>Code</th>
+                                                    <th>Username</th>
+                                                    <th>Password</th>
+                                                    <th>Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {newBulkSalons.map(salon => (
+                                                    <tr key={salon._id}>
+                                                        <td>{salon.name}</td>
+                                                        <td style={{ fontWeight: 'bold', color: 'var(--secondary-color)' }}>{salon.salonCode}</td>
+                                                        <td>{salon.username}</td>
+                                                        <td style={{ fontFamily: 'monospace' }}>{salon.plainPassword}</td>
+                                                        <td>
+                                                            <button
+                                                                onClick={() => handleDownloadQR(salon)}
+                                                                className="btn-primary"
+                                                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
+                                                            >
+                                                                QR
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#fbbf24' }}>
+                                        ⚠ Please save these credentials now. Passwords may not be visible later.
+                                    </p>
+                                </div>
+                            )}
+                        </section>
+
+                        <section className="glass-container">
+                            {/* Filter salons based on search term and selectedSalonId */}
+                            {/* This logic was previously inside an IIFE, now moved out for direct use */}
+                            {(() => {
+                                const filteredSalons = salons.filter(salon => {
+                                    if (selectedSalonId && salon._id !== selectedSalonId) return false;
+                                    if (!searchTerm) return true;
+                                    const term = searchTerm.toLowerCase();
+                                    return (
+                                        salon.name.toLowerCase().includes(term) ||
+                                        (salon.location && salon.location.toLowerCase().includes(term)) ||
+                                        (salon.username && salon.username.toLowerCase().includes(term)) ||
+                                        (salon.salonCode && salon.salonCode.toLowerCase().includes(term))
+                                    );
+                                });
+
+                                return (
+                                    <>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                                <h2 style={{ margin: 0 }}>Registered Salons ({filteredSalons.length})</h2>
+                                                <button
+                                                    onClick={() => handleSelectAll(filteredSalons)}
+                                                    className="btn-primary outline"
+                                                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                                                >
+                                                    {selectedSalons.length === filteredSalons.length && filteredSalons.length > 0 ? 'Deselect All' : 'Select All'}
+                                                </button>
+                                            </div>
+
+                                            {selectedSalons.length > 0 && (
+                                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '8px' }}>
+                                                    <span style={{ fontSize: '0.9rem' }}>{selectedSalons.length} Selected</span>
+                                                    <button
+                                                        onClick={() => handleBatchPrint(salons.filter(s => selectedSalons.includes(s._id)))}
+                                                        className="btn-primary"
+                                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                                                    >
+                                                        Print Selected
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleBatchDownloadZip(salons.filter(s => selectedSalons.includes(s._id)))}
+                                                        className="btn-primary"
+                                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                                                    >
+                                                        Download ZIP
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleBatchDelete(salons.filter(s => selectedSalons.includes(s._id)))}
+                                                        className="btn-primary danger"
+                                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: '#ef4444', borderColor: '#ef4444' }}
+                                                    >
+                                                        Delete Selected
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setSelectedSalons([])}
+                                                        className="btn-primary outline"
+                                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                                                    >
+                                                        Clear Selection
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="salon-grid">
+                                            {filteredSalons.map(salon => (
+
+                                                <div key={salon._id} className={`salon-card ${selectedSalons.includes(salon._id) ? 'selected' : ''}`} style={{ position: 'relative', border: selectedSalons.includes(salon._id) ? '2px solid var(--secondary-color)' : 'none' }}>
+                                                    <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedSalons.includes(salon._id)}
+                                                            onChange={() => handleSelectSalon(salon._id)}
+                                                            style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                                                        />
+                                                    </div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                        <div>
+                                                            <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'white' }}>{salon.name}</h3>
+                                                            <div className="salon-meta" style={{ marginTop: '0.25rem' }}>
+                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                                                                {salon.location || 'No Location'}
+                                                            </div>
+                                                            <div style={{ marginTop: '0.25rem', fontSize: '0.8rem', opacity: 0.6 }}>
+                                                                Created: {salon.createdAt ? new Date(salon.createdAt).toLocaleDateString() : 'N/A'}
+                                                            </div>
+                                                            <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--secondary-color)', fontWeight: 'bold' }}>
+                                                                Code: {salon.salonCode || 'N/A'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="credential-box">
+                                                        <div className="credential-row">
+                                                            <span style={{ opacity: 0.6 }}>User:</span>
+                                                            <span className="mono-text">{salon.username}</span>
+                                                        </div>
+                                                        <div className="credential-row">
+                                                            <span style={{ opacity: 0.6 }}>Pass:</span>
+                                                            <span className="mono-text" style={{ color: salon.plainPassword ? '#4ade80' : 'inherit' }}>
+                                                                {salon.plainPassword || '••••••'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="card-actions">
+                                                        <button
+                                                            onClick={() => handleDownloadQR(salon)}
+                                                            className="icon-btn success"
+                                                            title="Download QR"
+                                                        >
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                                                        </button>
+                                                        <a
+                                                            href={`/order/${salon.uniqueId}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="icon-btn primary"
+                                                            title="Visit Shop"
+                                                        >
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                                                        </a>
+                                                        <button
+                                                            onClick={() => handleEditClick(salon)}
+                                                            className="icon-btn primary"
+                                                            title="Edit Salon"
+                                                        >
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteSalon(salon._id)}
+                                                            className="icon-btn danger"
+                                                            title="Delete Salon"
+                                                        >
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </section>
                     </div>
                 )
