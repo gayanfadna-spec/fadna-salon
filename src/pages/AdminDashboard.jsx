@@ -361,18 +361,25 @@ const AdminDashboard = () => {
         if (!salonsToDelete || salonsToDelete.length === 0) return;
         if (!window.confirm(`Are you sure you want to delete ${salonsToDelete.length} salons? This cannot be undone.`)) return;
 
-        try {
-            // Sequential delete to avoid overwhelming the server (could be optimized with a bulk delete endpoint)
-            for (const salon of salonsToDelete) {
+        let successCount = 0;
+
+        for (const salon of salonsToDelete) {
+            try {
                 await axios.delete(`${API_URL}/salons/${salon._id}`);
+                successCount++;
+            } catch (err) {
+                // If 404, likely already deleted, just log and continue
+                if (err.response && err.response.status === 404) {
+                    console.warn(`Salon ${salon.name} (${salon._id}) already deleted or not found.`);
+                } else {
+                    console.error(`Failed to delete salon ${salon.name}:`, err);
+                }
             }
-            setSelectedSalons([]);
-            fetchSalons();
-            alert('Batch delete completed successfully');
-        } catch (err) {
-            console.error('Batch delete error', err);
-            alert('Error deleting one or more salons');
         }
+
+        setSelectedSalons([]);
+        fetchSalons();
+        alert(`Batch process finished. ${successCount} salons deleted.`);
     };
 
     const filteredSalons = salons.filter(salon => {
