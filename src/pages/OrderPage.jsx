@@ -192,7 +192,7 @@ const OrderPage = () => {
                                 value={formData.customerPhone}
                                 onChange={e => setFormData({ ...formData, customerPhone: e.target.value })}
                                 required
-                                style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }}
+                                style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', marginBottom: 0 }}
                             />
                         </div>
                         <input
@@ -200,7 +200,7 @@ const OrderPage = () => {
                             placeholder="Additional Phone (Optional)"
                             value={formData.additionalPhone}
                             onChange={e => setFormData({ ...formData, additionalPhone: e.target.value })}
-                            style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }}
+                            style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', marginBottom: 0 }}
                         />
                     </div>
 
