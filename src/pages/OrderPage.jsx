@@ -83,39 +83,7 @@ const OrderPage = () => {
         }, 0);
     };
 
-    const handleSearchMobile = async () => {
-        if (!formData.customerPhone) {
-            alert("Please enter a phone number to search.");
-            return;
-        }
 
-        try {
-            setLoading(true);
-            const res = await axios.get(`${API_URL}/orders/customer/${formData.customerPhone}`);
-            if (res.data.success) {
-                const { customerName, address, city, additionalPhone } = res.data.customer;
-                setFormData(prev => ({
-                    ...prev,
-                    customerName: customerName || '',
-                    address: address || '',
-                    city: city || '',
-                    additionalPhone: additionalPhone || ''
-                }));
-                // Optional: You could show a success toast here
-            } else {
-                alert("Customer not found.");
-            }
-        } catch (err) {
-            if (err.response && err.response.status === 404) {
-                alert("Customer not found.");
-            } else {
-                console.error("Search error:", err);
-                alert("Error searching for customer.");
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -216,7 +184,7 @@ const OrderPage = () => {
                         required
                         style={{ width: '100%', padding: '0.8rem', marginBottom: '1rem', borderRadius: '8px', border: '1px solid #ccc' }}
                     />
-                    <div className="order-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '1rem', marginBottom: '1rem', alignItems: 'center' }}>
+                    <div className="order-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem', alignItems: 'center' }}>
                         <div style={{ position: 'relative', width: '100%' }}>
                             <input
                                 type="tel"
@@ -227,14 +195,6 @@ const OrderPage = () => {
                                 style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }}
                             />
                         </div>
-                        <button
-                            type="button"
-                            onClick={handleSearchMobile}
-                            className="btn-primary"
-                            style={{ padding: '0.8rem 1.2rem', whiteSpace: 'nowrap', height: '100%' }}
-                        >
-                            Search
-                        </button>
                         <input
                             type="tel"
                             placeholder="Additional Phone (Optional)"
@@ -315,6 +275,7 @@ const OrderPage = () => {
                                 value="Online"
                                 checked={paymentMethod === 'Online'}
                                 onChange={(e) => setPaymentMethod(e.target.value)}
+                                style={{ width: 'auto', marginBottom: 0, marginRight: '1rem' }}
                             />
                             <span>Online Payment (Cards, EzCash, M-Cash)</span>
                         </label>
@@ -325,6 +286,7 @@ const OrderPage = () => {
                                 value="Cash on Delivery"
                                 checked={paymentMethod === 'Cash on Delivery'}
                                 onChange={(e) => setPaymentMethod(e.target.value)}
+                                style={{ width: 'auto', marginBottom: 0, marginRight: '1rem' }}
                             />
                             <span>Cash on Delivery</span>
                         </label>

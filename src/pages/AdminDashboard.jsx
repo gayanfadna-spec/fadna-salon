@@ -236,7 +236,7 @@ const AdminDashboard = () => {
     const handleDownloadQR = async (salon) => {
         try {
             // Force production URL for QR codes regardless of environment
-            const baseUrl = 'https://fadna-salon.onrender.com';
+            const baseUrl = 'https://www.portal.fadnals.lk';
 
             // Use salonCode if available, otherwise just use uniqueId (fallback)
             // But URL still uses uniqueId as per current logic, we just want to PRINT the salonCode
@@ -284,7 +284,7 @@ const AdminDashboard = () => {
     };
 
     const generateQRImage = async (salon) => {
-        const baseUrl = 'https://fadna-salon.onrender.com';
+        const baseUrl = 'https://www.portal.fadnals.lk';
         const qrUrl = `${baseUrl}/order/${salon.uniqueId}`;
         const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2 });
 
