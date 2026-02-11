@@ -154,7 +154,7 @@ const OrderPage = () => {
         return (
             <div className="container" style={{ textAlign: 'center', marginTop: '50px' }}>
                 <h2>Redirecting to Payment Gateway...</h2>
-                <form ref={payhereFormRef} method="post" action="https://sandbox.payhere.lk/pay/checkout">
+                <form ref={payhereFormRef} method="post" action="https://www.payhere.lk/pay/checkout">
                     {Object.entries(payhereParams).map(([key, value]) => (
                         <input key={key} type="hidden" name={key} value={value} />
                     ))}
