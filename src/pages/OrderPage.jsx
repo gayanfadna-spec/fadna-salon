@@ -21,7 +21,8 @@ const OrderPage = () => {
         city: ''
     });
     const [payhereParams, setPayhereParams] = useState(null);
-    const payhereFormRef = React.useRef(null);
+    // const payhereFormRef = React.useRef(null); // Removed
+    // const payhereFormRef = React.useRef(null); // Removed
 
     useEffect(() => {
         console.log("OrderPage Mounted. SalonID:", salonId);
@@ -126,10 +127,33 @@ const OrderPage = () => {
     };
 
     useEffect(() => {
-        if (payhereParams && payhereFormRef.current) {
-            payhereFormRef.current.submit();
+        if (payhereParams) {
+            // Define PayHere event handlers
+            window.payhere.onCompleted = function onCompleted(orderId) {
+                console.log("Payment completed. OrderID:" + orderId);
+                navigate('/payment/success');
+            };
+
+            window.payhere.onDismissed = function onDismissed() {
+                console.log("Payment dismissed");
+                setLoading(false); // Enable UI interaction again if needed
+            };
+
+            window.payhere.onError = function onError(error) {
+                console.log("Error:" + error);
+                setError("Payment Error: " + error);
+                setLoading(false);
+            };
+
+            // Start Payment
+            try {
+                window.payhere.startPayment(payhereParams);
+            } catch (err) {
+                console.error("Error starting PayHere:", err);
+                setError("Failed to start payment gateway.");
+            }
         }
-    }, [payhereParams]);
+    }, [payhereParams, navigate]);
 
     if (loading) return <div className="container" style={{ textAlign: 'center', marginTop: '2rem' }}>Loading Shop Details...</div>;
 
@@ -137,31 +161,18 @@ const OrderPage = () => {
         return (
             <div className="container" style={{ textAlign: 'center', marginTop: '2rem', color: '#ef4444' }}>
                 <h2>Something went wrong</h2>
-                {/* Displaying detailed error for debugging */}
                 <p style={{ fontWeight: 'bold' }}>{error}</p>
-                <div style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: '1rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px' }}>
-                    <p>Debug Info:</p>
-                    <p>Salon ID: {salonId}</p>
-                    <p>API URL: {API_URL}</p>
-                    <p>Timestamp: {new Date().toISOString()}</p>
+                <div style={{ marginTop: '2rem' }}>
+                    <button onClick={() => window.location.reload()} className="btn-primary">
+                        Try Again
+                    </button>
                 </div>
             </div>
         );
     }
 
     if (!salon) return <div className="container">Salon not found.</div>;
-    if (payhereParams) {
-        return (
-            <div className="container" style={{ textAlign: 'center', marginTop: '50px' }}>
-                <h2>Redirecting to Payment Gateway...</h2>
-                <form ref={payhereFormRef} method="post" action="https://www.payhere.lk/pay/checkout">
-                    {Object.entries(payhereParams).map(([key, value]) => (
-                        <input key={key} type="hidden" name={key} value={value} />
-                    ))}
-                </form>
-            </div>
-        );
-    }
+    // Removed specific PayHere redirection UI as it's now a popup
 
     return (
         <div className="container animate-fade-in" style={{ maxWidth: '600px' }}>
