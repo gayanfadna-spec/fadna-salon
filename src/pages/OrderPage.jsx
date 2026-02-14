@@ -18,6 +18,7 @@ const OrderPage = () => {
         customerName: '',
         customerPhone: '',
         additionalPhone: '',
+        address: '',
         city: ''
     });
     const [payhereParams, setPayhereParams] = useState(null);
@@ -78,8 +79,8 @@ const OrderPage = () => {
 
     const handleNextStep = () => {
         if (step === 1) {
-            if (!formData.customerName || !formData.customerPhone || !formData.city) {
-                alert("Please fill in Name, Phone, and City");
+            if (!formData.customerName || !formData.customerPhone || !formData.city || !formData.address) {
+                alert("Please fill in Name, Phone, Address, and City");
                 return;
             }
             setStep(2);
@@ -108,7 +109,7 @@ const OrderPage = () => {
                 customerName: formData.customerName,
                 customerPhone: formData.customerPhone,
                 additionalPhone: formData.additionalPhone,
-                address: formData.city, // Use city as address
+                address: formData.address,
                 city: formData.city,
                 items,
                 totalAmount: calculateTotal(),
@@ -129,16 +130,34 @@ const OrderPage = () => {
 
     useEffect(() => {
         if (payhereParams) {
-            window.payhere.onCompleted = function onCompleted(orderId) {
+            window.payhere.onCompleted = async function onCompleted(orderId) {
                 console.log("Payment completed. OrderID:" + orderId);
-                navigate('/payment/success');
+                try {
+                    await axios.put(`${API_URL}/orders/${orderId}/status`, { status: 'Paid' });
+                    navigate('/payment/success');
+                } catch (err) {
+                    console.error("Failed to update status to Paid", err);
+                    alert("Payment successful but failed to update order status. Please contact support.");
+                }
             };
-            window.payhere.onDismissed = function onDismissed() {
+            window.payhere.onDismissed = async function onDismissed() {
                 console.log("Payment dismissed");
+                try {
+                    // Assuming payhereParams.order_id holds the order ID
+                    await axios.put(`${API_URL}/orders/${payhereParams.order_id}/status`, { status: 'Payment Failed' });
+                } catch (err) {
+                    console.error("Failed to update status to Payment Failed", err);
+                }
                 setLoading(false);
+                alert("Payment was dismissed. Order marked as Payment Failed.");
             };
-            window.payhere.onError = function onError(error) {
+            window.payhere.onError = async function onError(error) {
                 console.log("Error:" + error);
+                try {
+                    await axios.put(`${API_URL}/orders/${payhereParams.order_id}/status`, { status: 'Payment Failed' });
+                } catch (err) {
+                    console.error("Failed to update status to Payment Failed", err);
+                }
                 setError("Payment Error: " + error);
                 setLoading(false);
             };
@@ -221,6 +240,14 @@ const OrderPage = () => {
                                 style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', marginBottom: 0 }}
                             />
                         </div>
+                        <input
+                            type="text"
+                            placeholder="Address"
+                            value={formData.address}
+                            onChange={e => setFormData({ ...formData, address: e.target.value })}
+                            required
+                            style={{ width: '100%', padding: '0.8rem', marginBottom: '1rem', borderRadius: '8px', border: '1px solid #ccc' }}
+                        />
                         <input
                             type="text"
                             placeholder="City"
