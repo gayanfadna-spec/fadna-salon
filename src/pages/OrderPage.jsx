@@ -134,7 +134,7 @@ const OrderPage = () => {
                 console.log("Payment completed. OrderID:" + orderId);
                 try {
                     await axios.put(`${API_URL}/orders/${orderId}/status`, { status: 'Paid' });
-                    navigate('/payment/success');
+                    navigate('/payment/success', { state: { orderId } });
                 } catch (err) {
                     console.error("Failed to update status to Paid", err);
                     alert("Payment successful but failed to update order status. Please contact support.");
