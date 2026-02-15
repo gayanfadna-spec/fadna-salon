@@ -559,11 +559,13 @@ const AdminDashboard = () => {
                                                     }}
                                                 >
                                                     <option style={{ color: 'black' }} value="Pending Payment">Pending</option>
+                                                    <option style={{ color: 'black' }} value="Paid">Paid</option>
                                                     <option style={{ color: 'black' }} value="Processing">Processing</option>
                                                     <option style={{ color: 'black' }} value="Shipped">Shipped</option>
                                                     <option style={{ color: 'black' }} value="Completed">Completed</option>
                                                     <option style={{ color: 'black' }} value="Returned">Returned</option>
                                                     <option style={{ color: 'black' }} value="Cancelled">Cancelled</option>
+                                                    <option style={{ color: 'black' }} value="Payment Failed">Payment Failed</option>
                                                 </select>
                                             </td>
                                         </tr>
