@@ -21,6 +21,7 @@ const OrderPage = () => {
         address: '',
         city: ''
     });
+    const [orderId, setOrderId] = useState(null);
     const [payhereParams, setPayhereParams] = useState(null);
 
     useEffect(() => {
@@ -77,13 +78,49 @@ const OrderPage = () => {
         }, 0);
     };
 
-    const handleNextStep = () => {
+    const handleNextStep = async () => {
         if (step === 1) {
             if (!formData.customerName || !formData.customerPhone || !formData.city || !formData.address) {
                 alert("Please fill in Name, Phone, Address, and City");
                 return;
             }
-            setStep(2);
+
+            // Create Draft Order
+            try {
+                // If we already have an orderId, we could update it, but for now just log
+                // or if we went back and forth, we might want to update.
+                // For simplicity, let's create a draft or update if we have one.
+                // Our /draft endpoint creates new. Let's stick to creating one for now or check if we should add update logic to draft endpoint.
+                // Actually, let's just create it on first pass.
+
+                // If orderId exists, maybe we update? The current /draft makes a NEW one. 
+                // Let's just create for now to satisfy "Save on Next". 
+                // Optimization: Update existing if orderId is set.
+
+                const res = await axios.post(`${API_URL}/orders/draft`, {
+                    salonId,
+                    customerName: formData.customerName,
+                    customerPhone: formData.customerPhone,
+                    additionalPhone: formData.additionalPhone,
+                    address: formData.address,
+                    city: formData.city
+                });
+
+                if (res.data.success) {
+                    setOrderId(res.data.orderId);
+                    setStep(2);
+                }
+            } catch (err) {
+                console.error("Failed to save draft", err);
+                // Optionally alert user or just proceed locally if backend fails?
+                // Better to alert as requirement is to save.
+                // But to not block flow, maybe just log and proceed?
+                // User said "details should be save", implies success requirement.
+                // Let's alert but allow proceed? No, better to force save.
+                alert("Failed to save details. Please try again.");
+                return;
+            }
+
         } else if (step === 2) {
             setStep(3);
         }
@@ -105,6 +142,7 @@ const OrderPage = () => {
 
         try {
             const res = await axios.post(`${API_URL}/orders`, {
+                orderId, // Pass orderId if we have it (from draft)
                 salonId,
                 customerName: formData.customerName,
                 customerPhone: formData.customerPhone,
