@@ -145,6 +145,7 @@ const SalonDashboard = () => {
                         <thead>
                             <tr>
                                 <th>Date</th>
+                                <th>Order ID</th>
                                 <th>Customer</th>
                                 <th>Items</th>
                                 <th>Total</th>
@@ -155,6 +156,7 @@ const SalonDashboard = () => {
                             {orders.map(order => (
                                 <tr key={order._id}>
                                     <td>{new Date(order.createdAt).toLocaleString()}</td>
+                                    <td style={{ fontWeight: 'bold' }}>{order.merchantOrderId || order._id.slice(-6).toUpperCase()}</td>
                                     <td>
                                         {order.customerName}<br />
                                         <small style={{ opacity: 0.7 }}>{order.customerPhone}</small><br />

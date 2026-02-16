@@ -235,48 +235,79 @@ const AdminDashboard = () => {
 
     const handleDownloadQR = async (salon) => {
         try {
-            // Force production URL for QR codes regardless of environment
             const baseUrl = 'https://www.portal.fadnals.lk';
-
-            // Use salonCode if available, otherwise just use uniqueId (fallback)
-            // But URL still uses uniqueId as per current logic, we just want to PRINT the salonCode
             const qrUrl = `${baseUrl}/order/${salon.uniqueId}`;
 
-            const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2 });
+            // Generate SVG string
+            // options: margin 2 gives some white space around the QR modules
+            const svgString = await QRCode.toString(qrUrl, {
+                type: 'svg',
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#ffffff'
+                }
+            });
 
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const img = new Image();
+            // Parse the SVG string to manipulate it
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(svgString, "image/svg+xml");
+            const svg = doc.documentElement;
 
-            img.onload = () => {
-                canvas.width = img.width;
-                canvas.height = img.width + 50; // Add space for text at bottom
+            // Get current viewBox to calculate dimensions
+            // viewBox format: "min-x min-y width height"
+            const viewBox = svg.getAttribute('viewBox').split(' ').map(Number);
+            const [vx, vy, vw, vh] = viewBox;
 
-                // Draw White Background
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Calculate extra height for text (approx 15% of QR height)
+            const textSpace = vh * 0.15;
+            const newVh = vh + textSpace;
 
-                // Draw QR Code
-                ctx.drawImage(img, 0, 0);
+            // Update viewBox to include space for text
+            svg.setAttribute('viewBox', `${vx} ${vy} ${vw} ${newVh}`);
 
-                // Draw Text
-                ctx.font = 'bold 24px Arial';
-                ctx.fillStyle = '#000000';
-                ctx.textAlign = 'center';
+            // Ensure we have a white background for the entire new area
+            // The QRCode library adds a background rect if 'light' color is specified, 
+            // but it only covers the original viewBox. We need to extend it or add a new one.
+            // Let's create a background rect that covers the whole new size.
+            // We usually want this to be the first child so it's behind everything.
+            let bgRect = svg.querySelector('rect[fill="#ffffff"]');
+            if (!bgRect) {
+                bgRect = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+                bgRect.setAttribute("fill", "#ffffff");
+                svg.insertBefore(bgRect, svg.firstChild);
+            }
+            bgRect.setAttribute("width", "100%");
+            bgRect.setAttribute("height", "100%"); // This relies on the SVG scaling to the viewBox? 
+            // Better to use explicit coordinates matching viewBox for safety in SVGs
+            bgRect.setAttribute("x", vx);
+            bgRect.setAttribute("y", vy);
+            bgRect.setAttribute("width", vw);
+            bgRect.setAttribute("height", newVh);
 
-                const codeText = `Salon Code: ${salon.salonCode || 'N/A'}`;
-                ctx.fillText(codeText, canvas.width / 2, img.height + 30);
+            // Create text element
+            const text = doc.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.setAttribute("x", vw / 2);
+            // Position text in the middle of the newly added space
+            text.setAttribute("y", vh + (textSpace / 1.5));
+            text.setAttribute("text-anchor", "middle");
+            text.setAttribute("font-family", "Arial, sans-serif");
+            // Scale font size based on QR width to ensure readability relative to QR size
+            text.setAttribute("font-size", `${vw * 0.06}`);
+            text.setAttribute("font-weight", "bold");
+            text.setAttribute("fill", "#000000");
+            text.textContent = `Salon Code: ${salon.salonCode || 'N/A'}`;
 
-                // Download
-                const link = document.createElement('a');
-                link.download = `${salon.name.replace(/\s+/g, '_')}-qr.png`;
-                link.href = canvas.toDataURL('image/png');
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            };
+            svg.appendChild(text);
 
-            img.src = qrDataUrl;
+            // Serialize back to string
+            const serializer = new XMLSerializer();
+            const newSvgString = serializer.serializeToString(svg);
+
+            // Create Blob and Download
+            const blob = new Blob([newSvgString], { type: "image/svg+xml;charset=utf-8" });
+            saveAs(blob, `${salon.name.replace(/\s+/g, '_')}-qr.svg`);
+
         } catch (err) {
             console.error('Error generating QR', err);
             alert('Failed to generate QR');
@@ -500,6 +531,7 @@ const AdminDashboard = () => {
                             <thead>
                                 <tr>
                                     <th>Date</th>
+                                    <th>Order ID</th>
                                     <th>Salon</th>
                                     <th>Customer</th>
                                     <th>Items</th>
@@ -523,6 +555,7 @@ const AdminDashboard = () => {
                                     .map(order => (
                                         <tr key={order._id}>
                                             <td>{new Date(order.createdAt).toLocaleString()}</td>
+                                            <td style={{ fontWeight: 'bold' }}>{order.merchantOrderId || order._id.slice(-6).toUpperCase()}</td>
                                             <td>{order.salonName}</td>
                                             <td>
                                                 <div style={{ fontWeight: 'bold' }}>{order.customerName}</div>

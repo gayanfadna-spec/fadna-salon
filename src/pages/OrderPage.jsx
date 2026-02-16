@@ -117,11 +117,7 @@ const OrderPage = () => {
             });
 
             if (res.data.success) {
-                if (paymentMethod === 'Cash on Delivery') {
-                    navigate('/payment/success');
-                } else {
-                    setPayhereParams(res.data.payhere);
-                }
+                setPayhereParams(res.data.payhere);
             }
         } catch (err) {
             alert('Failed to place order');
@@ -336,27 +332,16 @@ const OrderPage = () => {
                     <div style={{ marginBottom: '2rem' }}>
                         <h3>Payment Method</h3>
                         <div style={{ display: 'flex', gap: '1rem', flexDirection: 'column' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', cursor: 'pointer', border: paymentMethod === 'Online' ? '1px solid var(--secondary-color)' : '1px solid transparent' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', cursor: 'pointer', border: '1px solid var(--secondary-color)' }}>
                                 <input
                                     type="radio"
                                     name="paymentMethod"
                                     value="Online"
-                                    checked={paymentMethod === 'Online'}
-                                    onChange={(e) => setPaymentMethod(e.target.value)}
+                                    checked={true}
+                                    readOnly
                                     style={{ width: 'auto', marginBottom: 0, marginRight: '1rem' }}
                                 />
                                 <span>Online Payment (Cards, EzCash, M-Cash)</span>
-                            </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', cursor: 'pointer', border: paymentMethod === 'Cash on Delivery' ? '1px solid var(--secondary-color)' : '1px solid transparent' }}>
-                                <input
-                                    type="radio"
-                                    name="paymentMethod"
-                                    value="Cash on Delivery"
-                                    checked={paymentMethod === 'Cash on Delivery'}
-                                    onChange={(e) => setPaymentMethod(e.target.value)}
-                                    style={{ width: 'auto', marginBottom: 0, marginRight: '1rem' }}
-                                />
-                                <span>Cash on Delivery</span>
                             </label>
                         </div>
                     </div>
