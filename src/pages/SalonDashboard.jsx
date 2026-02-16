@@ -153,7 +153,7 @@ const SalonDashboard = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {orders.map(order => (
+                            {orders.filter(order => !['Draft', 'Pending Payment', 'Payment Failed'].includes(order.status)).map(order => (
                                 <tr key={order._id}>
                                     <td>{new Date(order.createdAt).toLocaleString()}</td>
                                     <td style={{ fontWeight: 'bold' }}>{order.merchantOrderId || order._id.slice(-6).toUpperCase()}</td>
