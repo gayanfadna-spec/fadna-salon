@@ -158,7 +158,8 @@ const OrderPage = () => {
                 setPayhereParams(res.data.payhere);
             }
         } catch (err) {
-            alert('Failed to place order');
+            console.error(err);
+            alert(`Failed to place order: ${err.response?.data?.message || err.message}`);
         }
     };
 
