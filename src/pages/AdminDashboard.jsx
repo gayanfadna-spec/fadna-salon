@@ -233,115 +233,72 @@ const AdminDashboard = () => {
         }
     };
 
+    const generateQRSVG = async (salon) => {
+        const baseUrl = 'https://www.portal.fadnals.lk';
+        const qrUrl = `${baseUrl}/order/${salon.uniqueId}`;
+
+        // Generate SVG string
+        const svgString = await QRCode.toString(qrUrl, {
+            type: 'svg',
+            margin: 2,
+            color: {
+                dark: '#000000',
+                light: '#ffffff'
+            }
+        });
+
+        // Parse to manipulate
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(svgString, "image/svg+xml");
+        const svg = doc.documentElement;
+
+        const viewBox = svg.getAttribute('viewBox').split(' ').map(Number);
+        const [vx, vy, vw, vh] = viewBox;
+
+        // Add space for text
+        const textSpace = vh * 0.15;
+        const newVh = vh + textSpace;
+        svg.setAttribute('viewBox', `${vx} ${vy} ${vw} ${newVh}`);
+
+        // Add/Extend Background
+        let bgRect = svg.querySelector('rect[fill="#ffffff"]');
+        if (!bgRect) {
+            bgRect = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+            bgRect.setAttribute("fill", "#ffffff");
+            svg.insertBefore(bgRect, svg.firstChild);
+        }
+        bgRect.setAttribute("width", "100%");
+        bgRect.setAttribute("height", "100%");
+        bgRect.setAttribute("x", vx);
+        bgRect.setAttribute("y", vy);
+        bgRect.setAttribute("width", vw);
+        bgRect.setAttribute("height", newVh);
+
+        // Add Text
+        const text = doc.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", vw / 2);
+        text.setAttribute("y", vh + (textSpace / 1.5));
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("font-family", "Arial, sans-serif");
+        text.setAttribute("font-size", `${vw * 0.06}`);
+        text.setAttribute("font-weight", "bold");
+        text.setAttribute("fill", "#000000");
+        text.textContent = `Code: ${salon.salonCode || 'N/A'}`;
+        svg.appendChild(text);
+
+        const serializer = new XMLSerializer();
+        return serializer.serializeToString(svg);
+    };
+
     const handleDownloadQR = async (salon) => {
         try {
-            const baseUrl = 'https://www.portal.fadnals.lk';
-            const qrUrl = `${baseUrl}/order/${salon.uniqueId}`;
-
-            // Generate SVG string
-            // options: margin 2 gives some white space around the QR modules
-            const svgString = await QRCode.toString(qrUrl, {
-                type: 'svg',
-                margin: 2,
-                color: {
-                    dark: '#000000',
-                    light: '#ffffff'
-                }
-            });
-
-            // Parse the SVG string to manipulate it
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(svgString, "image/svg+xml");
-            const svg = doc.documentElement;
-
-            // Get current viewBox to calculate dimensions
-            // viewBox format: "min-x min-y width height"
-            const viewBox = svg.getAttribute('viewBox').split(' ').map(Number);
-            const [vx, vy, vw, vh] = viewBox;
-
-            // Calculate extra height for text (approx 15% of QR height)
-            const textSpace = vh * 0.15;
-            const newVh = vh + textSpace;
-
-            // Update viewBox to include space for text
-            svg.setAttribute('viewBox', `${vx} ${vy} ${vw} ${newVh}`);
-
-            // Ensure we have a white background for the entire new area
-            // The QRCode library adds a background rect if 'light' color is specified, 
-            // but it only covers the original viewBox. We need to extend it or add a new one.
-            // Let's create a background rect that covers the whole new size.
-            // We usually want this to be the first child so it's behind everything.
-            let bgRect = svg.querySelector('rect[fill="#ffffff"]');
-            if (!bgRect) {
-                bgRect = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
-                bgRect.setAttribute("fill", "#ffffff");
-                svg.insertBefore(bgRect, svg.firstChild);
-            }
-            bgRect.setAttribute("width", "100%");
-            bgRect.setAttribute("height", "100%"); // This relies on the SVG scaling to the viewBox? 
-            // Better to use explicit coordinates matching viewBox for safety in SVGs
-            bgRect.setAttribute("x", vx);
-            bgRect.setAttribute("y", vy);
-            bgRect.setAttribute("width", vw);
-            bgRect.setAttribute("height", newVh);
-
-            // Create text element
-            const text = doc.createElementNS("http://www.w3.org/2000/svg", "text");
-            text.setAttribute("x", vw / 2);
-            // Position text in the middle of the newly added space
-            text.setAttribute("y", vh + (textSpace / 1.5));
-            text.setAttribute("text-anchor", "middle");
-            text.setAttribute("font-family", "Arial, sans-serif");
-            // Scale font size based on QR width to ensure readability relative to QR size
-            text.setAttribute("font-size", `${vw * 0.06}`);
-            text.setAttribute("font-weight", "bold");
-            text.setAttribute("fill", "#000000");
-            text.textContent = `Salon Code: ${salon.salonCode || 'N/A'}`;
-
-            svg.appendChild(text);
-
-            // Serialize back to string
-            const serializer = new XMLSerializer();
-            const newSvgString = serializer.serializeToString(svg);
-
-            // Create Blob and Download
-            const blob = new Blob([newSvgString], { type: "image/svg+xml;charset=utf-8" });
+            const svgString = await generateQRSVG(salon);
+            const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
             saveAs(blob, `${salon.name.replace(/\s+/g, '_')}-qr.svg`);
-
         } catch (err) {
             console.error('Error generating QR', err);
             alert('Failed to generate QR');
         }
-    };
-
-    const generateQRImage = async (salon) => {
-        const baseUrl = 'https://www.portal.fadnals.lk';
-        const qrUrl = `${baseUrl}/order/${salon.uniqueId}`;
-        const qrDataUrl = await QRCode.toDataURL(qrUrl, { width: 300, margin: 2 });
-
-        return new Promise((resolve) => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const img = new Image();
-
-            img.onload = () => {
-                canvas.width = img.width;
-                canvas.height = img.width + 40; // Reduced space, removed name
-
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0);
-
-                ctx.font = 'bold 24px Arial'; // Slightly larger for code
-                ctx.fillStyle = '#000000';
-                ctx.textAlign = 'center';
-                // ctx.fillText(`${salon.name}`, canvas.width / 2, img.height + 20); // Removed Name
-                ctx.fillText(`Code: ${salon.salonCode}`, canvas.width / 2, img.height + 30);
-
-                resolve(canvas.toDataURL('image/png'));
-            };
-            img.src = qrDataUrl;
-        });
     };
 
     const handleBatchPrint = async (salonsToPrint) => {
@@ -349,16 +306,19 @@ const AdminDashboard = () => {
 
         const printWindow = window.open('', '_blank');
         printWindow.document.write('<html><head><title>Print QR Codes</title>');
-        printWindow.document.write('<style>body{font-family: Arial, sans-serif; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;} .qr-card{border: 1px solid #ccc; padding: 10px; text-align: center; page-break-inside: avoid; width: 200px;} img{width: 100%;} @media print { .no-print { display: none; } }</style>');
+        printWindow.document.write('<style>body{font-family: Arial, sans-serif; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;} .qr-card{border: 1px solid #ccc; padding: 10px; text-align: center; page-break-inside: avoid; width: 200px;} svg{width: 100%; height: auto;} @media print { .no-print { display: none; } }</style>');
         printWindow.document.write('</head><body>');
         printWindow.document.write('<div class="no-print" style="width: 100%; text-align: center; margin-bottom: 20px;"><button onclick="window.print()" style="padding: 10px 20px; font-size: 16px;">PRINT NOW</button></div>');
 
         for (const salon of salonsToPrint) {
             try {
-                const imgData = await generateQRImage(salon);
+                const svgString = await generateQRSVG(salon);
+                // Encode SVG to base64 to ensure it renders reliably in some contexts, or just embed raw SVG
+                // Embedding raw SVG is better for vectors.
                 printWindow.document.write(`
                     <div class="qr-card">
-                        <img src="${imgData}" />
+                        ${svgString}
+                        <div style="margin-top:5px; font-weight:bold;">${salon.name}</div>
                     </div>
                 `);
             } catch (e) {
@@ -376,10 +336,12 @@ const AdminDashboard = () => {
         const zip = new JSZip();
 
         for (const salon of salonsToDownload) {
-            const imgData = await generateQRImage(salon);
-            // new JSZip().file needs base64 without prefix
-            const base64Data = imgData.replace(/^data:image\/(png|jpg);base64,/, "");
-            zip.file(`${salon.name.replace(/\s+/g, '_')}_${salon.salonCode}.png`, base64Data, { base64: true });
+            try {
+                const svgString = await generateQRSVG(salon);
+                zip.file(`${salon.name.replace(/\s+/g, '_')}_${salon.salonCode}.svg`, svgString);
+            } catch (err) {
+                console.error("Error generating SVG for zip", err);
+            }
         }
 
         zip.generateAsync({ type: "blob" })
