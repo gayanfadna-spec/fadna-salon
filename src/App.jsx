@@ -8,6 +8,7 @@ import SalonDashboard from './pages/SalonDashboard';
 import PaymentResult from './pages/PaymentResult';
 import AdminForgotPasswordPage from './pages/AdminForgotPasswordPage';
 import AdminResetPasswordPage from './pages/AdminResetPasswordPage';
+import SalesmanDashboard from './pages/SalesmanDashboard';
 import './index.css';
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
           <Route path="/admin-login" element={<LoginPage />} /> {/* Keep for backward compat within session if needed, or redirect */}
 
           <Route path="/salon-dashboard" element={<SalonDashboard />} />
+          <Route path="/salon-register" element={<SalesmanDashboard />} />
           <Route path="/admin/forgot-password" element={<AdminForgotPasswordPage />} />
           <Route path="/admin/reset-password/:resetToken" element={<AdminResetPasswordPage />} />
           <Route path="/" element={<AdminDashboard />} />

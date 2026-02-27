@@ -10,7 +10,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onre
 const AdminDashboard = () => {
     const [salons, setSalons] = useState([]);
     const [orders, setOrders] = useState([]);
-    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber: '' });
+    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
     const [qrCode, setQrCode] = useState(null);
     const [newCredentials, setNewCredentials] = useState(null);
     const [activeTab, setActiveTab] = useState('orders'); // 'orders', 'salons', 'monitor'
@@ -23,6 +23,7 @@ const AdminDashboard = () => {
         }
     }, [navigate]);
     const [editingSalonId, setEditingSalonId] = useState(null);
+    const [expandedSalonId, setExpandedSalonId] = useState(null);
     const [salonPerformance, setSalonPerformance] = useState([]);
     const [itemPerformance, setItemPerformance] = useState([]);
     const [products, setProducts] = useState([]);
@@ -30,6 +31,9 @@ const AdminDashboard = () => {
     const [editingProductId, setEditingProductId] = useState(null);
     const [selectedSalonId, setSelectedSalonId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [newAccount, setNewAccount] = useState({ username: '', password: '' });
+    const [accounts, setAccounts] = useState([]);
+    const [editingAccountId, setEditingAccountId] = useState(null);
 
     const fetchOrders = React.useCallback(async () => {
         try {
@@ -84,6 +88,21 @@ const AdminDashboard = () => {
         fetchSalons();
     }, [fetchSalons]);
 
+    const fetchAccounts = React.useCallback(async () => {
+        try {
+            const res = await axios.get(`${API_URL}/auth/accounts`);
+            if (res.data.success) setAccounts(res.data.accounts);
+        } catch (err) {
+            console.error('Error fetching accounts:', err);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (activeTab === 'accounts') {
+            fetchAccounts();
+        }
+    }, [activeTab, fetchAccounts]);
+
     const handleProductSubmit = async (e) => {
         e.preventDefault();
         try {
@@ -132,7 +151,7 @@ const AdminDashboard = () => {
             const res = await axios.post(`${API_URL}/salons`, newSalon);
             if (res.data.success) {
                 setQrCode(res.data.qrCode);
-                setNewSalon({ name: '', location: '', contactNumber: '' });
+                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
                 fetchSalons();
 
                 // Set Credentials for display
@@ -162,8 +181,11 @@ const AdminDashboard = () => {
     const handleEditClick = (salon) => {
         setNewSalon({
             name: salon.name,
-            location: salon.location,
-            contactNumber: salon.contactNumber
+            location: salon.location || '',
+            contactNumber1: salon.contactNumber1 || salon.contactNumber || '',
+            contactNumber2: salon.contactNumber2 || '',
+            remark: salon.remark || '',
+            accountDetails: salon.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' }
         });
         setEditingSalonId(salon._id);
         setEditingSalonId(salon._id);
@@ -177,9 +199,13 @@ const AdminDashboard = () => {
     const handleUpdateSalon = async (e) => {
         e.preventDefault();
         try {
-            const res = await axios.put(`${API_URL}/salons/${editingSalonId}`, newSalon);
+            const role = localStorage.getItem('adminRole');
+            const username = localStorage.getItem('loggedInUsername');
+            const editedByValue = role === 'admin' ? 'admin' : username;
+            const payload = { ...newSalon, editedBy: editedByValue };
+            const res = await axios.put(`${API_URL}/salons/${editingSalonId}`, payload);
             if (res.data.success) {
-                setNewSalon({ name: '', location: '', contactNumber: '' });
+                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
                 setEditingSalonId(null);
                 fetchSalons();
                 alert('Salon Updated Successfully!');
@@ -191,7 +217,7 @@ const AdminDashboard = () => {
     };
 
     const handleCancelEdit = () => {
-        setNewSalon({ name: '', location: '', contactNumber: '' });
+        setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
         setEditingSalonId(null);
     };
 
@@ -427,6 +453,13 @@ const AdminDashboard = () => {
                             Monitor
                         </button>
                         <button
+                            className={`btn-primary nav-btn ${activeTab === 'accounts' ? '' : 'outline'}`}
+                            style={{ opacity: activeTab === 'accounts' ? 1 : 0.7 }}
+                            onClick={() => setActiveTab('accounts')}
+                        >
+                            Accounts
+                        </button>
+                        <button
                             onClick={() => {
                                 localStorage.removeItem('adminUser');
                                 navigate('/admin-login');
@@ -578,25 +611,20 @@ const AdminDashboard = () => {
                         <section className="glass-container">
                             <h2>{editingSalonId ? 'Edit Salon' : 'Create New Salon'}</h2>
                             <form onSubmit={editingSalonId ? handleUpdateSalon : handleCreateSalon}>
-                                <input
-                                    type="text"
-                                    placeholder="Salon Name"
-                                    value={newSalon.name}
-                                    onChange={(e) => setNewSalon({ ...newSalon, name: e.target.value })}
-                                    required
-                                />
-                                <input
-                                    type="text"
-                                    placeholder="Location"
-                                    value={newSalon.location}
-                                    onChange={(e) => setNewSalon({ ...newSalon, location: e.target.value })}
-                                />
-                                <input
-                                    type="text"
-                                    placeholder="Contact Number"
-                                    value={newSalon.contactNumber}
-                                    onChange={(e) => setNewSalon({ ...newSalon, contactNumber: e.target.value })}
-                                />
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <input type="text" placeholder="Salon Name *" value={newSalon.name} onChange={(e) => setNewSalon({ ...newSalon, name: e.target.value })} required />
+                                    <input type="text" placeholder="Location" value={newSalon.location} onChange={(e) => setNewSalon({ ...newSalon, location: e.target.value })} />
+                                    <input type="text" placeholder="Contact Number 1" value={newSalon.contactNumber1} onChange={(e) => setNewSalon({ ...newSalon, contactNumber1: e.target.value })} />
+                                    <input type="text" placeholder="Contact Number 2" value={newSalon.contactNumber2} onChange={(e) => setNewSalon({ ...newSalon, contactNumber2: e.target.value })} />
+                                    <input type="text" placeholder="Remark" value={newSalon.remark} onChange={(e) => setNewSalon({ ...newSalon, remark: e.target.value })} style={{ gridColumn: '1 / -1' }} />
+                                </div>
+                                <h3 style={{ marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Account Details</h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                                    <input type="text" placeholder="Bank Name" value={newSalon.accountDetails.bankName} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, bankName: e.target.value } })} />
+                                    <input type="text" placeholder="Branch" value={newSalon.accountDetails.branch} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, branch: e.target.value } })} />
+                                    <input type="text" placeholder="Account Number" value={newSalon.accountDetails.accountNumber} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, accountNumber: e.target.value } })} />
+                                    <input type="text" placeholder="Account Name" value={newSalon.accountDetails.accountName} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, accountName: e.target.value } })} />
+                                </div>
                                 <button type="submit" className="btn-primary" style={{ width: '100%', marginBottom: editingSalonId ? '0.5rem' : '0' }}>
                                     {editingSalonId ? 'Update Salon' : 'Generate QR Code'}
                                 </button>
@@ -844,7 +872,32 @@ const AdminDashboard = () => {
                                                         </div>
                                                     </div>
 
+                                                    {expandedSalonId === salon._id && (
+                                                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', marginTop: '1rem', fontSize: '0.85rem' }}>
+                                                            <p style={{ margin: '0.2rem 0' }}><strong>Contact 1:</strong> {salon.contactNumber1 || salon.contactNumber || 'N/A'}</p>
+                                                            <p style={{ margin: '0.2rem 0' }}><strong>Contact 2:</strong> {salon.contactNumber2 || 'N/A'}</p>
+                                                            <p style={{ margin: '0.2rem 0' }}><strong>Remark:</strong> {salon.remark || 'N/A'}</p>
+                                                            <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                                                                <p style={{ margin: '0.2rem 0' }}><strong>Bank:</strong> {salon.accountDetails?.bankName || 'N/A'}</p>
+                                                                <p style={{ margin: '0.2rem 0' }}><strong>Branch:</strong> {salon.accountDetails?.branch || 'N/A'}</p>
+                                                                <p style={{ margin: '0.2rem 0' }}><strong>Account No:</strong> {salon.accountDetails?.accountNumber || 'N/A'}</p>
+                                                                <p style={{ margin: '0.2rem 0' }}><strong>Account Name:</strong> {salon.accountDetails?.accountName || 'N/A'}</p>
+                                                            </div>
+                                                            <p style={{ margin: '0.2rem 0', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                                                                <strong>Last Edited By:</strong> {salon.editedBy || 'N/A'}
+                                                            </p>
+                                                        </div>
+                                                    )}
+
                                                     <div className="card-actions">
+                                                        <button
+                                                            onClick={() => setExpandedSalonId(expandedSalonId === salon._id ? null : salon._id)}
+                                                            className="icon-btn info"
+                                                            title="Toggle Details"
+                                                            style={{ border: '1px solid rgba(255,255,255,0.2)' }}
+                                                        >
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                                                        </button>
                                                         <button
                                                             onClick={() => handleDownloadQR(salon)}
                                                             className="icon-btn success"
@@ -1065,6 +1118,142 @@ const AdminDashboard = () => {
                     </div>
                 )
             }
+
+            {activeTab === 'accounts' && (
+                <section className="glass-container">
+                    <h2>Account Management</h2>
+                    <div style={{ marginBottom: '2rem', background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '1rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h3 style={{ margin: 0 }}>{editingAccountId ? 'Edit Account' : 'Create Salesman Account'}</h3>
+                            {editingAccountId && (
+                                <button onClick={() => {
+                                    setEditingAccountId(null);
+                                    setNewAccount({ username: '', password: '' });
+                                }} className="btn-primary outline" style={{ padding: '0.4rem 1rem' }}>Cancel Edit</button>
+                            )}
+                        </div>
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            try {
+                                if (editingAccountId) {
+                                    // Prepare payload: only send password if it's not empty
+                                    const payload = { username: newAccount.username };
+                                    if (newAccount.password) {
+                                        payload.password = newAccount.password;
+                                    }
+                                    const res = await axios.put(`${API_URL}/auth/accounts/${editingAccountId}`, payload);
+                                    if (res.data.success) {
+                                        alert('Account Updated Successfully');
+                                        setNewAccount({ username: '', password: '' });
+                                        setEditingAccountId(null);
+                                        fetchAccounts();
+                                    }
+                                } else {
+                                    const res = await axios.post(`${API_URL}/auth/salesman`, newAccount);
+                                    if (res.data.success) {
+                                        alert('Salesman Account Created Successfully');
+                                        setNewAccount({ username: '', password: '' });
+                                        fetchAccounts();
+                                    }
+                                }
+                            } catch (err) {
+                                alert(err.response?.data?.error || 'Error saving account');
+                            }
+                        }}>
+                            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                                <input
+                                    type="text"
+                                    placeholder="Username"
+                                    value={newAccount.username}
+                                    onChange={(e) => setNewAccount({ ...newAccount, username: e.target.value })}
+                                    required
+                                    style={{ flex: 1 }}
+                                />
+                                <input
+                                    type="text"
+                                    placeholder={editingAccountId ? "New Password (leave blank to keep current)" : "Password"}
+                                    value={newAccount.password}
+                                    onChange={(e) => setNewAccount({ ...newAccount, password: e.target.value })}
+                                    required={!editingAccountId}
+                                    style={{ flex: 1 }}
+                                />
+                            </div>
+                            <button type="submit" className="btn-primary" style={{ width: '100%' }}>
+                                {editingAccountId ? 'Update Account' : 'Create Account'}
+                            </button>
+                        </form>
+                    </div>
+
+                    <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '1rem' }}>
+                        <h3>Current Accounts</h3>
+                        <div className="table-container" style={{ marginTop: '1rem' }}>
+                            <table className="styled-table">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Role</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {accounts.map(acc => (
+                                        <tr key={acc._id}>
+                                            <td style={{ fontWeight: 'bold' }}>{acc.username}</td>
+                                            <td>
+                                                <span className={`status-badge ${acc.role === 'admin' ? 'completed' : 'processing'}`} style={{ textTransform: 'capitalize' }}>
+                                                    {acc.role}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                    <button
+                                                        onClick={() => {
+                                                            setEditingAccountId(acc._id);
+                                                            setNewAccount({ username: acc.username, password: '' });
+                                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                        }}
+                                                        className="icon-btn primary"
+                                                        title="Edit Account"
+                                                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    {acc.role !== 'admin' && (
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (window.confirm('Are you sure you want to delete this account?')) {
+                                                                    try {
+                                                                        const res = await axios.delete(`${API_URL}/auth/accounts/${acc._id}`);
+                                                                        if (res.data.success) {
+                                                                            fetchAccounts();
+                                                                        }
+                                                                    } catch (err) {
+                                                                        alert('Error deleting account');
+                                                                    }
+                                                                }
+                                                            }}
+                                                            className="icon-btn danger"
+                                                            title="Delete Account"
+                                                            style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {accounts.length === 0 && (
+                                        <tr>
+                                            <td colSpan="3" style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>No accounts found.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            )}
 
         </div >
     );

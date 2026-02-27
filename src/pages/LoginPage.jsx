@@ -5,7 +5,7 @@ import { useNavigate, Link } from 'react-router-dom';
 const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onrender.com/api';
 
 const LoginPage = () => {
-    const [loginType, setLoginType] = useState('salon'); // 'salon' or 'admin'
+    const [loginType, setLoginType] = useState('salon'); // 'salon', 'Salesman', or 'admin'
     const [formData, setFormData] = useState({ username: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -30,9 +30,20 @@ const LoginPage = () => {
             } else {
                 const res = await axios.post(`${API_URL}/auth/login`, formData);
                 if (res.data.success) {
-                    localStorage.setItem('adminUser', 'true');
                     localStorage.setItem('adminToken', res.data.token);
-                    navigate('/admin');
+                    localStorage.setItem('adminRole', res.data.role);
+                    // Store the username for the 'Edited By' feature
+                    if (res.data.username) {
+                        localStorage.setItem('loggedInUsername', res.data.username);
+                    }
+
+                    if (res.data.role === 'admin') {
+                        localStorage.setItem('adminUser', 'true');
+                        navigate('/admin');
+                    } else {
+                        localStorage.setItem('salesmanUser', 'true');
+                        navigate('/salon-register');
+                    }
                 }
             }
         } catch (err) {
@@ -67,6 +78,21 @@ const LoginPage = () => {
                         Salon
                     </button>
                     <button
+                        onClick={() => { setLoginType('salesman'); setError(''); setFormData({ username: '', password: '' }); }}
+                        style={{
+                            background: loginType === 'salesman' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            padding: '0.5rem 1.5rem',
+                            borderRadius: '20px',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontWeight: loginType === 'salesman' ? 'bold' : 'normal',
+                            transition: 'all 0.3s ease'
+                        }}
+                    >
+                        Manager
+                    </button>
+                    <button
                         onClick={() => { setLoginType('admin'); setError(''); setFormData({ username: '', password: '' }); }}
                         style={{
                             background: loginType === 'admin' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
@@ -84,7 +110,7 @@ const LoginPage = () => {
                 </div>
 
                 <h1 style={{ textAlign: 'center', marginBottom: '2rem', fontSize: '1.8rem' }}>
-                    {loginType === 'salon' ? 'Salon Portal' : 'Admin Portal'}
+                    {loginType === 'salon' ? 'Salon Portal' : loginType === 'salesman' ? 'Manager Portal' : 'Admin Portal'}
                 </h1>
 
                 {error && (
