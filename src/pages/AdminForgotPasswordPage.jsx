@@ -62,3 +62,6 @@ const AdminForgotPasswordPage = () => {
 };
 
 export default AdminForgotPasswordPage;
+
+
+

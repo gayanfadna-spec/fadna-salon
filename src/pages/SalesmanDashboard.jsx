@@ -7,7 +7,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onre
 
 const SalesmanDashboard = () => {
     const [salons, setSalons] = useState([]);
-    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
+    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, latitude: null, longitude: null });
     const [qrCode, setQrCode] = useState(null);
     const [newCredentials, setNewCredentials] = useState(null);
     const [createdSalon, setCreatedSalon] = useState(null);
@@ -15,7 +15,7 @@ const SalesmanDashboard = () => {
     const [editingSalonId, setEditingSalonId] = useState(null);
     const [expandedSalonId, setExpandedSalonId] = useState(null);
     const [showRegisterForm, setShowRegisterForm] = useState(false);
-    const [editFormData, setEditFormData] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
+    const [editFormData, setEditFormData] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, latitude: null, longitude: null });
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -41,7 +41,7 @@ const SalesmanDashboard = () => {
             const res = await axios.post(`${API_URL}/salons`, newSalon);
             if (res.data.success) {
                 setQrCode(res.data.qrCode);
-                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
+                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, latitude: null, longitude: null });
                 fetchSalons();
                 setNewCredentials(res.data.credentials);
                 setCreatedSalon(res.data.salon);
@@ -81,6 +81,27 @@ const SalesmanDashboard = () => {
         }
     };
 
+    const captureLocation = (isEdit = false) => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    if (isEdit) {
+                        setEditFormData(prev => ({ ...prev, latitude: position.coords.latitude, longitude: position.coords.longitude }));
+                    } else {
+                        setNewSalon(prev => ({ ...prev, latitude: position.coords.latitude, longitude: position.coords.longitude }));
+                    }
+                    alert('Location captured successfully!');
+                },
+                (error) => {
+                    console.error('Error fetching location:', error);
+                    alert('Could not capture location. Please ensure location services are enabled.');
+                }
+            );
+        } else {
+            alert('Geolocation is not supported by your browser.');
+        }
+    };
+
     const startEditing = (salon) => {
         setEditingSalonId(salon._id);
         setEditFormData({
@@ -89,7 +110,9 @@ const SalesmanDashboard = () => {
             contactNumber1: salon.contactNumber1 || salon.contactNumber || '',
             contactNumber2: salon.contactNumber2 || '',
             remark: salon.remark || '',
-            accountDetails: salon.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' }
+            accountDetails: salon.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' },
+            latitude: salon.latitude || null,
+            longitude: salon.longitude || null
         });
     };
 
@@ -127,7 +150,12 @@ const SalesmanDashboard = () => {
                             <form onSubmit={handleCreateSalon}>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <input type="text" placeholder="Salon Name *" value={newSalon.name} onChange={(e) => setNewSalon({ ...newSalon, name: e.target.value })} required />
-                                    <input type="text" placeholder="Location" value={newSalon.location} onChange={(e) => setNewSalon({ ...newSalon, location: e.target.value })} />
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <input type="text" placeholder="Location" value={newSalon.location} onChange={(e) => setNewSalon({ ...newSalon, location: e.target.value })} style={{ flex: 1 }} />
+                                        <button type="button" onClick={() => captureLocation(false)} className="btn-primary outline" style={{ padding: '0 1rem', whiteSpace: 'nowrap' }} title="Capture GPS Coordinates">
+                                            📍 Get GPS
+                                        </button>
+                                    </div>
                                     <input type="text" placeholder="Contact Number 1" value={newSalon.contactNumber1} onChange={(e) => setNewSalon({ ...newSalon, contactNumber1: e.target.value })} />
                                     <input type="text" placeholder="Contact Number 2" value={newSalon.contactNumber2} onChange={(e) => setNewSalon({ ...newSalon, contactNumber2: e.target.value })} />
                                     <input type="text" placeholder="Remark" value={newSalon.remark} onChange={(e) => setNewSalon({ ...newSalon, remark: e.target.value })} style={{ gridColumn: '1 / -1' }} />
@@ -187,7 +215,15 @@ const SalesmanDashboard = () => {
                         <form onSubmit={handleUpdateSalon}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                                 <div><label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Salon Name</label><input type="text" value={editFormData.name} onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} required /></div>
-                                <div><label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Location</label><input type="text" value={editFormData.location} onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })} required /></div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Location</label>
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <input type="text" value={editFormData.location} onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })} required style={{ flex: 1 }} />
+                                        <button type="button" onClick={() => captureLocation(true)} className="btn-primary outline" style={{ padding: '0 1rem', whiteSpace: 'nowrap' }} title="Capture GPS Coordinates">
+                                            📍 Get GPS
+                                        </button>
+                                    </div>
+                                </div>
                                 <div><label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Contact Number 1</label><input type="text" value={editFormData.contactNumber1} onChange={(e) => setEditFormData({ ...editFormData, contactNumber1: e.target.value })} /></div>
                                 <div><label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Contact Number 2</label><input type="text" value={editFormData.contactNumber2} onChange={(e) => setEditFormData({ ...editFormData, contactNumber2: e.target.value })} /></div>
                                 <div style={{ gridColumn: '1 / -1' }}><label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Remark</label><input type="text" value={editFormData.remark} onChange={(e) => setEditFormData({ ...editFormData, remark: e.target.value })} /></div>
@@ -295,8 +331,19 @@ const SalesmanDashboard = () => {
                                                                 <p style={{ margin: '0.2rem 0' }}><strong>Account Name:</strong> {salon.accountDetails?.accountName || 'N/A'}</p>
                                                             </div>
                                                         </div>
-                                                        <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: '0.9rem' }}>
+                                                        <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                             <p style={{ margin: '0.2rem 0' }}><strong>Last Edited By:</strong> {salon.editedBy || 'N/A'}</p>
+                                                            {salon.latitude && salon.longitude && (
+                                                                <a
+                                                                    href={`https://www.google.com/maps/dir/?api=1&destination=${salon.latitude},${salon.longitude}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="btn-primary"
+                                                                    style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#3b82f6', borderColor: '#3b82f6' }}
+                                                                >
+                                                                    📍 Get Directions
+                                                                </a>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
