@@ -10,7 +10,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onre
 const AdminDashboard = () => {
     const [salons, setSalons] = useState([]);
     const [orders, setOrders] = useState([]);
-    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, latitude: null, longitude: null });
+    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
     const [qrCode, setQrCode] = useState(null);
     const [newCredentials, setNewCredentials] = useState(null);
     const [activeTab, setActiveTab] = useState('orders'); // 'orders', 'salons', 'monitor'
@@ -145,30 +145,13 @@ const AdminDashboard = () => {
 
     const [createdSalon, setCreatedSalon] = useState(null);
 
-    const captureLocation = () => {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    setNewSalon(prev => ({ ...prev, latitude: position.coords.latitude, longitude: position.coords.longitude }));
-                    alert('Location captured successfully!');
-                },
-                (error) => {
-                    console.error('Error fetching location:', error);
-                    alert('Could not capture location. Please ensure location services are enabled.');
-                }
-            );
-        } else {
-            alert('Geolocation is not supported by your browser.');
-        }
-    };
-
     const handleCreateSalon = async (e) => {
         e.preventDefault();
         try {
             const res = await axios.post(`${API_URL}/salons`, newSalon);
             if (res.data.success) {
                 setQrCode(res.data.qrCode);
-                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, latitude: null, longitude: null });
+                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
                 fetchSalons();
 
                 // Set Credentials for display
@@ -202,9 +185,7 @@ const AdminDashboard = () => {
             contactNumber1: salon.contactNumber1 || salon.contactNumber || '',
             contactNumber2: salon.contactNumber2 || '',
             remark: salon.remark || '',
-            accountDetails: salon.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' },
-            latitude: salon.latitude || null,
-            longitude: salon.longitude || null
+            accountDetails: salon.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' }
         });
         setEditingSalonId(salon._id);
         setEditingSalonId(salon._id);
@@ -224,7 +205,7 @@ const AdminDashboard = () => {
             const payload = { ...newSalon, editedBy: editedByValue };
             const res = await axios.put(`${API_URL}/salons/${editingSalonId}`, payload);
             if (res.data.success) {
-                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, latitude: null, longitude: null });
+                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
                 setEditingSalonId(null);
                 fetchSalons();
                 alert('Salon Updated Successfully!');
@@ -236,7 +217,7 @@ const AdminDashboard = () => {
     };
 
     const handleCancelEdit = () => {
-        setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, latitude: null, longitude: null });
+        setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
         setEditingSalonId(null);
     };
 
@@ -632,12 +613,7 @@ const AdminDashboard = () => {
                             <form onSubmit={editingSalonId ? handleUpdateSalon : handleCreateSalon}>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <input type="text" placeholder="Salon Name *" value={newSalon.name} onChange={(e) => setNewSalon({ ...newSalon, name: e.target.value })} required />
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        <input type="text" placeholder="Location" value={newSalon.location} onChange={(e) => setNewSalon({ ...newSalon, location: e.target.value })} style={{ flex: 1 }} />
-                                        <button type="button" onClick={captureLocation} className="btn-primary outline" style={{ padding: '0 1rem', whiteSpace: 'nowrap' }} title="Capture GPS Coordinates">
-                                            📍 Get GPS
-                                        </button>
-                                    </div>
+                                    <input type="text" placeholder="Location" value={newSalon.location} onChange={(e) => setNewSalon({ ...newSalon, location: e.target.value })} />
                                     <input type="text" placeholder="Contact Number 1" value={newSalon.contactNumber1} onChange={(e) => setNewSalon({ ...newSalon, contactNumber1: e.target.value })} />
                                     <input type="text" placeholder="Contact Number 2" value={newSalon.contactNumber2} onChange={(e) => setNewSalon({ ...newSalon, contactNumber2: e.target.value })} />
                                     <input type="text" placeholder="Remark" value={newSalon.remark} onChange={(e) => setNewSalon({ ...newSalon, remark: e.target.value })} style={{ gridColumn: '1 / -1' }} />
@@ -907,19 +883,8 @@ const AdminDashboard = () => {
                                                                 <p style={{ margin: '0.2rem 0' }}><strong>Account No:</strong> {salon.accountDetails?.accountNumber || 'N/A'}</p>
                                                                 <p style={{ margin: '0.2rem 0' }}><strong>Account Name:</strong> {salon.accountDetails?.accountName || 'N/A'}</p>
                                                             </div>
-                                                            <p style={{ margin: '0.2rem 0', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                                <span><strong>Last Edited By:</strong> {salon.editedBy || 'N/A'}</span>
-                                                                {salon.latitude && salon.longitude && (
-                                                                    <a
-                                                                        href={`https://www.google.com/maps/dir/?api=1&destination=${salon.latitude},${salon.longitude}`}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        className="btn-primary"
-                                                                        style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#3b82f6', borderColor: '#3b82f6' }}
-                                                                    >
-                                                                        📍 Get Directions
-                                                                    </a>
-                                                                )}
+                                                            <p style={{ margin: '0.2rem 0', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                                                                <strong>Last Edited By:</strong> {salon.editedBy || 'N/A'}
                                                             </p>
                                                         </div>
                                                     )}

@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import QRCode from 'qrcode';
+import { LogOut, Plus, X, Search, Store, MapPin, Phone, MessageSquare, Building, Map, Hash, User, ShieldCheck, Download, Edit3, Eye, EyeOff, CheckCircle2, CreditCard } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onrender.com/api';
 
 const SalesmanDashboard = () => {
     const [salons, setSalons] = useState([]);
-    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, latitude: null, longitude: null });
+    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
     const [qrCode, setQrCode] = useState(null);
     const [newCredentials, setNewCredentials] = useState(null);
     const [createdSalon, setCreatedSalon] = useState(null);
@@ -15,7 +15,8 @@ const SalesmanDashboard = () => {
     const [editingSalonId, setEditingSalonId] = useState(null);
     const [expandedSalonId, setExpandedSalonId] = useState(null);
     const [showRegisterForm, setShowRegisterForm] = useState(false);
-    const [editFormData, setEditFormData] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, latitude: null, longitude: null });
+    const [editFormData, setEditFormData] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -37,11 +38,12 @@ const SalesmanDashboard = () => {
 
     const handleCreateSalon = async (e) => {
         e.preventDefault();
+        setIsSubmitting(true);
         try {
             const res = await axios.post(`${API_URL}/salons`, newSalon);
             if (res.data.success) {
                 setQrCode(res.data.qrCode);
-                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, latitude: null, longitude: null });
+                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
                 fetchSalons();
                 setNewCredentials(res.data.credentials);
                 setCreatedSalon(res.data.salon);
@@ -49,11 +51,12 @@ const SalesmanDashboard = () => {
         } catch (err) {
             alert('Error creating salon');
             console.error(err);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     const handleDownloadQR = async (salon) => {
-        // Simple download logic (could re-use SVG generation if needed, but for now just the basic data URL)
         const link = document.createElement('a');
         link.href = qrCode;
         link.download = `${salon.name.replace(/\s+/g, '_')}-qr.png`;
@@ -64,6 +67,7 @@ const SalesmanDashboard = () => {
 
     const handleUpdateSalon = async (e) => {
         e.preventDefault();
+        setIsSubmitting(true);
         try {
             const role = localStorage.getItem('adminRole');
             const username = localStorage.getItem('loggedInUsername');
@@ -78,27 +82,8 @@ const SalesmanDashboard = () => {
         } catch (err) {
             alert('Error updating salon');
             console.error(err);
-        }
-    };
-
-    const captureLocation = (isEdit = false) => {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    if (isEdit) {
-                        setEditFormData(prev => ({ ...prev, latitude: position.coords.latitude, longitude: position.coords.longitude }));
-                    } else {
-                        setNewSalon(prev => ({ ...prev, latitude: position.coords.latitude, longitude: position.coords.longitude }));
-                    }
-                    alert('Location captured successfully!');
-                },
-                (error) => {
-                    console.error('Error fetching location:', error);
-                    alert('Could not capture location. Please ensure location services are enabled.');
-                }
-            );
-        } else {
-            alert('Geolocation is not supported by your browser.');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -110,18 +95,26 @@ const SalesmanDashboard = () => {
             contactNumber1: salon.contactNumber1 || salon.contactNumber || '',
             contactNumber2: salon.contactNumber2 || '',
             remark: salon.remark || '',
-            accountDetails: salon.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' },
-            latitude: salon.latitude || null,
-            longitude: salon.longitude || null
+            accountDetails: salon.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' }
         });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const resetSuccessState = () => {
+        setQrCode(null);
+        setNewCredentials(null);
+        setCreatedSalon(null);
+        setShowRegisterForm(false);
     };
 
     return (
-        <div className="container animate-fade-in">
+        <div className="container animate-fade-in" style={{ paddingBottom: '4rem' }}>
             <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <img src="/Fadna New Logo.png" alt="Fadna Logo" className="site-logo" style={{ maxHeight: '40px' }} />
-                    <h1>Salon Register Page</h1>
+                    <img src="/Fadna New Logo.png" alt="Fadna Logo" className="site-logo" style={{ maxHeight: '45px', objectFit: 'contain' }} />
+                    <h1 style={{ margin: 0, fontSize: '1.8rem', background: 'linear-gradient(to right, #ec4899, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                        Salon Register
+                    </h1>
                 </div>
                 <button
                     onClick={() => {
@@ -130,228 +123,334 @@ const SalesmanDashboard = () => {
                         localStorage.removeItem('adminRole');
                         navigate('/login');
                     }}
-                    className="btn-primary outline"
-                    style={{ borderColor: '#ef4444', color: '#ef4444', padding: '0.5rem 1rem' }}
+                    className="btn-primary"
+                    style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}
                 >
-                    Log Out
+                    <LogOut size={16} /> Log Out
                 </button>
             </header>
 
-            <div className="admin-grid-vertical" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                <section className="glass-container">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showRegisterForm ? '1.5rem' : '0' }}>
-                        <h2 style={{ margin: 0 }}>Register New Salon</h2>
-                        <button onClick={() => setShowRegisterForm(!showRegisterForm)} className="btn-primary" style={{ padding: '0.4rem 1rem' }}>
-                            {showRegisterForm ? 'Close Form' : 'Add New Salon'}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                {/* Search Bar Section - Made Prominent */}
+                <section className="glass-container" style={{ padding: '1rem 2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{ position: 'relative', flex: 1 }}>
+                            <Search size={20} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                            <input
+                                type="text"
+                                placeholder="Search salons by name, code or location..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '1rem 1rem 1rem 3rem',
+                                    borderRadius: '12px',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    background: 'rgba(0,0,0,0.2)',
+                                    color: 'white',
+                                    fontSize: '1rem',
+                                    margin: 0,
+                                    outline: 'none',
+                                    transition: 'border-color 0.2s'
+                                }}
+                                onFocus={(e) => e.target.style.borderColor = 'var(--primary-color)'}
+                                onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                            />
+                        </div>
+                        <button
+                            onClick={() => {
+                                setShowRegisterForm(!showRegisterForm);
+                                setEditingSalonId(null);
+                                if (qrCode) resetSuccessState();
+                            }}
+                            className="btn-primary"
+                            style={{ padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap', borderRadius: '12px' }}
+                        >
+                            {showRegisterForm ? <X size={20} /> : <Plus size={20} />}
+                            {showRegisterForm ? 'Close Form' : 'Register New Salon'}
                         </button>
                     </div>
-                    {showRegisterForm && (
-                        <>
-                            <form onSubmit={handleCreateSalon}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <input type="text" placeholder="Salon Name *" value={newSalon.name} onChange={(e) => setNewSalon({ ...newSalon, name: e.target.value })} required />
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        <input type="text" placeholder="Location" value={newSalon.location} onChange={(e) => setNewSalon({ ...newSalon, location: e.target.value })} style={{ flex: 1 }} />
-                                        <button type="button" onClick={() => captureLocation(false)} className="btn-primary outline" style={{ padding: '0 1rem', whiteSpace: 'nowrap' }} title="Capture GPS Coordinates">
-                                            📍 Get GPS
-                                        </button>
-                                    </div>
-                                    <input type="text" placeholder="Contact Number 1" value={newSalon.contactNumber1} onChange={(e) => setNewSalon({ ...newSalon, contactNumber1: e.target.value })} />
-                                    <input type="text" placeholder="Contact Number 2" value={newSalon.contactNumber2} onChange={(e) => setNewSalon({ ...newSalon, contactNumber2: e.target.value })} />
-                                    <input type="text" placeholder="Remark" value={newSalon.remark} onChange={(e) => setNewSalon({ ...newSalon, remark: e.target.value })} style={{ gridColumn: '1 / -1' }} />
-                                </div>
-                                <h3 style={{ marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Account Details</h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-                                    <input type="text" placeholder="Bank Name" value={newSalon.accountDetails.bankName} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, bankName: e.target.value } })} />
-                                    <input type="text" placeholder="Branch" value={newSalon.accountDetails.branch} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, branch: e.target.value } })} />
-                                    <input type="text" placeholder="Account Number" value={newSalon.accountDetails.accountNumber} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, accountNumber: e.target.value } })} />
-                                    <input type="text" placeholder="Account Name" value={newSalon.accountDetails.accountName} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, accountName: e.target.value } })} />
-                                </div>
-                                <button type="submit" className="btn-primary" style={{ width: '100%' }}>
-                                    Generate QR Code
-                                </button>
-                            </form>
-
-                            {qrCode && (
-                                <div style={{ marginTop: '2rem', textAlign: 'center', background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '1rem' }}>
-                                    <h3>Salon Created Successfully!</h3>
-                                    <div style={{ marginBottom: '2rem' }}>
-                                        <img src={qrCode} alt="Salon QR" style={{ borderRadius: '8px', border: '5px solid white', maxWidth: '200px' }} />
-                                        <div style={{ marginTop: '1rem', fontSize: '1.2rem', fontWeight: 'bold', color: 'white' }}>
-                                            CODE: <span style={{ color: 'var(--secondary-color)' }}>{createdSalon?.salonCode}</span>
-                                        </div>
-                                        <button
-                                            onClick={() => handleDownloadQR(createdSalon)}
-                                            className="btn-primary"
-                                            style={{ display: 'inline-block', marginTop: '1rem', cursor: 'pointer' }}
-                                        >
-                                            Download QR
-                                        </button>
-                                    </div>
-
-                                    {newCredentials && (
-                                        <div style={{ textAlign: 'left', background: 'rgba(0,0,0,0.3)', padding: '1.5rem', borderRadius: '8px', border: '1px solid var(--secondary-color)' }}>
-                                            <h4 style={{ color: 'var(--secondary-color)', marginTop: 0 }}>IMPORTANT CREDENTIALS</h4>
-                                            <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.5rem 1rem', alignItems: 'center' }}>
-                                                <span style={{ fontWeight: 'bold' }}>Username:</span>
-                                                <code style={{ background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>{newCredentials.username}</code>
-                                                <span style={{ fontWeight: 'bold' }}>Password:</span>
-                                                <code style={{ background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>{newCredentials.password}</code>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </>
-                    )}
                 </section>
 
-                {editingSalonId && (
-                    <section className="glass-container animate-fade-in" style={{ border: '2px solid var(--secondary-color)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                            <h2 style={{ margin: 0 }}>Update Salon Details</h2>
-                            <button onClick={() => setEditingSalonId(null)} className="btn-primary outline" style={{ padding: '0.4rem 1rem' }}>Cancel</button>
+                {/* Create/Edit Form Context */}
+                {(showRegisterForm || editingSalonId) && !qrCode && (
+                    <section className="glass-container animate-fade-in" style={{ border: editingSalonId ? '2px solid var(--accent-color)' : '1px solid var(--glass-border)', position: 'relative', overflow: 'hidden' }}>
+                        <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: editingSalonId ? 'var(--accent-color)' : 'var(--primary-color)' }}></div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                            <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'white', background: 'none', WebkitTextFillColor: 'initial' }}>
+                                {editingSalonId ? <><Edit3 size={24} color="var(--accent-color)" /> Update Salon</> : <><Store size={24} color="var(--primary-color)" /> Register Salon</>}
+                            </h2>
+                            {editingSalonId && (
+                                <button onClick={() => setEditingSalonId(null)} className="icon-btn danger" style={{ background: 'rgba(239,68,68,0.1)', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <X size={16} /> Cancel
+                                </button>
+                            )}
                         </div>
-                        <form onSubmit={handleUpdateSalon}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                                <div><label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Salon Name</label><input type="text" value={editFormData.name} onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} required /></div>
-                                <div>
-                                    <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Location</label>
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        <input type="text" value={editFormData.location} onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })} required style={{ flex: 1 }} />
-                                        <button type="button" onClick={() => captureLocation(true)} className="btn-primary outline" style={{ padding: '0 1rem', whiteSpace: 'nowrap' }} title="Capture GPS Coordinates">
-                                            📍 Get GPS
-                                        </button>
+
+                        <form onSubmit={editingSalonId ? handleUpdateSalon : handleCreateSalon}>
+                            {/* Group 1: Basic Information */}
+                            <div style={{ background: 'rgba(0,0,0,0.15)', padding: '1.5rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
+                                <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', background: 'none', WebkitTextFillColor: 'initial' }}>
+                                    <Store size={18} /> Basic Information
+                                </h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Salon Name <span style={{ color: '#ef4444' }}>*</span></label>
+                                        <div style={{ position: 'relative' }}>
+                                            <Store size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="e.g. Dream Style Salon" value={editingSalonId ? editFormData.name : newSalon.name} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, name: e.target.value }) : setNewSalon({ ...newSalon, name: e.target.value })} required style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Location / City <span style={{ color: '#ef4444' }}>*</span></label>
+                                        <div style={{ position: 'relative' }}>
+                                            <MapPin size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="e.g. Colombo 03" value={editingSalonId ? editFormData.location : newSalon.location} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, location: e.target.value }) : setNewSalon({ ...newSalon, location: e.target.value })} required style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Primary Contact No.</label>
+                                        <div style={{ position: 'relative' }}>
+                                            <Phone size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="e.g. 077 123 4567" value={editingSalonId ? editFormData.contactNumber1 : newSalon.contactNumber1} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, contactNumber1: e.target.value }) : setNewSalon({ ...newSalon, contactNumber1: e.target.value })} style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Secondary Contact No.</label>
+                                        <div style={{ position: 'relative' }}>
+                                            <Phone size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="Optional" value={editingSalonId ? editFormData.contactNumber2 : newSalon.contactNumber2} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, contactNumber2: e.target.value }) : setNewSalon({ ...newSalon, contactNumber2: e.target.value })} style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                        </div>
+                                    </div>
+                                    <div style={{ gridColumn: '1 / -1' }}>
+                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Remarks / Notes</label>
+                                        <div style={{ position: 'relative' }}>
+                                            <MessageSquare size={18} style={{ position: 'absolute', left: '1rem', top: '1rem', color: '#64748b' }} />
+                                            <textarea
+                                                placeholder="Any additional information..."
+                                                value={editingSalonId ? editFormData.remark : newSalon.remark}
+                                                onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, remark: e.target.value }) : setNewSalon({ ...newSalon, remark: e.target.value })}
+                                                style={{
+                                                    width: '100%', padding: '1rem 1rem 1rem 2.5rem', borderRadius: '8px',
+                                                    border: '1px solid var(--glass-border)', background: 'rgba(255, 255, 255, 0.05)',
+                                                    color: 'white', minHeight: '80px', fontFamily: 'inherit', resize: 'vertical'
+                                                }}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
-                                <div><label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Contact Number 1</label><input type="text" value={editFormData.contactNumber1} onChange={(e) => setEditFormData({ ...editFormData, contactNumber1: e.target.value })} /></div>
-                                <div><label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Contact Number 2</label><input type="text" value={editFormData.contactNumber2} onChange={(e) => setEditFormData({ ...editFormData, contactNumber2: e.target.value })} /></div>
-                                <div style={{ gridColumn: '1 / -1' }}><label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Remark</label><input type="text" value={editFormData.remark} onChange={(e) => setEditFormData({ ...editFormData, remark: e.target.value })} /></div>
                             </div>
-                            <h3 style={{ marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Account Details</h3>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-                                <div><label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Bank Name</label><input type="text" value={editFormData.accountDetails.bankName} onChange={(e) => setEditFormData({ ...editFormData, accountDetails: { ...editFormData.accountDetails, bankName: e.target.value } })} /></div>
-                                <div><label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Branch</label><input type="text" value={editFormData.accountDetails.branch} onChange={(e) => setEditFormData({ ...editFormData, accountDetails: { ...editFormData.accountDetails, branch: e.target.value } })} /></div>
-                                <div><label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Account Number</label><input type="text" value={editFormData.accountDetails.accountNumber} onChange={(e) => setEditFormData({ ...editFormData, accountDetails: { ...editFormData.accountDetails, accountNumber: e.target.value } })} /></div>
-                                <div><label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Account Name</label><input type="text" value={editFormData.accountDetails.accountName} onChange={(e) => setEditFormData({ ...editFormData, accountDetails: { ...editFormData.accountDetails, accountName: e.target.value } })} /></div>
+
+                            {/* Group 2: Account Details */}
+                            <div style={{ background: 'rgba(0,0,0,0.15)', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem' }}>
+                                <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', background: 'none', WebkitTextFillColor: 'initial' }}>
+                                    <CreditCard size={18} /> Financial Details
+                                </h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem' }}>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Bank Name</label>
+                                        <div style={{ position: 'relative' }}>
+                                            <Building size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="e.g. Commercial Bank" value={editingSalonId ? editFormData.accountDetails.bankName : newSalon.accountDetails.bankName} onChange={(e) => { const path = editingSalonId ? setEditFormData : setNewSalon; const data = editingSalonId ? editFormData : newSalon; path({ ...data, accountDetails: { ...data.accountDetails, bankName: e.target.value } }) }} style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Branch</label>
+                                        <div style={{ position: 'relative' }}>
+                                            <Map size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="e.g. Colombo 03" value={editingSalonId ? editFormData.accountDetails.branch : newSalon.accountDetails.branch} onChange={(e) => { const path = editingSalonId ? setEditFormData : setNewSalon; const data = editingSalonId ? editFormData : newSalon; path({ ...data, accountDetails: { ...data.accountDetails, branch: e.target.value } }) }} style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Account Number</label>
+                                        <div style={{ position: 'relative' }}>
+                                            <Hash size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="..." value={editingSalonId ? editFormData.accountDetails.accountNumber : newSalon.accountDetails.accountNumber} onChange={(e) => { const path = editingSalonId ? setEditFormData : setNewSalon; const data = editingSalonId ? editFormData : newSalon; path({ ...data, accountDetails: { ...data.accountDetails, accountNumber: e.target.value } }) }} style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Account Name</label>
+                                        <div style={{ position: 'relative' }}>
+                                            <User size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="e.g. John Doe" value={editingSalonId ? editFormData.accountDetails.accountName : newSalon.accountDetails.accountName} onChange={(e) => { const path = editingSalonId ? setEditFormData : setNewSalon; const data = editingSalonId ? editFormData : newSalon; path({ ...data, accountDetails: { ...data.accountDetails, accountName: e.target.value } }) }} style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <button type="submit" className="btn-primary" style={{ width: '100%' }}>
-                                Save Changes
-                            </button>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                                {editingSalonId && (
+                                    <button type="button" onClick={() => setEditingSalonId(null)} className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)' }}>Cancel</button>
+                                )}
+                                <button type="submit" className="btn-primary" disabled={isSubmitting} style={{
+                                    padding: '1rem 2rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                    opacity: isSubmitting ? 0.7 : 1, width: editingSalonId ? 'auto' : '100%', justifyContent: 'center'
+                                }}>
+                                    {isSubmitting ? (
+                                        <span>Saving...</span>
+                                    ) : (
+                                        editingSalonId ? <><ShieldCheck size={20} /> Save Changes</> : <><CheckCircle2 size={24} /> Register Salon & Generate QR</>
+                                    )}
+                                </button>
+                            </div>
                         </form>
                     </section>
                 )}
 
-                <section className="glass-container">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                        <h2 style={{ margin: 0 }}>Your Registered Salons</h2>
-                        <div style={{ display: 'flex', gap: '0.5rem', width: '300px' }}>
-                            <input
-                                type="text"
-                                placeholder="Search by name or code..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                style={{
-                                    padding: '0.6rem 1rem',
-                                    borderRadius: '8px 0 0 8px',
-                                    border: '1px solid rgba(255,255,255,0.1)',
-                                    background: 'rgba(255,255,255,0.05)',
-                                    color: 'white',
-                                    margin: 0,
-                                    flex: 1
-                                }}
-                            />
-                            <button
-                                className="btn-primary"
-                                style={{
-                                    borderRadius: '0 8px 8px 0',
-                                    padding: '0.6rem 1.2rem',
-                                    border: 'none',
-                                    fontSize: '0.9rem'
-                                }}
-                            >
-                                Search
+                {/* Success View for Registration */}
+                {qrCode && (
+                    <section className="glass-container animate-fade-in" style={{
+                        border: '2px solid #4ade80', background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(0,0,0,0.4))',
+                        textAlign: 'center', position: 'relative', overflow: 'hidden'
+                    }}>
+                        <div style={{ position: 'absolute', top: '-50px', right: '-50px', width: '200px', height: '200px', background: 'radial-gradient(circle, rgba(74,222,128,0.2) 0%, transparent 70%)', pointerEvents: 'none' }}></div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', position: 'relative', zIndex: 1 }}>
+                            <div style={{ background: 'rgba(74,222,128,0.2)', padding: '1rem', borderRadius: '50%', display: 'inline-flex', marginBottom: '-1rem' }}>
+                                <CheckCircle2 size={48} color="#4ade80" />
+                            </div>
+                            <h2 style={{ color: '#4ade80', margin: 0, textShadow: '0 2px 10px rgba(0,0,0,0.5)', WebkitTextFillColor: 'initial', background: 'none' }}>
+                                Salon Registered Successfully!
+                            </h2>
+                            <p style={{ color: '#cbd5e1', fontSize: '1.1rem', margin: 0 }}>The salon has been added and credentials generated.</p>
+
+                            <div style={{ background: 'white', padding: '1rem', borderRadius: '16px', display: 'inline-block', marginTop: '1rem', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+                                <img src={qrCode} alt="Salon QR" style={{ width: '200px', height: '200px', display: 'block' }} />
+                            </div>
+
+                            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'white', letterSpacing: '2px', background: 'transparent', border: '1px dashed rgba(255,255,255,0.3)', padding: '0.75rem 2rem', borderRadius: '8px' }}>
+                                CODE: <span style={{ color: '#4ade80' }}>{createdSalon?.salonCode}</span>
+                            </div>
+
+                            <button onClick={() => handleDownloadQR(createdSalon)} className="btn-primary" style={{ background: '#4ade80', color: '#064e3b', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1.5rem', fontWeight: 'bold' }}>
+                                <Download size={20} /> Download QR Image
+                            </button>
+
+                            {newCredentials && (
+                                <div style={{ background: 'rgba(0,0,0,0.5)', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', width: '100%', maxWidth: '500px', marginTop: '1rem', textAlign: 'left' }}>
+                                    <h4 style={{ color: '#e2e8f0', margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
+                                        <ShieldCheck size={20} color="#4ade80" /> Important Credentials
+                                    </h4>
+                                    <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '1rem', alignItems: 'center' }}>
+                                        <span style={{ color: '#94a3b8', fontWeight: '500' }}>Username:</span>
+                                        <code style={{ background: 'rgba(0,0,0,0.5)', padding: '0.5rem 1rem', borderRadius: '6px', color: '#f8fafc', fontSize: '1.1rem', letterSpacing: '1px', border: '1px solid rgba(255,255,255,0.1)' }}>{newCredentials.username}</code>
+
+                                        <span style={{ color: '#94a3b8', fontWeight: '500' }}>Password:</span>
+                                        <code style={{ background: 'rgba(0,0,0,0.5)', padding: '0.5rem 1rem', borderRadius: '6px', color: '#f8fafc', fontSize: '1.1rem', letterSpacing: '1px', border: '1px solid rgba(255,255,255,0.1)' }}>{newCredentials.password}</code>
+                                    </div>
+                                    <p style={{ color: '#fbbf24', fontSize: '0.85rem', margin: '1rem 0 0 0', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                        ⚠️ Please securely share these details with the salon.
+                                    </p>
+                                </div>
+                            )}
+
+                            <button onClick={resetSuccessState} className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', marginTop: '1rem' }}>
+                                Done & Return
                             </button>
                         </div>
-                    </div>
-                    <div className="table-container">
-                        <table className="styled-table">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Name</th>
-                                    <th>Location</th>
-                                    <th>Code</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {salons
-                                    .filter(salon => {
-                                        if (!searchTerm) return true;
-                                        const term = searchTerm.toLowerCase();
-                                        return (
-                                            salon.name.toLowerCase().includes(term) ||
-                                            salon.salonCode.toLowerCase().includes(term) ||
-                                            (salon.location || '').toLowerCase().includes(term)
-                                        );
-                                    })
-                                    .slice(0, 20)
-                                    .map(salon => (
-                                        <React.Fragment key={salon._id}>
-                                            <tr>
-                                                <td>{new Date(salon.createdAt).toLocaleDateString()}</td>
-                                                <td style={{ fontWeight: 'bold' }}>{salon.name}</td>
-                                                <td>{salon.location}</td>
-                                                <td style={{ color: 'var(--secondary-color)', fontWeight: 'bold' }}>{salon.salonCode}</td>
-                                                <td>
-                                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                        <button onClick={() => setExpandedSalonId(expandedSalonId === salon._id ? null : salon._id)} className="btn-primary" style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem' }}>
-                                                            {expandedSalonId === salon._id ? 'Hide' : 'View'} Details
-                                                        </button>
-                                                        <button onClick={() => startEditing(salon)} className="btn-primary outline" style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem' }}>
-                                                            Edit
-                                                        </button>
+                    </section>
+                )}
+
+                {/* Salon List Section */}
+                <section className="glass-container">
+                    <h2 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.5rem' }}>
+                        <Store size={24} /> Registered Salons ({salons.length})
+                    </h2>
+
+                    <div className="salon-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
+                        {salons
+                            .filter(salon => {
+                                if (!searchTerm) return true;
+                                const term = searchTerm.toLowerCase();
+                                return (
+                                    salon.name.toLowerCase().includes(term) ||
+                                    salon.salonCode.toLowerCase().includes(term) ||
+                                    (salon.location || '').toLowerCase().includes(term)
+                                );
+                            })
+                            .slice(0, 30) // Show up to 30 matching for perf
+                            .map(salon => (
+                                <div key={salon._id} className="salon-card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%)', border: '1px solid rgba(255,255,255,0.08)', position: 'relative', overflow: 'hidden' }}>
+                                    <div style={{ position: 'absolute', top: 0, right: 0, padding: '0.5rem 1rem', background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', fontWeight: 'bold', borderBottomLeftRadius: '12px', fontSize: '0.9rem', letterSpacing: '1px' }}>
+                                        {salon.salonCode}
+                                    </div>
+
+                                    <div style={{ paddingRight: '4rem', marginBottom: '1rem' }}>
+                                        <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem', color: '#f8fafc', WebkitTextFillColor: 'initial', background: 'none' }}>{salon.name}</h3>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#94a3b8', fontSize: '0.9rem' }}>
+                                            <MapPin size={14} /> {salon.location || 'Location Not Set'}
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, marginBottom: '1.5rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#cbd5e1', fontSize: '0.9rem' }}>
+                                            <Phone size={14} color="#64748b" /> {salon.contactNumber1 || salon.contactNumber || 'No Contact Info'}
+                                        </div>
+                                    </div>
+
+                                    {/* Action Buttons Container */}
+                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem' }}>
+                                        <button
+                                            onClick={() => setExpandedSalonId(expandedSalonId === salon._id ? null : salon._id)}
+                                            className="icon-btn"
+                                            style={{ flex: 1, padding: '0.6rem', background: expandedSalonId === salon._id ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)', color: '#e2e8f0', borderRadius: '8px', fontSize: '0.9rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', transition: 'all 0.2s' }}
+                                        >
+                                            {expandedSalonId === salon._id ? <><EyeOff size={16} /> Hide</> : <><Eye size={16} /> Details</>}
+                                        </button>
+                                        <button
+                                            onClick={() => startEditing(salon)}
+                                            className="icon-btn primary"
+                                            style={{ flex: 1, padding: '0.6rem', background: 'rgba(99, 102, 241, 0.1)', color: '#818cf8', border: '1px solid rgba(99, 102, 241, 0.2)', borderRadius: '8px', fontSize: '0.9rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', transition: 'all 0.2s' }}
+                                        >
+                                            <Edit3 size={16} /> Edit
+                                        </button>
+                                    </div>
+
+                                    {/* Expanded Details Panel */}
+                                    {expandedSalonId === salon._id && (
+                                        <div className="animate-fade-in" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', fontSize: '0.9rem' }}>
+                                                {/* More Contact & Info */}
+                                                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px' }}>
+                                                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Additional Info</h4>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Contact 2:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.contactNumber2 || '-'}</span></div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Remark:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.remark || '-'}</span></div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Registered:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{new Date(salon.createdAt).toLocaleDateString()}</span></div>
                                                     </div>
-                                                </td>
-                                            </tr>
-                                            {expandedSalonId === salon._id && (
-                                                <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
-                                                    <td colSpan="5" style={{ padding: '1rem' }}>
-                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.9rem' }}>
-                                                            <div>
-                                                                <p style={{ margin: '0.2rem 0' }}><strong>Contact 1:</strong> {salon.contactNumber1 || salon.contactNumber || 'N/A'}</p>
-                                                                <p style={{ margin: '0.2rem 0' }}><strong>Contact 2:</strong> {salon.contactNumber2 || 'N/A'}</p>
-                                                                <p style={{ margin: '0.2rem 0' }}><strong>Remark:</strong> {salon.remark || 'N/A'}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p style={{ margin: '0.2rem 0' }}><strong>Bank:</strong> {salon.accountDetails?.bankName || 'N/A'}</p>
-                                                                <p style={{ margin: '0.2rem 0' }}><strong>Branch:</strong> {salon.accountDetails?.branch || 'N/A'}</p>
-                                                                <p style={{ margin: '0.2rem 0' }}><strong>Account No:</strong> {salon.accountDetails?.accountNumber || 'N/A'}</p>
-                                                                <p style={{ margin: '0.2rem 0' }}><strong>Account Name:</strong> {salon.accountDetails?.accountName || 'N/A'}</p>
-                                                            </div>
-                                                        </div>
-                                                        <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                            <p style={{ margin: '0.2rem 0' }}><strong>Last Edited By:</strong> {salon.editedBy || 'N/A'}</p>
-                                                            {salon.latitude && salon.longitude && (
-                                                                <a
-                                                                    href={`https://www.google.com/maps/dir/?api=1&destination=${salon.latitude},${salon.longitude}`}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="btn-primary"
-                                                                    style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#3b82f6', borderColor: '#3b82f6' }}
-                                                                >
-                                                                    📍 Get Directions
-                                                                </a>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </React.Fragment>
-                                    ))}
-                            </tbody>
-                        </table>
+                                                </div>
+
+                                                {/* Account Details View */}
+                                                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px' }}>
+                                                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Account Details</h4>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Bank:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.accountDetails?.bankName || '-'}</span></div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Branch:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.accountDetails?.branch || '-'}</span></div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>A/C No:</span> <span style={{ color: '#e2e8f0', textAlign: 'right', fontFamily: 'monospace' }}>{salon.accountDetails?.accountNumber || '-'}</span></div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>A/C Name:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.accountDetails?.accountName || '-'}</span></div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Edit Info */}
+                                                {salon.editedBy && (
+                                                    <div style={{ fontSize: '0.8rem', color: '#64748b', textAlign: 'center', marginTop: '0.5rem' }}>
+                                                        Last edited by: {salon.editedBy}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+
+                        {salons.length === 0 && (
+                            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+                                <Store size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
+                                <h3>No Salons Found</h3>
+                                <p>No salons match your search or you haven't registered any yet.</p>
+                            </div>
+                        )}
                     </div>
                 </section>
             </div>
