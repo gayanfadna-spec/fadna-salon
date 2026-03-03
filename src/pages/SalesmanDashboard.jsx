@@ -143,12 +143,12 @@ const SalesmanDashboard = () => {
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 style={{
                                     width: '100%',
-                                    padding: '1rem 1rem 1rem 3rem',
-                                    borderRadius: '12px',
+                                    padding: '0.75rem 0.75rem 0.75rem 2.5rem',
+                                    borderRadius: '8px',
                                     border: '1px solid rgba(255,255,255,0.1)',
                                     background: 'rgba(0,0,0,0.2)',
                                     color: 'white',
-                                    fontSize: '1rem',
+                                    fontSize: '0.95rem',
                                     margin: 0,
                                     outline: 'none',
                                     transition: 'border-color 0.2s'
@@ -164,9 +164,9 @@ const SalesmanDashboard = () => {
                                 if (qrCode) resetSuccessState();
                             }}
                             className="btn-primary"
-                            style={{ padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap', borderRadius: '12px' }}
+                            style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap', borderRadius: '8px', fontSize: '0.9rem' }}
                         >
-                            {showRegisterForm ? <X size={20} /> : <Plus size={20} />}
+                            {showRegisterForm ? <X size={18} /> : <Plus size={18} />}
                             {showRegisterForm ? 'Close Form' : 'Register New Salon'}
                         </button>
                     </div>
@@ -194,47 +194,47 @@ const SalesmanDashboard = () => {
                                 <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', background: 'none', WebkitTextFillColor: 'initial' }}>
                                     <Store size={18} /> Basic Information
                                 </h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
                                     <div>
-                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Salon Name <span style={{ color: '#ef4444' }}>*</span></label>
+                                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>Salon Name <span style={{ color: '#ef4444' }}>*</span></label>
                                         <div style={{ position: 'relative' }}>
-                                            <Store size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-                                            <input type="text" placeholder="e.g. Dream Style Salon" value={editingSalonId ? editFormData.name : newSalon.name} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, name: e.target.value }) : setNewSalon({ ...newSalon, name: e.target.value })} required style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                            <Store size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="e.g. Dream Style" value={editingSalonId ? editFormData.name : newSalon.name} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, name: e.target.value }) : setNewSalon({ ...newSalon, name: e.target.value })} required style={{ padding: '0.6rem 0.6rem 0.6rem 2.25rem', margin: 0, fontSize: '0.9rem' }} />
                                         </div>
                                     </div>
                                     <div>
-                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Location / City <span style={{ color: '#ef4444' }}>*</span></label>
+                                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>Location / City <span style={{ color: '#ef4444' }}>*</span></label>
                                         <div style={{ position: 'relative' }}>
-                                            <MapPin size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-                                            <input type="text" placeholder="e.g. Colombo 03" value={editingSalonId ? editFormData.location : newSalon.location} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, location: e.target.value }) : setNewSalon({ ...newSalon, location: e.target.value })} required style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                            <MapPin size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="e.g. Colombo 03" value={editingSalonId ? editFormData.location : newSalon.location} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, location: e.target.value }) : setNewSalon({ ...newSalon, location: e.target.value })} required style={{ padding: '0.6rem 0.6rem 0.6rem 2.25rem', margin: 0, fontSize: '0.9rem' }} />
                                         </div>
                                     </div>
                                     <div>
-                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Primary Contact No.</label>
+                                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>Contact No. 1</label>
                                         <div style={{ position: 'relative' }}>
-                                            <Phone size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-                                            <input type="text" placeholder="e.g. 077 123 4567" value={editingSalonId ? editFormData.contactNumber1 : newSalon.contactNumber1} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, contactNumber1: e.target.value }) : setNewSalon({ ...newSalon, contactNumber1: e.target.value })} style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                            <Phone size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="077..." value={editingSalonId ? editFormData.contactNumber1 : newSalon.contactNumber1} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, contactNumber1: e.target.value }) : setNewSalon({ ...newSalon, contactNumber1: e.target.value })} style={{ padding: '0.6rem 0.6rem 0.6rem 2.25rem', margin: 0, fontSize: '0.9rem' }} />
                                         </div>
                                     </div>
                                     <div>
-                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Secondary Contact No.</label>
+                                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>Contact No. 2</label>
                                         <div style={{ position: 'relative' }}>
-                                            <Phone size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-                                            <input type="text" placeholder="Optional" value={editingSalonId ? editFormData.contactNumber2 : newSalon.contactNumber2} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, contactNumber2: e.target.value }) : setNewSalon({ ...newSalon, contactNumber2: e.target.value })} style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                            <Phone size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="Optional" value={editingSalonId ? editFormData.contactNumber2 : newSalon.contactNumber2} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, contactNumber2: e.target.value }) : setNewSalon({ ...newSalon, contactNumber2: e.target.value })} style={{ padding: '0.6rem 0.6rem 0.6rem 2.25rem', margin: 0, fontSize: '0.9rem' }} />
                                         </div>
                                     </div>
                                     <div style={{ gridColumn: '1 / -1' }}>
-                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Remarks / Notes</label>
+                                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>Remarks</label>
                                         <div style={{ position: 'relative' }}>
-                                            <MessageSquare size={18} style={{ position: 'absolute', left: '1rem', top: '1rem', color: '#64748b' }} />
+                                            <MessageSquare size={16} style={{ position: 'absolute', left: '0.75rem', top: '0.65rem', color: '#64748b' }} />
                                             <textarea
-                                                placeholder="Any additional information..."
+                                                placeholder="..."
                                                 value={editingSalonId ? editFormData.remark : newSalon.remark}
                                                 onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, remark: e.target.value }) : setNewSalon({ ...newSalon, remark: e.target.value })}
                                                 style={{
-                                                    width: '100%', padding: '1rem 1rem 1rem 2.5rem', borderRadius: '8px',
+                                                    width: '100%', padding: '0.5rem 0.5rem 0.5rem 2.25rem', borderRadius: '8px',
                                                     border: '1px solid var(--glass-border)', background: 'rgba(255, 255, 255, 0.05)',
-                                                    color: 'white', minHeight: '80px', fontFamily: 'inherit', resize: 'vertical'
+                                                    color: 'white', minHeight: '38px', height: '38px', fontFamily: 'inherit', resize: 'vertical', fontSize: '0.9rem'
                                                 }}
                                             />
                                         </div>
@@ -247,50 +247,50 @@ const SalesmanDashboard = () => {
                                 <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', background: 'none', WebkitTextFillColor: 'initial' }}>
                                     <CreditCard size={18} /> Financial Details
                                 </h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
                                     <div>
-                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Bank Name</label>
+                                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>Bank Name</label>
                                         <div style={{ position: 'relative' }}>
-                                            <Building size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-                                            <input type="text" placeholder="e.g. Commercial Bank" value={editingSalonId ? editFormData.accountDetails.bankName : newSalon.accountDetails.bankName} onChange={(e) => { const path = editingSalonId ? setEditFormData : setNewSalon; const data = editingSalonId ? editFormData : newSalon; path({ ...data, accountDetails: { ...data.accountDetails, bankName: e.target.value } }) }} style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                            <Building size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="e.g. Commercial" value={editingSalonId ? editFormData.accountDetails.bankName : newSalon.accountDetails.bankName} onChange={(e) => { const path = editingSalonId ? setEditFormData : setNewSalon; const data = editingSalonId ? editFormData : newSalon; path({ ...data, accountDetails: { ...data.accountDetails, bankName: e.target.value } }) }} style={{ padding: '0.6rem 0.6rem 0.6rem 2.25rem', margin: 0, fontSize: '0.9rem' }} />
                                         </div>
                                     </div>
                                     <div>
-                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Branch</label>
+                                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>Branch</label>
                                         <div style={{ position: 'relative' }}>
-                                            <Map size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-                                            <input type="text" placeholder="e.g. Colombo 03" value={editingSalonId ? editFormData.accountDetails.branch : newSalon.accountDetails.branch} onChange={(e) => { const path = editingSalonId ? setEditFormData : setNewSalon; const data = editingSalonId ? editFormData : newSalon; path({ ...data, accountDetails: { ...data.accountDetails, branch: e.target.value } }) }} style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                            <Map size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="e.g. Col 03" value={editingSalonId ? editFormData.accountDetails.branch : newSalon.accountDetails.branch} onChange={(e) => { const path = editingSalonId ? setEditFormData : setNewSalon; const data = editingSalonId ? editFormData : newSalon; path({ ...data, accountDetails: { ...data.accountDetails, branch: e.target.value } }) }} style={{ padding: '0.6rem 0.6rem 0.6rem 2.25rem', margin: 0, fontSize: '0.9rem' }} />
                                         </div>
                                     </div>
                                     <div>
-                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Account Number</label>
+                                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>A/C Number</label>
                                         <div style={{ position: 'relative' }}>
-                                            <Hash size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-                                            <input type="text" placeholder="..." value={editingSalonId ? editFormData.accountDetails.accountNumber : newSalon.accountDetails.accountNumber} onChange={(e) => { const path = editingSalonId ? setEditFormData : setNewSalon; const data = editingSalonId ? editFormData : newSalon; path({ ...data, accountDetails: { ...data.accountDetails, accountNumber: e.target.value } }) }} style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                            <Hash size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="..." value={editingSalonId ? editFormData.accountDetails.accountNumber : newSalon.accountDetails.accountNumber} onChange={(e) => { const path = editingSalonId ? setEditFormData : setNewSalon; const data = editingSalonId ? editFormData : newSalon; path({ ...data, accountDetails: { ...data.accountDetails, accountNumber: e.target.value } }) }} style={{ padding: '0.6rem 0.6rem 0.6rem 2.25rem', margin: 0, fontSize: '0.9rem' }} />
                                         </div>
                                     </div>
                                     <div>
-                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>Account Name</label>
+                                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>A/C Name</label>
                                         <div style={{ position: 'relative' }}>
-                                            <User size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-                                            <input type="text" placeholder="e.g. John Doe" value={editingSalonId ? editFormData.accountDetails.accountName : newSalon.accountDetails.accountName} onChange={(e) => { const path = editingSalonId ? setEditFormData : setNewSalon; const data = editingSalonId ? editFormData : newSalon; path({ ...data, accountDetails: { ...data.accountDetails, accountName: e.target.value } }) }} style={{ paddingLeft: '2.5rem', margin: 0 }} />
+                                            <User size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input type="text" placeholder="e.g. John Doe" value={editingSalonId ? editFormData.accountDetails.accountName : newSalon.accountDetails.accountName} onChange={(e) => { const path = editingSalonId ? setEditFormData : setNewSalon; const data = editingSalonId ? editFormData : newSalon; path({ ...data, accountDetails: { ...data.accountDetails, accountName: e.target.value } }) }} style={{ padding: '0.6rem 0.6rem 0.6rem 2.25rem', margin: 0, fontSize: '0.9rem' }} />
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                                 {editingSalonId && (
-                                    <button type="button" onClick={() => setEditingSalonId(null)} className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)' }}>Cancel</button>
+                                    <button type="button" onClick={() => setEditingSalonId(null)} className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', padding: '0.6rem 1rem', fontSize: '0.9rem' }}>Cancel</button>
                                 )}
                                 <button type="submit" className="btn-primary" disabled={isSubmitting} style={{
-                                    padding: '1rem 2rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                    padding: '0.6rem 1.25rem', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem',
                                     opacity: isSubmitting ? 0.7 : 1, width: editingSalonId ? 'auto' : '100%', justifyContent: 'center'
                                 }}>
                                     {isSubmitting ? (
                                         <span>Saving...</span>
                                     ) : (
-                                        editingSalonId ? <><ShieldCheck size={20} /> Save Changes</> : <><CheckCircle2 size={24} /> Register Salon & Generate QR</>
+                                        editingSalonId ? <><ShieldCheck size={18} /> Save Changes</> : <><CheckCircle2 size={18} /> Register Salon</>
                                     )}
                                 </button>
                             </div>
