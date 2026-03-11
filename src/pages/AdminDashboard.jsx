@@ -4,16 +4,20 @@ import axios from 'axios';
 import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import html2canvas from 'html2canvas';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onrender.com/api';
 
 const AdminDashboard = () => {
     const [salons, setSalons] = useState([]);
     const [orders, setOrders] = useState([]);
-    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
+    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
     const [qrCode, setQrCode] = useState(null);
     const [newCredentials, setNewCredentials] = useState(null);
-    const [activeTab, setActiveTab] = useState('orders'); // 'orders', 'salons', 'monitor'
+    const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'orders', 'salons', 'monitor'
+    const [formModeAdmin, setFormModeAdmin] = useState('create'); // 'create' or 'assign'
+    const [manualVisitedCount, setManualVisitedCount] = useState(0);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -34,6 +38,9 @@ const AdminDashboard = () => {
     const [newAccount, setNewAccount] = useState({ username: '', password: '' });
     const [accounts, setAccounts] = useState([]);
     const [editingAccountId, setEditingAccountId] = useState(null);
+    const [reps, setReps] = useState([]);
+    const [newRepName, setNewRepName] = useState('');
+    const [selectedExcelFile, setSelectedExcelFile] = useState(null);
 
     const fetchOrders = React.useCallback(async () => {
         try {
@@ -97,11 +104,24 @@ const AdminDashboard = () => {
         }
     }, []);
 
+    const fetchReps = React.useCallback(async () => {
+        try {
+            const res = await axios.get(`${API_URL}/reps`);
+            if (res.data.success) setReps(res.data.data);
+        } catch (err) {
+            console.error('Error fetching reps:', err);
+        }
+    }, []);
+
     useEffect(() => {
         if (activeTab === 'accounts') {
             fetchAccounts();
         }
     }, [activeTab, fetchAccounts]);
+
+    useEffect(() => {
+        fetchReps();
+    }, [fetchReps]);
 
     const handleProductSubmit = async (e) => {
         e.preventDefault();
@@ -148,18 +168,42 @@ const AdminDashboard = () => {
     const handleCreateSalon = async (e) => {
         e.preventDefault();
         try {
-            const res = await axios.post(`${API_URL}/salons`, newSalon);
-            if (res.data.success) {
-                setQrCode(res.data.qrCode);
-                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
-                fetchSalons();
+            if (formModeAdmin === 'assign') {
+                if (!newSalon.assignToCode || newSalon.assignToCode.trim() === '') {
+                    alert('Please enter a Salon Code to assign to.');
+                    return;
+                }
+                const role = localStorage.getItem('adminRole');
+                const username = localStorage.getItem('loggedInUsername');
+                const editedByValue = role === 'admin' ? 'admin' : (username || 'admin');
+                const payload = { ...newSalon, editedBy: editedByValue };
 
-                // Set Credentials for display
-                setNewCredentials(res.data.credentials);
-                setCreatedSalon(res.data.salon); // Save created salon to show code
+                const res = await axios.put(`${API_URL}/salons/assign`, payload);
+                if (res.data.success) {
+                    alert(`Successfully assigned details to Salon Code: ${newSalon.assignToCode}`);
+                    setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], nextVisitedDate: '', isActive: false, posmActive: false, assignToCode: '' });
+                    fetchSalons();
+                }
+            } else {
+                const res = await axios.post(`${API_URL}/salons`, { ...newSalon, isDraft: formModeAdmin === 'draft' });
+                if (res.data.success) {
+                    if (formModeAdmin === 'draft') {
+                        alert('Draft salon created successfully!');
+                        setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+                        fetchSalons();
+                    } else {
+                        setQrCode(res.data.qrCode);
+                        setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+                        fetchSalons();
+
+                        // Set Credentials for display
+                        setNewCredentials(res.data.credentials);
+                        setCreatedSalon(res.data.salon); // Save created salon to show code
+                    }
+                }
             }
         } catch (err) {
-            alert('Error creating salon');
+            alert(err.response?.data?.message || 'Error creating salon');
             console.error(err);
         }
     };
@@ -185,7 +229,15 @@ const AdminDashboard = () => {
             contactNumber1: salon.contactNumber1 || salon.contactNumber || '',
             contactNumber2: salon.contactNumber2 || '',
             remark: salon.remark || '',
-            accountDetails: salon.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' }
+            repName: salon.repName || '',
+            accountDetails: salon.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' },
+            isVisited: salon.isVisited || false,
+            visitedDate: salon.visitedDate ? salon.visitedDate.split('T')[0] : '',
+            revisitedDates: salon.revisitedDates || [],
+            isActive: salon.isActive || false,
+            posmActive: salon.posmActive || false,
+            isDraft: !salon.salonCode,
+            assignToCode: ''
         });
         setEditingSalonId(salon._id);
         setEditingSalonId(salon._id);
@@ -203,9 +255,16 @@ const AdminDashboard = () => {
             const username = localStorage.getItem('loggedInUsername');
             const editedByValue = role === 'admin' ? 'admin' : username;
             const payload = { ...newSalon, editedBy: editedByValue };
-            const res = await axios.put(`${API_URL}/salons/${editingSalonId}`, payload);
+
+            let res;
+            if (newSalon.isDraft && newSalon.assignToCode && newSalon.assignToCode.trim() !== '') {
+                res = await axios.put(`${API_URL}/salons/${editingSalonId}/merge`, payload);
+            } else {
+                res = await axios.put(`${API_URL}/salons/${editingSalonId}`, payload);
+            }
+
             if (res.data.success) {
-                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
+                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
                 setEditingSalonId(null);
                 fetchSalons();
                 alert('Salon Updated Successfully!');
@@ -217,7 +276,7 @@ const AdminDashboard = () => {
     };
 
     const handleCancelEdit = () => {
-        setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
+        setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
         setEditingSalonId(null);
     };
 
@@ -256,6 +315,40 @@ const AdminDashboard = () => {
         } catch (err) {
             console.error(err);
             alert('Error creating bulk salons');
+        }
+    };
+
+    const handleExcelUpload = async () => {
+        if (!selectedExcelFile) return;
+
+        if (!newSalon.repName) {
+            alert('Please select a Representative before uploading the Excel/CSV file.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', selectedExcelFile);
+        formData.append('repName', newSalon.repName);
+
+        try {
+            const res = await axios.post(`${API_URL}/salons/bulk-upload`, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+            if (res.data.success) {
+                const count = res.data.salons ? res.data.salons.length : '';
+                alert(`Successfully registered ${count} salons from file!`);
+                if (res.data.salons) {
+                    setNewBulkSalons(res.data.salons);
+                }
+                setSelectedExcelFile(null);
+                fetchSalons();
+            }
+        } catch (error) {
+            console.error('Error uploading file:', error);
+            alert(error.response?.data?.error || error.response?.data?.message || 'Error uploading file');
         }
     };
 
@@ -413,6 +506,114 @@ const AdminDashboard = () => {
         );
     });
 
+    const handleExportSalons = () => {
+        if (!salons.length) return alert('No salons to export');
+        const headers = ['Salon ID', 'Name', 'Location', 'Code', 'Username', 'Password', 'Bank Name', 'Branch', 'Account Number', 'Account Name', 'Contact 1', 'Contact 2', 'Rep Name', 'Remark', 'Registered Date', 'Visited', 'Visited Date', 'Revisited Dates', 'Active', 'POSM Active'];
+        const rows = salons.map(s => {
+            const acc = s.accountDetails || {};
+            return [
+                s._id,
+                `"${(s.name || '').replace(/"/g, '""')}"`,
+                `"${(s.location || '').replace(/"/g, '""')}"`,
+                s.salonCode || '',
+                s.username || '',
+                `"${(s.plainPassword || '').replace(/"/g, '""')}"`,
+                `"${(acc.bankName || '').replace(/"/g, '""')}"`,
+                `"${(acc.branch || '').replace(/"/g, '""')}"`,
+                `"${(acc.accountNumber || '').replace(/"/g, '""')}"`,
+                `"${(acc.accountName || '').replace(/"/g, '""')}"`,
+                s.contactNumber1 || s.contactNumber || '',
+                s.contactNumber2 || '',
+                `"${(s.repName || '').replace(/"/g, '""')}"`,
+                `"${(s.remark || '').replace(/"/g, '""')}"`,
+                s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '',
+                s.isVisited ? 'Yes' : 'No',
+                s.visitedDate ? new Date(s.visitedDate).toLocaleDateString() : '',
+                (s.revisitedDates || []).map(d => new Date(d).toLocaleDateString()).join('; '),
+                s.isActive ? 'Yes' : 'No',
+                s.posmActive ? 'Yes' : 'No'
+            ];
+        });
+        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        saveAs(blob, 'salons_report.csv');
+    };
+
+    const handleExportOrders = () => {
+        if (!orders.length) return alert('No orders to export');
+        const headers = ['Order ID', 'Merchant Order ID', 'Date', 'Salon', 'Customer Name', 'Customer Phone', 'Additional Phone', 'Address', 'City', 'Status', 'Total Amount', 'Items'];
+        const rows = orders.map(o => [
+            o._id,
+            o.merchantOrderId || o._id.slice(-6).toUpperCase(),
+            `"${new Date(o.createdAt).toLocaleString()}"`,
+            `"${(o.salonName || '').replace(/"/g, '""')}"`,
+            `"${(o.customerName || '').replace(/"/g, '""')}"`,
+            `"${(o.customerPhone || '').replace(/"/g, '""')}"`,
+            `"${(o.additionalPhone || '').replace(/"/g, '""')}"`,
+            `"${(o.address || '').replace(/"/g, '""')}"`,
+            `"${(o.city || '').replace(/"/g, '""')}"`,
+            o.status,
+            o.totalAmount,
+            `"${o.items.map(i => `${i.productName} (x${i.quantity})`).join(', ').replace(/"/g, '""')}"`
+        ]);
+        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        saveAs(blob, 'orders_report.csv');
+    };
+
+    const handleExportPerformance = () => {
+        if (!salonPerformance.length) return alert('No performance data');
+        const headers = ['Salon', 'Valid Orders', 'Returns', 'Cancelled', 'Items Sold', 'Revenue'];
+        const rows = salonPerformance.map(s => [
+            `"${(s.salonName || 'Unknown').replace(/"/g, '""')}"`,
+            s.totalOrders,
+            s.returnedOrders || 0,
+            s.cancelledOrders || 0,
+            s.totalItemsSold,
+            s.totalRevenue
+        ]);
+        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        saveAs(blob, 'performance_report.csv');
+    };
+
+    const activeSalonsCount = salons.filter(s => s.isActive).length;
+    const posmSalonsCount = salons.filter(s => s.posmActive).length;
+    const visitedSalonsFromDb = salons.filter(s => s.isVisited).length;
+
+    const chartData = [
+        { name: 'Active Salons', count: activeSalonsCount, fill: '#38bdf8' },
+        { name: 'POSM Active', count: posmSalonsCount, fill: '#c084fc' },
+        { name: 'Visited Salons', count: visitedSalonsFromDb + Number(manualVisitedCount || 0), fill: '#4ade80' }
+    ];
+
+    const repStats = {};
+    salons.forEach(s => {
+        const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+        if (!repStats[rep]) {
+            repStats[rep] = { name: rep, visited: 0, active: 0, posm: 0 };
+        }
+        if (s.isVisited) repStats[rep].visited += 1;
+        if (s.isActive) repStats[rep].active += 1;
+        if (s.posmActive) repStats[rep].posm += 1;
+    });
+    const repChartData = Object.values(repStats).sort((a, b) => a.name.localeCompare(b.name));
+
+    const downloadChart = async () => {
+        const chartElement = document.getElementById('stats-chart-container');
+        if (chartElement) {
+            try {
+                const canvas = await html2canvas(chartElement, { backgroundColor: '#1a1a2e' });
+                canvas.toBlob((blob) => {
+                    saveAs(blob, 'salon_stats_chart.png');
+                });
+            } catch (e) {
+                console.error("Error downloading chart", e);
+                alert("Failed to download chart");
+            }
+        }
+    };
+
     return (
         <div className="container animate-fade-in">
             <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap' }}>
@@ -424,6 +625,13 @@ const AdminDashboard = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '1rem', flex: 1 }}>
                     {/* Top Row: Navigation Buttons */}
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <button
+                            className={`btn-primary nav-btn ${activeTab === 'overview' ? '' : 'outline'}`}
+                            style={{ opacity: activeTab === 'overview' ? 1 : 0.7 }}
+                            onClick={() => setActiveTab('overview')}
+                        >
+                            Overview
+                        </button>
                         <button
                             className={`btn-primary nav-btn ${activeTab === 'orders' ? '' : 'outline'}`}
                             style={{ opacity: activeTab === 'orders' ? 1 : 0.7 }}
@@ -458,6 +666,13 @@ const AdminDashboard = () => {
                             onClick={() => setActiveTab('accounts')}
                         >
                             Accounts
+                        </button>
+                        <button
+                            className={`btn-primary nav-btn ${activeTab === 'reports' ? '' : 'outline'}`}
+                            style={{ opacity: activeTab === 'reports' ? 1 : 0.7 }}
+                            onClick={() => setActiveTab('reports')}
+                        >
+                            Reports
                         </button>
                         <button
                             onClick={() => {
@@ -517,6 +732,103 @@ const AdminDashboard = () => {
                     </div>
                 </div>
             </header>
+
+            {activeTab === 'overview' && (
+                <section className="glass-container animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                        <h2>Dashboard Overview</h2>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(255,255,255,0.05)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <label style={{ color: 'white', fontWeight: 'bold' }}>Add Manual Visited Count:</label>
+                            <input
+                                type="number"
+                                value={manualVisitedCount}
+                                onChange={(e) => setManualVisitedCount(e.target.value)}
+                                style={{
+                                    width: '80px',
+                                    padding: '0.5rem',
+                                    borderRadius: '6px',
+                                    border: '1px solid rgba(255,255,255,0.2)',
+                                    background: 'rgba(255,255,255,0.1)',
+                                    color: 'white',
+                                    outline: 'none'
+                                }}
+                                min="0"
+                            />
+                        </div>
+                    </div>
+
+                    <div id="stats-chart-container" style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <h3 style={{ textAlign: 'center', marginBottom: '2rem', color: '#fff' }}>Salon Status Counter</h3>
+                        <ResponsiveContainer width="100%" height={400}>
+                            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                <XAxis dataKey="name" stroke="#fff" tick={{ fill: '#fff' }} />
+                                <YAxis stroke="#fff" tick={{ fill: '#fff' }} allowDecimals={false} />
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
+                                    itemStyle={{ color: '#fff' }}
+                                />
+                                <Legend wrapperStyle={{ color: '#fff' }} />
+                                <Bar dataKey="count" name="Salons Count" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <button
+                            onClick={downloadChart}
+                            className="btn-primary"
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem 1.5rem', fontSize: '1rem' }}
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Download Overview Chart
+                        </button>
+                    </div>
+
+                    <div id="rep-stats-chart-container" style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)', marginTop: '2rem' }}>
+                        <h3 style={{ textAlign: 'center', marginBottom: '2rem', color: '#fff' }}>Rep Wise Salon Status</h3>
+                        <ResponsiveContainer width="100%" height={400}>
+                            <BarChart data={repChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                <XAxis dataKey="name" stroke="#fff" tick={{ fill: '#fff' }} />
+                                <YAxis stroke="#fff" tick={{ fill: '#fff' }} allowDecimals={false} />
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
+                                    itemStyle={{ color: '#fff' }}
+                                />
+                                <Legend wrapperStyle={{ color: '#fff' }} />
+                                <Bar dataKey="visited" name="Visited Salons" fill="#4ade80" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="active" name="Active Salons" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="posm" name="POSM Active" fill="#c084fc" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                        <button
+                            onClick={async () => {
+                                const el = document.getElementById('rep-stats-chart-container');
+                                if (el) {
+                                    try {
+                                        const canvas = await html2canvas(el, { backgroundColor: '#1a1a2e' });
+                                        canvas.toBlob((blob) => {
+                                            saveAs(blob, 'rep_wise_salon_stats_chart.png');
+                                        });
+                                    } catch (e) {
+                                        console.error("Error downloading chart", e);
+                                        alert("Failed to download chart");
+                                    }
+                                }
+                            }}
+                            className="btn-primary"
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem 1.5rem', fontSize: '1rem' }}
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Download Rep Chart
+                        </button>
+                    </div>
+                </section>
+            )}
 
             {activeTab === 'orders' && (
                 <section className="glass-container">
@@ -609,14 +921,97 @@ const AdminDashboard = () => {
                 activeTab === 'salons' && (
                     <div className="admin-grid-vertical" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                         <section className="glass-container">
-                            <h2>{editingSalonId ? 'Edit Salon' : 'Create New Salon'}</h2>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                                <h2>{editingSalonId ? 'Edit Salon' : (formModeAdmin === 'assign' ? 'Assign to Pre-Registered QR' : 'Create New Salon')}</h2>
+                                {!editingSalonId && (
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <button
+                                            onClick={() => setFormModeAdmin('create')}
+                                            className={`btn-primary ${formModeAdmin === 'create' ? '' : 'outline'}`}
+                                            style={{ padding: '0.5rem 1rem' }}
+                                        >
+                                            <i className="lucide-plus"></i> Register New
+                                        </button>
+                                        <button
+                                            onClick={() => setFormModeAdmin('assign')}
+                                            className={`btn-primary ${formModeAdmin === 'assign' ? '' : 'outline'}`}
+                                            style={{ padding: '0.5rem 1rem' }}
+                                        >
+                                            <i className="lucide-hash"></i> Assign Setup
+                                        </button>
+                                        <button
+                                            onClick={() => setFormModeAdmin('draft')}
+                                            className={`btn-primary ${formModeAdmin === 'draft' ? '' : 'outline'}`}
+                                            style={{ padding: '0.5rem 1rem', border: '1px solid #eab308', color: formModeAdmin === 'draft' ? '#fff' : '#eab308', background: formModeAdmin === 'draft' ? '#eab308' : 'transparent' }}
+                                        >
+                                            <i className="lucide-edit-3"></i> Add Details Only
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
                             <form onSubmit={editingSalonId ? handleUpdateSalon : handleCreateSalon}>
+                                {!editingSalonId && formModeAdmin === 'assign' && (
+                                    <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid rgba(56,189,248,0.5)' }}>
+                                        <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#38bdf8', background: 'none', WebkitTextFillColor: 'initial' }}>
+                                            Enter Pre-Registered QR Code
+                                        </h3>
+                                        <p style={{ fontSize: '0.85rem', color: '#bae6fd', marginBottom: '1rem', opacity: 0.8 }}>
+                                            Enter the 6-character Salon Code from a pre-registered QR to assign these details to it.
+                                        </p>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. AB1234"
+                                            value={newSalon.assignToCode}
+                                            onChange={(e) => setNewSalon({ ...newSalon, assignToCode: e.target.value.toUpperCase() })}
+                                            required={formModeAdmin === 'assign'}
+                                            style={{ margin: 0, fontSize: '1rem', letterSpacing: '1px', maxWidth: '200px', fontWeight: 'bold' }}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Group 0B: Assign Draft to Code (Only visible in Edit Mode of a Draft) */}
+                                {editingSalonId && newSalon.isDraft && (
+                                    <div style={{ background: 'rgba(56,189,248,0.1)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid rgba(56,189,248,0.5)' }}>
+                                        <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#38bdf8', background: 'none', WebkitTextFillColor: 'initial' }}>
+                                            Assign to Pre-Registered QR Code (Optional)
+                                        </h3>
+                                        <p style={{ fontSize: '0.85rem', color: '#bae6fd', marginBottom: '1rem', opacity: 0.8 }}>
+                                            You can turn this Draft into a real Salon Record by entering a pre-registered 6-character Salon Code.
+                                        </p>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. AB1234"
+                                            value={newSalon.assignToCode}
+                                            onChange={(e) => setNewSalon({ ...newSalon, assignToCode: e.target.value.toUpperCase() })}
+                                            style={{ margin: 0, fontSize: '1rem', letterSpacing: '1px', maxWidth: '200px', fontWeight: 'bold' }}
+                                        />
+                                    </div>
+                                )}
+
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <input type="text" placeholder="Salon Name *" value={newSalon.name} onChange={(e) => setNewSalon({ ...newSalon, name: e.target.value })} required />
                                     <input type="text" placeholder="Location" value={newSalon.location} onChange={(e) => setNewSalon({ ...newSalon, location: e.target.value })} />
                                     <input type="text" placeholder="Contact Number 1" value={newSalon.contactNumber1} onChange={(e) => setNewSalon({ ...newSalon, contactNumber1: e.target.value })} />
                                     <input type="text" placeholder="Contact Number 2" value={newSalon.contactNumber2} onChange={(e) => setNewSalon({ ...newSalon, contactNumber2: e.target.value })} />
-                                    <input type="text" placeholder="Remark" value={newSalon.remark} onChange={(e) => setNewSalon({ ...newSalon, remark: e.target.value })} style={{ gridColumn: '1 / -1' }} />
+                                    <select
+                                        value={newSalon.repName}
+                                        onChange={(e) => setNewSalon({ ...newSalon, repName: e.target.value })}
+                                        style={{
+                                            padding: '0.8rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid #ccc',
+                                            width: '100%',
+                                            fontFamily: 'inherit',
+                                            fontSize: '1rem'
+                                        }}
+                                    >
+                                        <option value="">Select Rep Name</option>
+                                        {reps.map(rep => (
+                                            <option key={rep._id} value={rep.name}>{rep.name}</option>
+                                        ))}
+                                    </select>
+                                    <input type="text" placeholder="Remark" value={newSalon.remark} onChange={(e) => setNewSalon({ ...newSalon, remark: e.target.value })} />
                                 </div>
                                 <h3 style={{ marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Account Details</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -625,8 +1020,62 @@ const AdminDashboard = () => {
                                     <input type="text" placeholder="Account Number" value={newSalon.accountDetails.accountNumber} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, accountNumber: e.target.value } })} />
                                     <input type="text" placeholder="Account Name" value={newSalon.accountDetails.accountName} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, accountName: e.target.value } })} />
                                 </div>
+                                <h3 style={{ marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Status & Marks</h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'white' }}>
+                                            <input type="checkbox" checked={newSalon.isVisited} onChange={(e) => setNewSalon({ ...newSalon, isVisited: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+                                            Visited Salon
+                                        </label>
+                                        {newSalon.isVisited && (
+                                            <input
+                                                type="date"
+                                                value={newSalon.visitedDate}
+                                                onChange={(e) => setNewSalon({ ...newSalon, visitedDate: e.target.value })}
+                                                style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                                            />
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'white' }}>
+                                            <input type="checkbox" checked={newSalon.isActive} onChange={(e) => setNewSalon({ ...newSalon, isActive: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+                                            Active Salon
+                                        </label>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'white' }}>
+                                            <input type="checkbox" checked={newSalon.posmActive} onChange={(e) => setNewSalon({ ...newSalon, posmActive: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+                                            POSM Active Salon
+                                        </label>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                                    <label style={{ color: 'white', fontSize: '1rem', fontWeight: 'bold' }}>Revisited Dates (Mark old visits here)</label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                        {(newSalon.revisitedDates || []).map((d, index) => (
+                                            <div key={index} style={{ padding: '0.4rem 0.8rem', background: 'rgba(255,255,255,0.1)', borderRadius: '20px', color: '#bae6fd', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                {new Date(d).toLocaleDateString()}
+                                                <button type="button" onClick={() => {
+                                                    const newArr = [...newSalon.revisitedDates];
+                                                    newArr.splice(index, 1);
+                                                    setNewSalon({ ...newSalon, revisitedDates: newArr });
+                                                }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '1.1rem', lineHeight: 1, cursor: 'pointer', padding: 0 }}>&times;</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                                        <input type="date" id={`revisit-date-${editingSalonId || 'new'}`} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+                                        <button type="button" onClick={() => {
+                                            const dateVal = document.getElementById(`revisit-date-${editingSalonId || 'new'}`).value;
+                                            if (dateVal) {
+                                                setNewSalon({ ...newSalon, revisitedDates: [...(newSalon.revisitedDates || []), dateVal] });
+                                                document.getElementById(`revisit-date-${editingSalonId || 'new'}`).value = '';
+                                            }
+                                        }} className="btn-primary" style={{ padding: '0.5rem 1rem' }}>Add Date</button>
+                                    </div>
+                                </div>
                                 <button type="submit" className="btn-primary" style={{ width: '100%', marginBottom: editingSalonId ? '0.5rem' : '0' }}>
-                                    {editingSalonId ? 'Update Salon' : 'Generate QR Code'}
+                                    {editingSalonId ? 'Update Salon' : (formModeAdmin === 'assign' ? 'Assign to QR Code' : (formModeAdmin === 'draft' ? 'Save Details Only' : 'Generate Registration & QR'))}
                                 </button>
                                 {editingSalonId && (
                                     <button
@@ -680,52 +1129,117 @@ const AdminDashboard = () => {
 
                         <section className="glass-container">
                             <h2>Bulk Registration</h2>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-                                <input
-                                    type="number"
-                                    placeholder="Number of Salons"
-                                    value={bulkCount}
-                                    onChange={(e) => setBulkCount(e.target.value)}
-                                    min="1"
-                                    max="50"
-                                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', width: '150px' }}
-                                />
-                                <button
-                                    onClick={handleBulkCreate}
-                                    className="btn-primary"
-                                    disabled={!bulkCount || bulkCount <= 0}
-                                >
-                                    Register {bulkCount || 0} Salons
-                                </button>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '1rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                    <input
+                                        type="number"
+                                        placeholder="Number of Salons"
+                                        value={bulkCount}
+                                        onChange={(e) => setBulkCount(e.target.value)}
+                                        min="1"
+                                        max="50"
+                                        style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)', color: 'white', width: '150px' }}
+                                    />
+                                    <button
+                                        onClick={handleBulkCreate}
+                                        className="btn-primary"
+                                        disabled={!bulkCount || bulkCount <= 0}
+                                        style={{ whiteSpace: 'nowrap' }}
+                                    >
+                                        Register {bulkCount || 0} Salons
+                                    </button>
+                                </div>
+
+                                <div style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                                    OR
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'nowrap' }}>
+                                    <select
+                                        value={newSalon.repName}
+                                        onChange={(e) => setNewSalon({ ...newSalon, repName: e.target.value })}
+                                        style={{
+                                            padding: '0.8rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid rgba(255,255,255,0.2)',
+                                            background: 'rgba(255,255,255,0.1)',
+                                            color: 'white',
+                                            minWidth: '200px'
+                                        }}
+                                        required
+                                    >
+                                        <option value="" style={{ color: 'black' }}>Select Rep (Required)</option>
+                                        {reps.map(rep => (
+                                            <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>
+                                        ))}
+                                    </select>
+
+                                    <label htmlFor="excel-upload" className="btn-primary" style={{ cursor: 'pointer', padding: '0.8rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#334155', color: 'white', border: '1px solid rgba(255,255,255,0.2)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                        {selectedExcelFile ? selectedExcelFile.name : 'Choose Excel / CSV'}
+                                    </label>
+                                    <input
+                                        id="excel-upload"
+                                        type="file"
+                                        accept=".xlsx, .xls, .csv"
+                                        onChange={(e) => {
+                                            if (e.target.files && e.target.files.length > 0) {
+                                                setSelectedExcelFile(e.target.files[0]);
+                                            }
+                                        }}
+                                        style={{ display: 'none' }}
+                                    />
+                                    <button
+                                        onClick={handleExcelUpload}
+                                        disabled={!selectedExcelFile}
+                                        className="btn-primary"
+                                        style={{ padding: '0.8rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', background: selectedExcelFile ? '#4ade80' : '#22c55e', opacity: selectedExcelFile ? 1 : 0.5, color: '#0f172a', border: 'none', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: selectedExcelFile ? 'pointer' : 'not-allowed' }}
+                                    >
+                                        Submit Upload
+                                    </button>
+                                </div>
                             </div>
 
                             {newBulkSalons.length > 0 && (
                                 <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                         <h3 style={{ margin: 0 }}>Newly Registered Salons ({newBulkSalons.length})</h3>
-                                        <div style={{ display: 'flex', gap: '1rem' }}>
-                                            <button
-                                                onClick={() => handleBatchPrint(newBulkSalons)}
-                                                className="btn-primary"
-                                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
-                                            >
-                                                Print All New
-                                            </button>
-                                            <button
-                                                onClick={() => handleBatchDownloadZip(newBulkSalons)}
-                                                className="btn-primary"
-                                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
-                                            >
-                                                Download All ZIP
-                                            </button>
-                                            <button
-                                                onClick={() => setNewBulkSalons([])}
-                                                className="btn-primary outline"
-                                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
-                                            >
-                                                Clear List
-                                            </button>
-                                        </div>
+                                        {newBulkSalons.some(s => s.salonCode) && (
+                                            <div style={{ display: 'flex', gap: '1rem' }}>
+                                                <button
+                                                    onClick={() => handleBatchPrint(newBulkSalons)}
+                                                    className="btn-primary"
+                                                    style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
+                                                >
+                                                    Print All New
+                                                </button>
+                                                <button
+                                                    onClick={() => handleBatchDownloadZip(newBulkSalons)}
+                                                    className="btn-primary"
+                                                    style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
+                                                >
+                                                    Download All ZIP
+                                                </button>
+                                                <button
+                                                    onClick={() => setNewBulkSalons([])}
+                                                    className="btn-primary outline"
+                                                    style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
+                                                >
+                                                    Clear List
+                                                </button>
+                                            </div>
+                                        )}
+                                        {!newBulkSalons.some(s => s.salonCode) && (
+                                            <div style={{ display: 'flex', gap: '1rem' }}>
+                                                <button
+                                                    onClick={() => setNewBulkSalons([])}
+                                                    className="btn-primary outline"
+                                                    style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
+                                                >
+                                                    Clear List
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                     <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
                                         <table className="styled-table" style={{ fontSize: '0.9rem' }}>
@@ -742,17 +1256,21 @@ const AdminDashboard = () => {
                                                 {newBulkSalons.map(salon => (
                                                     <tr key={salon._id}>
                                                         <td>{salon.name}</td>
-                                                        <td style={{ fontWeight: 'bold', color: 'var(--secondary-color)' }}>{salon.salonCode}</td>
+                                                        <td style={{ fontWeight: 'bold', color: 'var(--secondary-color)' }}>{salon.salonCode || 'N/A'}</td>
                                                         <td>{salon.username}</td>
                                                         <td style={{ fontFamily: 'monospace' }}>{salon.plainPassword}</td>
                                                         <td>
-                                                            <button
-                                                                onClick={() => handleDownloadQR(salon)}
-                                                                className="btn-primary"
-                                                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
-                                                            >
-                                                                QR
-                                                            </button>
+                                                            {salon.salonCode ? (
+                                                                <button
+                                                                    onClick={() => handleDownloadQR(salon)}
+                                                                    className="btn-primary"
+                                                                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
+                                                                >
+                                                                    QR
+                                                                </button>
+                                                            ) : (
+                                                                <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>No QR</span>
+                                                            )}
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -845,7 +1363,13 @@ const AdminDashboard = () => {
                                                     </div>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                                         <div>
-                                                            <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'white' }}>{salon.name}</h3>
+                                                            <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                                {salon.name}
+                                                                {salon.isVisited && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: 'rgba(74,222,128,0.2)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>Visited</span>}
+                                                                {salon.isActive && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: 'rgba(56,189,248,0.2)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}>Active</span>}
+                                                                {salon.posmActive && <span style={{ fontSize: '0.6rem', padding: '0.2rem 0.4rem', borderRadius: '12px', background: 'rgba(192,132,252,0.2)', color: '#c084fc', border: '1px solid rgba(192,132,252,0.3)', whiteSpace: 'nowrap' }}>POSM</span>}
+                                                                {!salon.salonCode && <span style={{ fontSize: '0.6rem', padding: '0.2rem 0.4rem', borderRadius: '12px', background: 'rgba(239,68,68,0.2)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)', whiteSpace: 'nowrap' }}>DRAFT</span>}
+                                                            </h3>
                                                             <div className="salon-meta" style={{ marginTop: '0.25rem' }}>
                                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                                                                 {salon.location || 'No Location'}
@@ -876,12 +1400,24 @@ const AdminDashboard = () => {
                                                         <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', marginTop: '1rem', fontSize: '0.85rem' }}>
                                                             <p style={{ margin: '0.2rem 0' }}><strong>Contact 1:</strong> {salon.contactNumber1 || salon.contactNumber || 'N/A'}</p>
                                                             <p style={{ margin: '0.2rem 0' }}><strong>Contact 2:</strong> {salon.contactNumber2 || 'N/A'}</p>
+                                                            <p style={{ margin: '0.2rem 0' }}><strong>Rep Name:</strong> {salon.repName || 'N/A'}</p>
                                                             <p style={{ margin: '0.2rem 0' }}><strong>Remark:</strong> {salon.remark || 'N/A'}</p>
                                                             <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                                                                 <p style={{ margin: '0.2rem 0' }}><strong>Bank:</strong> {salon.accountDetails?.bankName || 'N/A'}</p>
                                                                 <p style={{ margin: '0.2rem 0' }}><strong>Branch:</strong> {salon.accountDetails?.branch || 'N/A'}</p>
                                                                 <p style={{ margin: '0.2rem 0' }}><strong>Account No:</strong> {salon.accountDetails?.accountNumber || 'N/A'}</p>
                                                                 <p style={{ margin: '0.2rem 0' }}><strong>Account Name:</strong> {salon.accountDetails?.accountName || 'N/A'}</p>
+                                                            </div>
+                                                            <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                                                                <p style={{ margin: '0.2rem 0' }}><strong>Visited Salon:</strong> <span style={{ color: salon.isVisited ? '#4ade80' : '#ef4444' }}>{salon.isVisited ? 'Yes' : 'No'}</span></p>
+                                                                {salon.isVisited && salon.visitedDate && (
+                                                                    <p style={{ margin: '0.2rem 0' }}><strong>Visited Date:</strong> {new Date(salon.visitedDate).toLocaleDateString()}</p>
+                                                                )}
+                                                                {salon.revisitedDates && salon.revisitedDates.length > 0 && (
+                                                                    <p style={{ margin: '0.2rem 0' }}><strong>Revisited Dates:</strong> {salon.revisitedDates.map(d => new Date(d).toLocaleDateString()).join(', ')}</p>
+                                                                )}
+                                                                <p style={{ margin: '0.2rem 0' }}><strong>Active Salon:</strong> <span style={{ color: salon.isActive ? '#4ade80' : '#ef4444' }}>{salon.isActive ? 'Yes' : 'No'}</span></p>
+                                                                <p style={{ margin: '0.2rem 0' }}><strong>POSM Active Salon:</strong> <span style={{ color: salon.posmActive ? '#4ade80' : '#ef4444' }}>{salon.posmActive ? 'Yes' : 'No'}</span></p>
                                                             </div>
                                                             <p style={{ margin: '0.2rem 0', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                                                                 <strong>Last Edited By:</strong> {salon.editedBy || 'N/A'}
@@ -1250,6 +1786,75 @@ const AdminDashboard = () => {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '1rem', marginTop: '2rem' }}>
+                        <h3>Reps Dropdown List Management</h3>
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            try {
+                                const res = await axios.post(`${API_URL}/reps`, { name: newRepName });
+                                if (res.data.success) {
+                                    alert('Rep Created');
+                                    setNewRepName('');
+                                    fetchReps();
+                                }
+                            } catch (err) {
+                                alert(err.response?.data?.error || 'Error creating rep');
+                            }
+                        }} style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                            <input type="text" placeholder="Rep Name" value={newRepName} onChange={(e) => setNewRepName(e.target.value)} required style={{ flex: 1 }} />
+                            <button type="submit" className="btn-primary">Add Rep</button>
+                        </form>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+                            {reps.map(rep => (
+                                <div key={rep._id} style={{ background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span>{rep.name}</span>
+                                    <button onClick={async () => {
+                                        if (window.confirm('Delete this rep?')) {
+                                            await axios.delete(`${API_URL}/reps/${rep._id}`);
+                                            fetchReps();
+                                        }
+                                    }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0', fontSize: '1rem', fontWeight: 'bold' }} title="Delete Rep">✕</button>
+                                </div>
+                            ))}
+                            {reps.length === 0 && <span style={{ opacity: 0.5 }}>No Reps Found</span>}
+                        </div>
+                    </div>
+                </section>
+            )}
+
+            {activeTab === 'reports' && (
+                <section className="glass-container">
+                    <h2>Reports & Export</h2>
+                    <p style={{ opacity: 0.8, marginBottom: '2rem' }}>Download summary reports for data analysis and backup.</p>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
+                            <h3 style={{ margin: 0 }}>Salon List Report</h3>
+                            <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9rem', flex: 1 }}>Export a complete list of all registered salons including their contact, account details, and activity-marks.</p>
+                            <button onClick={handleExportSalons} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                Download Salons CSV
+                            </button>
+                        </div>
+
+                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
+                            <h3 style={{ margin: 0 }}>Orders Report</h3>
+                            <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9rem', flex: 1 }}>Export all recorded orders with their current statuses, customer info, and purchased items.</p>
+                            <button onClick={handleExportOrders} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                Download Orders CSV
+                            </button>
+                        </div>
+
+                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
+                            <h3 style={{ margin: 0 }}>Performance Report</h3>
+                            <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9rem', flex: 1 }}>Export a summarized performance table showing the count of orders, returns, and total revenue per salon.</p>
+                            <button onClick={handleExportPerformance} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                Download Performance CSV
+                            </button>
                         </div>
                     </div>
                 </section>

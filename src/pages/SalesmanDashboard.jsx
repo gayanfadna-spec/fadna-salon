@@ -7,16 +7,19 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onre
 
 const SalesmanDashboard = () => {
     const [salons, setSalons] = useState([]);
-    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
+    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '' });
     const [qrCode, setQrCode] = useState(null);
     const [newCredentials, setNewCredentials] = useState(null);
     const [createdSalon, setCreatedSalon] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [editingSalonId, setEditingSalonId] = useState(null);
     const [expandedSalonId, setExpandedSalonId] = useState(null);
-    const [showRegisterForm, setShowRegisterForm] = useState(false);
-    const [editFormData, setEditFormData] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
+    const [formMode, setFormMode] = useState(null); // 'create' | 'assign' | 'draft' | null
+    const [editFormData, setEditFormData] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [reps, setReps] = useState([]);
+    const [selectedExcelFile, setSelectedExcelFile] = useState(null);
+    const [newBulkSalons, setNewBulkSalons] = useState([]);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -25,7 +28,17 @@ const SalesmanDashboard = () => {
             navigate('/login');
         }
         fetchSalons();
+        fetchReps();
     }, [navigate]);
+
+    const fetchReps = async () => {
+        try {
+            const res = await axios.get(`${API_URL}/reps`);
+            if (res.data.success) setReps(res.data.data);
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
     const fetchSalons = async () => {
         try {
@@ -36,20 +49,81 @@ const SalesmanDashboard = () => {
         }
     };
 
+    const handleExcelUpload = async () => {
+        if (!selectedExcelFile) return;
+
+        if (!newSalon.repName) {
+            alert('Please select a Representative before uploading the Excel/CSV file.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', selectedExcelFile);
+        formData.append('repName', newSalon.repName);
+
+        try {
+            const res = await axios.post(`${API_URL}/salons/bulk-upload`, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+            if (res.data.success) {
+                const count = res.data.salons ? res.data.salons.length : '';
+                alert(`Successfully registered ${count} salons from file!`);
+                if (res.data.salons) {
+                    setNewBulkSalons(res.data.salons);
+                }
+                setSelectedExcelFile(null);
+                fetchSalons();
+            }
+        } catch (error) {
+            console.error('Error uploading file:', error);
+            alert(error.response?.data?.error || error.response?.data?.message || 'Error uploading file');
+        }
+    };
+
     const handleCreateSalon = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
         try {
-            const res = await axios.post(`${API_URL}/salons`, newSalon);
-            if (res.data.success) {
-                setQrCode(res.data.qrCode);
-                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' } });
-                fetchSalons();
-                setNewCredentials(res.data.credentials);
-                setCreatedSalon(res.data.salon);
+            if (formMode === 'assign') {
+                if (!newSalon.assignToCode || newSalon.assignToCode.trim() === '') {
+                    alert('Please enter a Salon Code to assign to.');
+                    setIsSubmitting(false);
+                    return;
+                }
+                const role = localStorage.getItem('adminRole');
+                const username = localStorage.getItem('loggedInUsername') || localStorage.getItem('salesmanUser');
+                const editedByValue = role === 'admin' ? 'admin' : (username || 'salesman');
+                const payload = { ...newSalon, editedBy: editedByValue };
+
+                const res = await axios.put(`${API_URL}/salons/assign`, payload);
+                if (res.data.success) {
+                    alert(`Successfully assigned details to Salon Code: ${newSalon.assignToCode}`);
+                    setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '' });
+                    fetchSalons();
+                    setFormMode(null);
+                }
+            } else {
+                const res = await axios.post(`${API_URL}/salons`, { ...newSalon, isDraft: formMode === 'draft' });
+                if (res.data.success) {
+                    if (formMode === 'draft') {
+                        alert('Draft details saved successfully!');
+                        setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '' });
+                        fetchSalons();
+                        setFormMode(null);
+                    } else {
+                        setQrCode(res.data.qrCode);
+                        setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '' });
+                        fetchSalons();
+                        setNewCredentials(res.data.credentials);
+                        setCreatedSalon(res.data.salon);
+                    }
+                }
             }
         } catch (err) {
-            alert('Error creating salon');
+            alert(err.response?.data?.message || 'Error saving salon');
             console.error(err);
         } finally {
             setIsSubmitting(false);
@@ -73,14 +147,21 @@ const SalesmanDashboard = () => {
             const username = localStorage.getItem('loggedInUsername');
             const editedByValue = role === 'admin' ? 'admin' : username;
             const payload = { ...editFormData, editedBy: editedByValue };
-            const res = await axios.put(`${API_URL}/salons/${editingSalonId}`, payload);
+
+            let res;
+            if (editFormData.isDraft && editFormData.assignToCode && editFormData.assignToCode.trim() !== '') {
+                res = await axios.put(`${API_URL}/salons/${editingSalonId}/merge`, payload);
+            } else {
+                res = await axios.put(`${API_URL}/salons/${editingSalonId}`, payload);
+            }
+
             if (res.data.success) {
                 alert('Salon updated successfully');
                 setEditingSalonId(null);
                 fetchSalons();
             }
         } catch (err) {
-            alert('Error updating salon');
+            alert(err.response?.data?.message || 'Error updating salon');
             console.error(err);
         } finally {
             setIsSubmitting(false);
@@ -95,7 +176,15 @@ const SalesmanDashboard = () => {
             contactNumber1: salon.contactNumber1 || salon.contactNumber || '',
             contactNumber2: salon.contactNumber2 || '',
             remark: salon.remark || '',
-            accountDetails: salon.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' }
+            repName: salon.repName || '',
+            accountDetails: salon.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' },
+            isVisited: salon.isVisited || false,
+            visitedDate: salon.visitedDate ? salon.visitedDate.split('T')[0] : '',
+            revisitedDates: salon.revisitedDates || [],
+            isActive: salon.isActive || false,
+            posmActive: salon.posmActive || false,
+            isDraft: !salon.salonCode,
+            assignToCode: ''
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -104,7 +193,7 @@ const SalesmanDashboard = () => {
         setQrCode(null);
         setNewCredentials(null);
         setCreatedSalon(null);
-        setShowRegisterForm(false);
+        setFormMode(null);
     };
 
     return (
@@ -157,29 +246,55 @@ const SalesmanDashboard = () => {
                                 onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
                             />
                         </div>
-                        <button
-                            onClick={() => {
-                                setShowRegisterForm(!showRegisterForm);
-                                setEditingSalonId(null);
-                                if (qrCode) resetSuccessState();
-                            }}
-                            className="btn-primary"
-                            style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap', borderRadius: '8px', fontSize: '0.9rem' }}
-                        >
-                            {showRegisterForm ? <X size={18} /> : <Plus size={18} />}
-                            {showRegisterForm ? 'Close Form' : 'Register New Salon'}
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button
+                                onClick={() => {
+                                    if (formMode === 'create') setFormMode(null); else setFormMode('create');
+                                    setEditingSalonId(null);
+                                    if (qrCode) resetSuccessState();
+                                }}
+                                className="btn-primary"
+                                style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap', borderRadius: '8px', fontSize: '0.9rem' }}
+                            >
+                                {formMode === 'create' ? <X size={18} /> : <Plus size={18} />}
+                                {formMode === 'create' ? 'Close Form' : 'Register New Salon'}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (formMode === 'assign') setFormMode(null); else setFormMode('assign');
+                                    setEditingSalonId(null);
+                                    if (qrCode) resetSuccessState();
+                                }}
+                                className="btn-primary outline"
+                                style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap', borderRadius: '8px', fontSize: '0.9rem', border: '1px solid var(--primary-color)', color: 'var(--primary-color)' }}
+                            >
+                                {formMode === 'assign' ? <X size={18} /> : <Hash size={18} />}
+                                {formMode === 'assign' ? 'Close Form' : 'Assign Setup'}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (formMode === 'draft') setFormMode(null); else setFormMode('draft');
+                                    setEditingSalonId(null);
+                                    if (qrCode) resetSuccessState();
+                                }}
+                                className="btn-primary outline"
+                                style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap', borderRadius: '8px', fontSize: '0.9rem', border: '1px solid #eab308', color: '#eab308' }}
+                            >
+                                {formMode === 'draft' ? <X size={18} /> : <Edit3 size={18} />}
+                                {formMode === 'draft' ? 'Close Form' : 'Add Details Only'}
+                            </button>
+                        </div>
                     </div>
                 </section>
 
                 {/* Create/Edit Form Context */}
-                {(showRegisterForm || editingSalonId) && !qrCode && (
+                {(formMode || editingSalonId) && !qrCode && (
                     <section className="glass-container animate-fade-in" style={{ border: editingSalonId ? '2px solid var(--accent-color)' : '1px solid var(--glass-border)', position: 'relative', overflow: 'hidden' }}>
                         <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: editingSalonId ? 'var(--accent-color)' : 'var(--primary-color)' }}></div>
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                             <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'white', background: 'none', WebkitTextFillColor: 'initial' }}>
-                                {editingSalonId ? <><Edit3 size={24} color="var(--accent-color)" /> Update Salon</> : <><Store size={24} color="var(--primary-color)" /> Register Salon</>}
+                                {editingSalonId ? <><Edit3 size={24} color="var(--accent-color)" /> Update Salon</> : (formMode === 'assign' ? <><Hash size={24} color="var(--primary-color)" /> Assign to QR Code</> : (formMode === 'draft' ? <><Edit3 size={24} color="#eab308" /> Add Draft Details</> : <><Store size={24} color="var(--primary-color)" /> Register Salon</>))}
                             </h2>
                             {editingSalonId && (
                                 <button onClick={() => setEditingSalonId(null)} className="icon-btn danger" style={{ background: 'rgba(239,68,68,0.1)', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -189,6 +304,55 @@ const SalesmanDashboard = () => {
                         </div>
 
                         <form onSubmit={editingSalonId ? handleUpdateSalon : handleCreateSalon}>
+                            {/* Group 0: Assign Pre-Registered Code */}
+                            {formMode === 'assign' && !editingSalonId && (
+                                <div style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', padding: '1.5rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
+                                    <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#38bdf8', background: 'none', WebkitTextFillColor: 'initial' }}>
+                                        <Hash size={18} /> Enter Pre-Registered QR Code
+                                    </h3>
+                                    <p style={{ fontSize: '0.85rem', color: '#bae6fd', marginBottom: '1rem', opacity: 0.8 }}>
+                                        Enter the 6-character Salon Code from the pre-printed QR card to assign these details to it.
+                                    </p>
+                                    <div>
+                                        <div style={{ position: 'relative', maxWidth: '300px' }}>
+                                            <Hash size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. AB1234"
+                                                value={newSalon.assignToCode}
+                                                onChange={(e) => setNewSalon({ ...newSalon, assignToCode: e.target.value.toUpperCase() })}
+                                                required={formMode === 'assign'}
+                                                style={{ padding: '0.6rem 0.6rem 0.6rem 2.25rem', margin: 0, fontSize: '1rem', letterSpacing: '2px', fontWeight: 'bold' }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Group 0B: Assign Draft to Code (Only visible in Edit Mode of a Draft) */}
+                            {editingSalonId && editFormData.isDraft && (
+                                <div style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', padding: '1.5rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
+                                    <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#38bdf8', background: 'none', WebkitTextFillColor: 'initial' }}>
+                                        <Hash size={18} /> Assign to Pre-Registered QR Code (Optional)
+                                    </h3>
+                                    <p style={{ fontSize: '0.85rem', color: '#bae6fd', marginBottom: '1rem', opacity: 0.8 }}>
+                                        You can turn this Draft into a real Salon Record by entering a pre-registered 6-character Salon Code.
+                                    </p>
+                                    <div>
+                                        <div style={{ position: 'relative', maxWidth: '300px' }}>
+                                            <Hash size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. AB1234"
+                                                value={editFormData.assignToCode}
+                                                onChange={(e) => setEditFormData({ ...editFormData, assignToCode: e.target.value.toUpperCase() })}
+                                                style={{ padding: '0.6rem 0.6rem 0.6rem 2.25rem', margin: 0, fontSize: '1rem', letterSpacing: '2px', fontWeight: 'bold' }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Group 1: Basic Information */}
                             <div style={{ background: 'rgba(0,0,0,0.15)', padding: '1.5rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
                                 <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', background: 'none', WebkitTextFillColor: 'initial' }}>
@@ -221,6 +385,33 @@ const SalesmanDashboard = () => {
                                         <div style={{ position: 'relative' }}>
                                             <Phone size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
                                             <input type="text" placeholder="Optional" value={editingSalonId ? editFormData.contactNumber2 : newSalon.contactNumber2} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, contactNumber2: e.target.value }) : setNewSalon({ ...newSalon, contactNumber2: e.target.value })} style={{ padding: '0.6rem 0.6rem 0.6rem 2.25rem', margin: 0, fontSize: '0.9rem' }} />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>Rep Name</label>
+                                        <div style={{ position: 'relative' }}>
+                                            <User size={16} strokeWidth={2.5} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                                            <select
+                                                value={editingSalonId ? editFormData.repName : newSalon.repName}
+                                                onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, repName: e.target.value }) : setNewSalon({ ...newSalon, repName: e.target.value })}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '0.6rem 0.6rem 0.6rem 2.25rem',
+                                                    margin: 0,
+                                                    fontSize: '0.9rem',
+                                                    borderRadius: '8px',
+                                                    border: '1px solid var(--glass-border)',
+                                                    background: 'rgba(255, 255, 255, 0.05)',
+                                                    color: 'white',
+                                                    appearance: 'none',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                <option value="">Select Rep Name</option>
+                                                {reps.map(rep => (
+                                                    <option key={rep._id} value={rep.name}>{rep.name}</option>
+                                                ))}
+                                            </select>
                                         </div>
                                     </div>
                                     <div style={{ gridColumn: '1 / -1' }}>
@@ -279,6 +470,69 @@ const SalesmanDashboard = () => {
                                 </div>
                             </div>
 
+                            {/* Group 3: Status & Marks */}
+                            <div style={{ background: 'rgba(0,0,0,0.15)', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem' }}>
+                                <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', background: 'none', WebkitTextFillColor: 'initial' }}>
+                                    <Store size={18} /> Status & Marks
+                                </h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#cbd5e1' }}>
+                                            <input type="checkbox" checked={editingSalonId ? editFormData.isVisited : newSalon.isVisited} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, isVisited: e.target.checked }) : setNewSalon({ ...newSalon, isVisited: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+                                            Visited Salon
+                                        </label>
+                                        {(editingSalonId ? editFormData.isVisited : newSalon.isVisited) && (
+                                            <input
+                                                type="date"
+                                                value={editingSalonId ? editFormData.visitedDate : newSalon.visitedDate}
+                                                onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, visitedDate: e.target.value }) : setNewSalon({ ...newSalon, visitedDate: e.target.value })}
+                                                style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                                            />
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#cbd5e1' }}>
+                                            <input type="checkbox" checked={editingSalonId ? editFormData.isActive : newSalon.isActive} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, isActive: e.target.checked }) : setNewSalon({ ...newSalon, isActive: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+                                            Active Salon
+                                        </label>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#cbd5e1' }}>
+                                            <input type="checkbox" checked={editingSalonId ? editFormData.posmActive : newSalon.posmActive} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, posmActive: e.target.checked }) : setNewSalon({ ...newSalon, posmActive: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+                                            POSM Active Salon
+                                        </label>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                                    <label style={{ color: '#cbd5e1', fontSize: '1rem', fontWeight: 'bold' }}>Revisited Dates (Mark old visits here)</label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                        {((editingSalonId ? editFormData.revisitedDates : newSalon.revisitedDates) || []).map((d, index) => (
+                                            <div key={index} style={{ padding: '0.4rem 0.8rem', background: 'rgba(255,255,255,0.1)', borderRadius: '20px', color: '#bae6fd', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                {new Date(d).toLocaleDateString()}
+                                                <button type="button" onClick={() => {
+                                                    const data = editingSalonId ? editFormData : newSalon;
+                                                    const newArr = [...data.revisitedDates];
+                                                    newArr.splice(index, 1);
+                                                    if (editingSalonId) setEditFormData({ ...editFormData, revisitedDates: newArr }); else setNewSalon({ ...newSalon, revisitedDates: newArr });
+                                                }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '1.1rem', lineHeight: 1, cursor: 'pointer', padding: 0 }}>&times;</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                                        <input type="date" id={`revisit-date-${editingSalonId || 'new'}`} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+                                        <button type="button" onClick={() => {
+                                            const dateVal = document.getElementById(`revisit-date-${editingSalonId || 'new'}`).value;
+                                            if (dateVal) {
+                                                const data = editingSalonId ? editFormData : newSalon;
+                                                const newValue = [...(data.revisitedDates || []), dateVal];
+                                                if (editingSalonId) setEditFormData({ ...editFormData, revisitedDates: newValue }); else setNewSalon({ ...newSalon, revisitedDates: newValue });
+                                                document.getElementById(`revisit-date-${editingSalonId || 'new'}`).value = '';
+                                            }
+                                        }} className="btn-primary" style={{ padding: '0.5rem 1rem' }}>Add Date</button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                                 {editingSalonId && (
                                     <button type="button" onClick={() => setEditingSalonId(null)} className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', padding: '0.6rem 1rem', fontSize: '0.9rem' }}>Cancel</button>
@@ -290,7 +544,7 @@ const SalesmanDashboard = () => {
                                     {isSubmitting ? (
                                         <span>Saving...</span>
                                     ) : (
-                                        editingSalonId ? <><ShieldCheck size={18} /> Save Changes</> : <><CheckCircle2 size={18} /> Register Salon</>
+                                        editingSalonId ? <><ShieldCheck size={18} /> Save Changes</> : (formMode === 'assign' ? <><CheckCircle2 size={18} /> Assign setup</> : <><CheckCircle2 size={18} /> Register Salon</>)
                                     )}
                                 </button>
                             </div>
@@ -352,6 +606,100 @@ const SalesmanDashboard = () => {
                     </section>
                 )}
 
+                {/* Bulk Registration Section */}
+                <section className="glass-container">
+                    <h2>Bulk Registration</h2>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '1rem' }}>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'nowrap' }}>
+                            <select
+                                value={newSalon.repName}
+                                onChange={(e) => setNewSalon({ ...newSalon, repName: e.target.value })}
+                                style={{
+                                    padding: '0.8rem',
+                                    borderRadius: '8px',
+                                    border: '1px solid rgba(255,255,255,0.2)',
+                                    background: 'rgba(255,255,255,0.1)',
+                                    color: 'white',
+                                    minWidth: '200px'
+                                }}
+                                required
+                            >
+                                <option value="" style={{ color: 'black' }}>Select Rep (Required)</option>
+                                {reps.map(rep => (
+                                    <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>
+                                ))}
+                            </select>
+
+                            <label htmlFor="excel-upload" className="btn-primary" style={{ cursor: 'pointer', padding: '0.8rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#334155', color: 'white', border: '1px solid rgba(255,255,255,0.2)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                {selectedExcelFile ? selectedExcelFile.name : 'Choose Excel / CSV'}
+                            </label>
+                            <input
+                                id="excel-upload"
+                                type="file"
+                                accept=".xlsx, .xls, .csv"
+                                onChange={(e) => {
+                                    if (e.target.files && e.target.files.length > 0) {
+                                        setSelectedExcelFile(e.target.files[0]);
+                                    }
+                                }}
+                                style={{ display: 'none' }}
+                            />
+                            <button
+                                onClick={handleExcelUpload}
+                                disabled={!selectedExcelFile}
+                                className="btn-primary"
+                                style={{ padding: '0.8rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', background: selectedExcelFile ? '#4ade80' : '#22c55e', opacity: selectedExcelFile ? 1 : 0.5, color: '#0f172a', border: 'none', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: selectedExcelFile ? 'pointer' : 'not-allowed' }}
+                            >
+                                Submit Upload
+                            </button>
+                        </div>
+                    </div>
+
+                    {newBulkSalons.length > 0 && (
+                        <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                <h3 style={{ margin: 0 }}>Newly Registered Salons ({newBulkSalons.length})</h3>
+                                <div style={{ display: 'flex', gap: '1rem' }}>
+                                    <button
+                                        onClick={() => setNewBulkSalons([])}
+                                        className="btn-primary outline"
+                                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
+                                    >
+                                        Clear List
+                                    </button>
+                                </div>
+                            </div>
+                            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                                <table className="styled-table" style={{ fontSize: '0.9rem', width: '100%', borderCollapse: 'collapse', color: 'white', textAlign: 'left' }}>
+                                    <thead>
+                                        <tr style={{ background: 'rgba(255,255,255,0.1)' }}>
+                                            <th style={{ padding: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Name</th>
+                                            <th style={{ padding: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Location</th>
+                                            <th style={{ padding: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Username</th>
+                                            <th style={{ padding: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Password</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {newBulkSalons.map((salon, i) => (
+                                            <tr key={salon._id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <td style={{ padding: '0.8rem' }}>{salon.name}</td>
+                                                <td style={{ padding: '0.8rem' }}>{salon.location}</td>
+                                                <td style={{ padding: '0.8rem' }}>{salon.username}</td>
+                                                <td style={{ padding: '0.8rem', fontFamily: 'monospace' }}>{salon.plainPassword}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#fbbf24' }}>
+                                ⚠ Please save these credentials now. Passwords may not be visible later.
+                            </p>
+                        </div>
+                    )}
+                </section>
+
                 {/* Salon List Section */}
                 <section className="glass-container">
                     <h2 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.5rem' }}>
@@ -373,11 +721,17 @@ const SalesmanDashboard = () => {
                             .map(salon => (
                                 <div key={salon._id} className="salon-card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%)', border: '1px solid rgba(255,255,255,0.08)', position: 'relative', overflow: 'hidden' }}>
                                     <div style={{ position: 'absolute', top: 0, right: 0, padding: '0.5rem 1rem', background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', fontWeight: 'bold', borderBottomLeftRadius: '12px', fontSize: '0.9rem', letterSpacing: '1px' }}>
-                                        {salon.salonCode}
+                                        {salon.salonCode || 'DRAFT'}
                                     </div>
 
                                     <div style={{ paddingRight: '4rem', marginBottom: '1rem' }}>
-                                        <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem', color: '#f8fafc', WebkitTextFillColor: 'initial', background: 'none' }}>{salon.name}</h3>
+                                        <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem', color: '#f8fafc', WebkitTextFillColor: 'initial', background: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                            {salon.name}
+                                            {salon.isVisited && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: 'rgba(74,222,128,0.2)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>Visited</span>}
+                                            {salon.isActive && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: 'rgba(56,189,248,0.2)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}>Active</span>}
+                                            {salon.posmActive && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: 'rgba(192,132,252,0.2)', color: '#c084fc', border: '1px solid rgba(192,132,252,0.3)' }}>POSM</span>}
+                                            {!salon.salonCode && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: 'rgba(239,68,68,0.2)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>Draft (No QR)</span>}
+                                        </h3>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#94a3b8', fontSize: '0.9rem' }}>
                                             <MapPin size={14} /> {salon.location || 'Location Not Set'}
                                         </div>
@@ -416,8 +770,18 @@ const SalesmanDashboard = () => {
                                                     <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Additional Info</h4>
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Contact 2:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.contactNumber2 || '-'}</span></div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Rep Name:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.repName || '-'}</span></div>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Remark:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.remark || '-'}</span></div>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Registered:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{new Date(salon.createdAt).toLocaleDateString()}</span></div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Visited Salon:</span> <span style={{ color: salon.isVisited ? '#4ade80' : '#ef4444', textAlign: 'right', fontWeight: 'bold' }}>{salon.isVisited ? 'Yes' : 'No'}</span></div>
+                                                        {salon.isVisited && salon.visitedDate && (
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Visited Date:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{new Date(salon.visitedDate).toLocaleDateString()}</span></div>
+                                                        )}
+                                                        {salon.revisitedDates && salon.revisitedDates.length > 0 && (
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Revisited Dates:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.revisitedDates.map(d => new Date(d).toLocaleDateString()).join(', ')}</span></div>
+                                                        )}
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Active Salon:</span> <span style={{ color: salon.isActive ? '#4ade80' : '#ef4444', textAlign: 'right', fontWeight: 'bold' }}>{salon.isActive ? 'Yes' : 'No'}</span></div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>POSM Active Salon:</span> <span style={{ color: salon.posmActive ? '#4ade80' : '#ef4444', textAlign: 'right', fontWeight: 'bold' }}>{salon.posmActive ? 'Yes' : 'No'}</span></div>
                                                     </div>
                                                 </div>
 
@@ -454,7 +818,7 @@ const SalesmanDashboard = () => {
                     </div>
                 </section>
             </div>
-        </div>
+        </div >
     );
 };
 

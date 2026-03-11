@@ -67,6 +67,11 @@ select {
   margin-bottom: 1rem;
 }
 
+option {
+  background: var(--background-dark);
+  color: white;
+}
+
 input:focus,
 select:focus {
   outline: none;
