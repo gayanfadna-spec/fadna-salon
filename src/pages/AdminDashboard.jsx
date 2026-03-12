@@ -4,8 +4,6 @@ import axios from 'axios';
 import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import html2canvas from 'html2canvas';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onrender.com/api';
 
@@ -17,7 +15,6 @@ const AdminDashboard = () => {
     const [newCredentials, setNewCredentials] = useState(null);
     const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'orders', 'salons', 'monitor'
     const [formModeAdmin, setFormModeAdmin] = useState('create'); // 'create' or 'assign'
-    const [manualVisitedCount, setManualVisitedCount] = useState(0);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -499,10 +496,10 @@ const AdminDashboard = () => {
         if (!searchTerm) return true;
         const term = searchTerm.toLowerCase();
         return (
-            salon.name.toLowerCase().includes(term) ||
-            (salon.location && salon.location.toLowerCase().includes(term)) ||
-            (salon.username && salon.username.toLowerCase().includes(term)) ||
-            (salon.salonCode && salon.salonCode.toLowerCase().includes(term))
+            (salon.name || '').toLowerCase().includes(term) ||
+            (salon.location || '').toLowerCase().includes(term) ||
+            (salon.username || '').toLowerCase().includes(term) ||
+            (salon.salonCode || '').toLowerCase().includes(term)
         );
     });
 
@@ -581,12 +578,6 @@ const AdminDashboard = () => {
     const posmSalonsCount = salons.filter(s => s.posmActive).length;
     const visitedSalonsFromDb = salons.filter(s => s.isVisited).length;
 
-    const chartData = [
-        { name: 'Active Salons', count: activeSalonsCount, fill: '#38bdf8' },
-        { name: 'POSM Active', count: posmSalonsCount, fill: '#c084fc' },
-        { name: 'Visited Salons', count: visitedSalonsFromDb + Number(manualVisitedCount || 0), fill: '#4ade80' }
-    ];
-
     const repStats = {};
     salons.forEach(s => {
         const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
@@ -598,21 +589,6 @@ const AdminDashboard = () => {
         if (s.posmActive) repStats[rep].posm += 1;
     });
     const repChartData = Object.values(repStats).sort((a, b) => a.name.localeCompare(b.name));
-
-    const downloadChart = async () => {
-        const chartElement = document.getElementById('stats-chart-container');
-        if (chartElement) {
-            try {
-                const canvas = await html2canvas(chartElement, { backgroundColor: '#1a1a2e' });
-                canvas.toBlob((blob) => {
-                    saveAs(blob, 'salon_stats_chart.png');
-                });
-            } catch (e) {
-                console.error("Error downloading chart", e);
-                alert("Failed to download chart");
-            }
-        }
-    };
 
     return (
         <div className="container animate-fade-in">
@@ -737,95 +713,53 @@ const AdminDashboard = () => {
                 <section className="glass-container animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                         <h2>Dashboard Overview</h2>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(255,255,255,0.05)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                            <label style={{ color: 'white', fontWeight: 'bold' }}>Add Manual Visited Count:</label>
-                            <input
-                                type="number"
-                                value={manualVisitedCount}
-                                onChange={(e) => setManualVisitedCount(e.target.value)}
-                                style={{
-                                    width: '80px',
-                                    padding: '0.5rem',
-                                    borderRadius: '6px',
-                                    border: '1px solid rgba(255,255,255,0.2)',
-                                    background: 'rgba(255,255,255,0.1)',
-                                    color: 'white',
-                                    outline: 'none'
-                                }}
-                                min="0"
-                            />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+                        <div style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
+                            <h3 style={{ color: '#38bdf8', marginBottom: '0.5rem', fontSize: '1.2rem' }}>Active Salons</h3>
+                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#fff' }}>{activeSalonsCount}</div>
+                        </div>
+                        <div style={{ background: 'rgba(192,132,252,0.1)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
+                            <h3 style={{ color: '#c084fc', marginBottom: '0.5rem', fontSize: '1.2rem' }}>POSM Active</h3>
+                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#fff' }}>{posmSalonsCount}</div>
+                        </div>
+                        <div style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
+                            <h3 style={{ color: '#4ade80', marginBottom: '0.5rem', fontSize: '1.2rem' }}>Visited Salons</h3>
+                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#fff' }}>{visitedSalonsFromDb}</div>
                         </div>
                     </div>
 
-                    <div id="stats-chart-container" style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        <h3 style={{ textAlign: 'center', marginBottom: '2rem', color: '#fff' }}>Salon Status Counter</h3>
-                        <ResponsiveContainer width="100%" height={400}>
-                            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                                <XAxis dataKey="name" stroke="#fff" tick={{ fill: '#fff' }} />
-                                <YAxis stroke="#fff" tick={{ fill: '#fff' }} allowDecimals={false} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
-                                    itemStyle={{ color: '#fff' }}
-                                />
-                                <Legend wrapperStyle={{ color: '#fff' }} />
-                                <Bar dataKey="count" name="Salons Count" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <button
-                            onClick={downloadChart}
-                            className="btn-primary"
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem 1.5rem', fontSize: '1rem' }}
-                        >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                            Download Overview Chart
-                        </button>
-                    </div>
-
-                    <div id="rep-stats-chart-container" style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)', marginTop: '2rem' }}>
-                        <h3 style={{ textAlign: 'center', marginBottom: '2rem', color: '#fff' }}>Rep Wise Salon Status</h3>
-                        <ResponsiveContainer width="100%" height={400}>
-                            <BarChart data={repChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                                <XAxis dataKey="name" stroke="#fff" tick={{ fill: '#fff' }} />
-                                <YAxis stroke="#fff" tick={{ fill: '#fff' }} allowDecimals={false} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
-                                    itemStyle={{ color: '#fff' }}
-                                />
-                                <Legend wrapperStyle={{ color: '#fff' }} />
-                                <Bar dataKey="visited" name="Visited Salons" fill="#4ade80" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="active" name="Active Salons" fill="#38bdf8" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="posm" name="POSM Active" fill="#c084fc" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                        <button
-                            onClick={async () => {
-                                const el = document.getElementById('rep-stats-chart-container');
-                                if (el) {
-                                    try {
-                                        const canvas = await html2canvas(el, { backgroundColor: '#1a1a2e' });
-                                        canvas.toBlob((blob) => {
-                                            saveAs(blob, 'rep_wise_salon_stats_chart.png');
-                                        });
-                                    } catch (e) {
-                                        console.error("Error downloading chart", e);
-                                        alert("Failed to download chart");
-                                    }
-                                }
-                            }}
-                            className="btn-primary"
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem 1.5rem', fontSize: '1rem' }}
-                        >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                            Download Rep Chart
-                        </button>
+                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <h3 style={{ marginBottom: '1.5rem', color: '#fff' }}>Rep Wise Overview</h3>
+                        <div className="table-container">
+                            <table className="styled-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr>
+                                        <th style={{ textAlign: 'left', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Rep Name</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Active Salons</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>POSM Active</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Visited Salons</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {repChartData.length > 0 ? (
+                                        repChartData.map((rep, index) => (
+                                            <tr key={index} style={{ background: index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                                                <td style={{ fontWeight: 'bold', color: '#bae6fd', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.name}</td>
+                                                <td style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.active}</td>
+                                                <td style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.posm}</td>
+                                                <td style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.visited}</td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: 'gray' }}>No data available</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </section>
             )}
@@ -1115,6 +1049,9 @@ const AdminDashboard = () => {
                                             <p style={{ margin: '0.5rem 0', fontSize: '0.9rem', opacity: 0.8 }}>Please save these credentials to share with the salon owner. The password will not be shown again.</p>
 
                                             <div style={{ marginTop: '1rem', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.5rem 1rem', alignItems: 'center' }}>
+                                                <span style={{ fontWeight: 'bold', color: 'var(--secondary-color)' }}>Code:</span>
+                                                <code style={{ background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: 'bold' }}>{newCredentials.salonCode || 'N/A'}</code>
+
                                                 <span style={{ fontWeight: 'bold' }}>Username:</span>
                                                 <code style={{ background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>{newCredentials.username}</code>
 

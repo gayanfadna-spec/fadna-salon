@@ -587,6 +587,9 @@ const SalesmanDashboard = () => {
                                         <ShieldCheck size={20} color="#4ade80" /> Important Credentials
                                     </h4>
                                     <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '1rem', alignItems: 'center' }}>
+                                        <span style={{ color: '#94a3b8', fontWeight: '500' }}>Code:</span>
+                                        <code style={{ background: 'rgba(0,0,0,0.5)', padding: '0.5rem 1rem', borderRadius: '6px', color: '#818cf8', fontWeight: 'bold', fontSize: '1.1rem', letterSpacing: '1px', border: '1px solid rgba(255,255,255,0.1)' }}>{newCredentials.salonCode || 'N/A'}</code>
+
                                         <span style={{ color: '#94a3b8', fontWeight: '500' }}>Username:</span>
                                         <code style={{ background: 'rgba(0,0,0,0.5)', padding: '0.5rem 1rem', borderRadius: '6px', color: '#f8fafc', fontSize: '1.1rem', letterSpacing: '1px', border: '1px solid rgba(255,255,255,0.1)' }}>{newCredentials.username}</code>
 
@@ -677,6 +680,7 @@ const SalesmanDashboard = () => {
                                         <tr style={{ background: 'rgba(255,255,255,0.1)' }}>
                                             <th style={{ padding: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Name</th>
                                             <th style={{ padding: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Location</th>
+                                            <th style={{ padding: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Code</th>
                                             <th style={{ padding: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Username</th>
                                             <th style={{ padding: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Password</th>
                                         </tr>
@@ -686,6 +690,7 @@ const SalesmanDashboard = () => {
                                             <tr key={salon._id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                 <td style={{ padding: '0.8rem' }}>{salon.name}</td>
                                                 <td style={{ padding: '0.8rem' }}>{salon.location}</td>
+                                                <td style={{ padding: '0.8rem', fontWeight: 'bold', color: '#818cf8' }}>{salon.salonCode || 'N/A'}</td>
                                                 <td style={{ padding: '0.8rem' }}>{salon.username}</td>
                                                 <td style={{ padding: '0.8rem', fontFamily: 'monospace' }}>{salon.plainPassword}</td>
                                             </tr>
@@ -712,8 +717,8 @@ const SalesmanDashboard = () => {
                                 if (!searchTerm) return true;
                                 const term = searchTerm.toLowerCase();
                                 return (
-                                    salon.name.toLowerCase().includes(term) ||
-                                    salon.salonCode.toLowerCase().includes(term) ||
+                                    (salon.name || '').toLowerCase().includes(term) ||
+                                    (salon.salonCode || '').toLowerCase().includes(term) ||
                                     (salon.location || '').toLowerCase().includes(term)
                                 );
                             })
@@ -740,6 +745,17 @@ const SalesmanDashboard = () => {
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, marginBottom: '1.5rem' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#cbd5e1', fontSize: '0.9rem' }}>
                                             <Phone size={14} color="#64748b" /> {salon.contactNumber1 || salon.contactNumber || 'No Contact Info'}
+                                        </div>
+                                    </div>
+
+                                    <div className="credential-box" style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <div className="credential-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '0.3rem' }}>
+                                            <span style={{ color: '#94a3b8' }}>User:</span>
+                                            <span style={{ color: '#f8fafc', fontWeight: 'bold' }}>{salon.username || '-'}</span>
+                                        </div>
+                                        <div className="credential-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                                            <span style={{ color: '#94a3b8' }}>Pass:</span>
+                                            <span style={{ color: salon.plainPassword ? '#4ade80' : '#f8fafc', fontWeight: 'bold' }}>{salon.plainPassword || '••••••'}</span>
                                         </div>
                                     </div>
 
