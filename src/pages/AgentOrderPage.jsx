@@ -4,12 +4,12 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onrender.com/api';
 
-const OrderPage = () => {
-    const { salonId } = useParams();
+const AgentOrderPage = () => {
+    const { agentId } = useParams();
     const navigate = useNavigate();
     const [step, setStep] = useState(1);
-    const [paymentMethod] = useState('Online'); // Salon: Online payment only
-    const [salon, setSalon] = useState(null);
+    const [paymentMethod, setPaymentMethod] = useState('Online');
+    const [agent, setAgent] = useState(null);
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -26,9 +26,9 @@ const OrderPage = () => {
 
     useEffect(() => {
         // ... (existing fetchData logic remains the same, assuming it's correct)
-        console.log("OrderPage Mounted. SalonID:", salonId);
-        if (!salonId) {
-            setError("No Salon ID provided in URL.");
+        console.log("OrderPage Mounted. AgentID:", agentId);
+        if (!agentId) {
+            setError("No Agent ID provided in URL.");
             setLoading(false);
             return;
         }
@@ -38,16 +38,16 @@ const OrderPage = () => {
                 setLoading(true);
                 setError(null);
 
-                const salonRes = await axios.get(`${API_URL}/salons/${salonId}`);
-                if (salonRes.data.success) {
-                    setSalon(salonRes.data.salon);
+                const agentRes = await axios.get(`${API_URL}/agents/${agentId}`);
+                if (agentRes.data.success) {
+                    setAgent(agentRes.data.agent);
                 } else {
-                    throw new Error(salonRes.data.message || "Failed to load salon data");
+                    throw new Error(agentRes.data.message || "Failed to load agent data");
                 }
 
                 const productRes = await axios.get(`${API_URL}/products`);
                 if (productRes.data.success) {
-                    const filteredProducts = productRes.data.products.filter(p => !p.target || p.target === 'both' || p.target === 'salon');
+                    const filteredProducts = productRes.data.products.filter(p => !p.target || p.target === 'both' || p.target === 'agent');
                     setProducts(filteredProducts);
                 }
             } catch (err) {
@@ -58,7 +58,7 @@ const OrderPage = () => {
             }
         };
         fetchData();
-    }, [salonId]);
+    }, [agentId]);
 
     const updateQuantity = (itemId, change) => {
         setCart(prev => {
@@ -99,7 +99,7 @@ const OrderPage = () => {
                 // Optimization: Update existing if orderId is set.
 
                 const res = await axios.post(`${API_URL}/orders/draft`, {
-                    salonId,
+                    agentId,
                     customerName: formData.customerName,
                     customerPhone: formData.customerPhone,
                     additionalPhone: formData.additionalPhone,
@@ -143,8 +143,8 @@ const OrderPage = () => {
 
         try {
             const res = await axios.post(`${API_URL}/orders`, {
-                orderId,
-                salonId,
+                orderId, // Pass orderId if we have it (from draft)
+                agentId,
                 customerName: formData.customerName,
                 customerPhone: formData.customerPhone,
                 additionalPhone: formData.additionalPhone,
@@ -152,7 +152,7 @@ const OrderPage = () => {
                 city: formData.city,
                 items,
                 totalAmount: calculateTotal(),
-                paymentMethod  // Always 'Online'
+                paymentMethod
             });
 
             if (res.data.success) {
@@ -220,7 +220,7 @@ const OrderPage = () => {
         );
     }
 
-    if (!salon) return <div className="container">Salon not found.</div>;
+    if (!agent) return <div className="container">Agent not found.</div>;
 
     return (
         <div className="container animate-fade-in" style={{ maxWidth: '600px' }}>
@@ -239,9 +239,9 @@ const OrderPage = () => {
             </div>
 
             <div className="glass-container" style={{ marginBottom: '2rem' }}>
-                <h2 style={{ marginBottom: '0.5rem' }}>{salon.name}</h2>
+                <h2 style={{ marginBottom: '0.5rem' }}>{agent.name}</h2>
                 <p style={{ margin: 0, opacity: 0.7 }}>
-                    {step === 1 ? "Enter your details" : step === 2 ? "Satiny" : "Select your products"}
+                    {step === 1 ? "Enter your details" : step === 2 ? "Our Products" : "Select your products"}
                 </p>
             </div>
 
@@ -298,29 +298,45 @@ const OrderPage = () => {
                     </div>
                 </div>
             )}
-
             {step === 2 && (
                 <div className="animate-fade-in" style={{ textAlign: 'center' }}>
-                    <div className="video-container" style={{ marginBottom: '1.5rem', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                        <iframe
-                            width="100%"
-                            height="315"
-                            //src="https://www.youtube.com/embed/dQw4w9WgXcQ" // Placeholder
-                            src="https://www.youtube.com/embed/pH4Sgy8ihQ4"
-                            title="Product Introduction"
-                            frameBorder="0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                        ></iframe>
-                    </div>
-                    <div className="product-intro" style={{ marginBottom: '2rem', lineHeight: '1.6', color: 'rgba(255,255,255,0.9)' }}>
-                        <h3>Satiny</h3>
-                        <p>හිසකෙස් වැටීම බොහෝ විට නොදැනිම ආරම්භ වෙයි. දුර්වල වූ කේෂ මූලයන් සහ හිස්තලයේ එන්සයිම් අසමතුලිතතාවය නිසා හිසකෙස් සිහින්වීම, වියළිවීම සහ දිප්ති අහිමි වීම සිදුවේ.
 
-                            SATINY යනු විද්‍යාත්මකව සනාථ කළ හර්බල් විසඳුමක් වන අතර, හිසකෙස් වැටීමට ප්‍රධාන හේතුවක් වන alpha-reductase එන්සයිමය ස්වභාවිකව අවහිර කරමින් මුල් හේතුවටම ප්‍රතිකාර කරයි.</p>
-                        <p>කොළඹ විශ්වවිද්‍යාලයේ IBMBB ආයතනය සහ ආයුර්වේද දෙපාර්තමේන්තුව විසින් සංවර්ධනය කරන ලද SATINY, නවීන පර්යේෂණ හා පාරම්පරික වෛද්‍ය ඖෂධීය ශාක සාරයන් එකට එකතු කර නිර්මාණය කර ඇත. Eclipta prostrata සහ Cocos nucifera වැනි සම්ප්‍රදායික ශාක සාරයන් සමඟ එහි ක්‍රියාකාරී බොටැනිකල් සංයෝග හිසකෙස් වර්ධනය වැඩි කරමින්, හිසකෙස් වැටීම අඩු කර, ශක්තිය සහ දිප්තිය නැවත ලබාදේ.</p>
-
+                    {/* Ortho Shield Section */}
+                    <div style={{
+                        background: 'linear-gradient(135deg, #036c98 0%, #41acd0 100%)',
+                        border: '2px solid #dfbf20',
+                        borderRadius: '12px',
+                        padding: '1.5rem',
+                        marginBottom: '2rem',
+                        color: '#f5f5f2',
+                        boxShadow: '0 4px 15px rgba(3, 108, 152, 0.4)'
+                    }}>
+                        <h3 style={{ color: '#dfbf20', textShadow: '1px 1px 2px rgba(0,0,0,0.5)', marginBottom: '1rem' }}>Ortho Shield</h3>
+                        <div className="product-intro" style={{ lineHeight: '1.6', fontSize: '0.95rem' }}>
+                            <p><strong>Natural and Effective Joint Pain Solution</strong></p>
+                            <p>ඕර්තෝ ෂීල්ඩ් යනු කොළඹ විශ්ව විද්‍යාලය විසින් විද්‍යාත්මකව සංවර්ධනය කරන ලද ස්වාභාවික වේදනා සහන දියරයකි. එය සන්ධි සහ මාංශ පේශි වේදනාවෙන් වේගවත්, දිගුකාලීන සහනයක් ලබා දෙයි.</p>
+                            <p>මෙම ඵලදායී වේදනා නාශක දියරය ඉක්මනින් අවශෝෂණය කර දණහිස, උරහිස සහ මැණික් කටුව වැනි ප්‍රධාන ප්‍රදේශ ඉලක්ක කරයි - එය වඩා හොඳ, වේදනා රහිත ජීවිතයක් සඳහා ඔබේ විශ්වාසදායක සන්ධි වේදනා විසඳුම බවට පත් කරයි.</p>
+                        </div>
                     </div>
+
+                    {/* Myo Shield Section */}
+                    <div style={{
+                        background: '#193e81',
+                        border: '2px solid #d0d0d0',
+                        borderRadius: '12px',
+                        padding: '1.5rem',
+                        marginBottom: '2rem',
+                        color: '#d7d9d9',
+                        boxShadow: '0 4px 15px rgba(25, 62, 129, 0.4)'
+                    }}>
+                        <h3 style={{ color: '#ffffff', textShadow: '1px 1px 2px rgba(0,0,0,0.5)', marginBottom: '1rem' }}>Myo Shield</h3>
+                        <div className="product-intro" style={{ lineHeight: '1.6', fontSize: '0.95rem' }}>
+                            <p><strong>Fast and Natural</strong></p>
+                            <p>Myo Shield යනු ක්‍රියාශීලී ජීවන රටාවක් ගත කරන පුද්ගලයින් සඳහා විශේෂයෙන් නිර්මාණය කරන ලද වේගයෙන් ක්‍රියා කරන, දිගු කල් පවතින මාංශ පේශි වේදනා සහන ඉසිනයකි.</p>
+                            <p>මාංශ පේශි වේදනාව, තද ගතිය සහ තෙහෙට්ටුවෙන් ඉක්මන් සහනයක් ලබා දීම සඳහා සංවර්ධනය කරන ලද මෙම ඉහළ කාර්යසාධනයක් සහිත විසඳුම ඉක්මනින් අවශෝෂණය කරන, තෙල් සහිත නොවන සූත්‍රයකින් සමන්විත වේ. එය මාංශ පේශි වේදනාවන් සඳහා ඵලදායී, ගැඹුරට විනිවිද යන සහනයක් ලබා දෙන අතර, උපරිම ශාරීරික ක්‍රියාකාරකම් වෙත වේගයෙන් නැවත පැමිණීම සහතික කරයි.</p>
+                        </div>
+                    </div>
+
                     <div style={{ display: 'flex', gap: '1rem' }}>
                         <button onClick={() => setStep(1)} className="btn-secondary" style={{ flex: 1, padding: '0.8rem', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'white', borderRadius: '8px' }}>
                             Back
@@ -331,6 +347,7 @@ const OrderPage = () => {
                     </div>
                 </div>
             )}
+
 
             {step === 3 && (
                 <form onSubmit={handleSubmit} className="animate-fade-in">
@@ -372,21 +389,16 @@ const OrderPage = () => {
                     <div style={{ marginBottom: '2rem' }}>
                         <h3>Payment Method</h3>
                         <div style={{ display: 'flex', gap: '1rem', flexDirection: 'column' }}>
-                            <label style={{
-                                display: 'flex', alignItems: 'center', gap: '0.5rem',
-                                background: 'rgba(255,255,255,0.1)',
-                                padding: '1rem', borderRadius: '8px',
-                                border: '1px solid var(--secondary-color)'
-                            }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', cursor: 'pointer', border: '1px solid var(--secondary-color)' }}>
                                 <input
                                     type="radio"
                                     name="paymentMethod"
                                     value="Online"
                                     checked={true}
                                     readOnly
-                                    style={{ width: 'auto', marginBottom: 0, marginRight: '0.5rem' }}
+                                    style={{ width: 'auto', marginBottom: 0, marginRight: '1rem' }}
                                 />
-                                <span>💳 Online Payment</span>
+                                <span>Online Payment</span>
                             </label>
                         </div>
                     </div>
@@ -409,4 +421,4 @@ const OrderPage = () => {
     );
 };
 
-export default OrderPage;
+export default AgentOrderPage;

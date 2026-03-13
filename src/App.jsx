@@ -9,6 +9,12 @@ import PaymentResult from './pages/PaymentResult';
 import AdminForgotPasswordPage from './pages/AdminForgotPasswordPage';
 import AdminResetPasswordPage from './pages/AdminResetPasswordPage';
 import SalesmanDashboard from './pages/SalesmanDashboard';
+import AgentAdminDashboard from './pages/AgentAdminDashboard';
+import AgentOrderPage from './pages/AgentOrderPage';
+
+import NetAgentDashboard from './pages/NetAgentDashboard';
+import NetAgentOrderPage from './pages/NetAgentOrderPage';
+import QRGeneratorPage from './pages/QRGeneratorPage';
 import './index.css';
 
 function App() {
@@ -26,7 +32,13 @@ function App() {
           <Route path="/admin/reset-password/:resetToken" element={<AdminResetPasswordPage />} />
           <Route path="/" element={<AdminDashboard />} />
           <Route path="/order/:salonId" element={<OrderPage />} />
+
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/agent-admin" element={<AgentAdminDashboard />} />
+          <Route path="/agent-order/:agentId" element={<AgentOrderPage />} />
+          <Route path="/net-agent-admin" element={<NetAgentDashboard />} />
+          <Route path="/net-agent-order/:agentId" element={<NetAgentOrderPage />} />
+          <Route path="/qr-generator" element={<QRGeneratorPage />} />
           <Route path="/payment/success" element={<PaymentResult />} />
           <Route path="/payment/cancel" element={<PaymentResult />} />
         </Routes>

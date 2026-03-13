@@ -8,8 +8,9 @@ const PaymentResult = () => {
     const location = useLocation();
     const isSuccess = location.pathname.includes('success');
     const orderId = location.state?.orderId;
+    const isCOD = location.state?.cod === true;
     const [status, setStatus] = useState(null);
-    const [loading, setLoading] = useState(isSuccess && orderId);
+    const [loading, setLoading] = useState(isSuccess && orderId && !isCOD);
 
     useEffect(() => {
         if (isSuccess && orderId) {
@@ -38,11 +39,15 @@ const PaymentResult = () => {
         <div className="container animate-fade-in" style={{ textAlign: 'center', marginTop: '4rem' }}>
             <div className="glass-container" style={{ display: 'inline-block', padding: '3rem' }}>
                 <h1 style={{ color: isSuccess ? '#4ade80' : '#ef4444' }}>
-                    {isSuccess ? 'Payment Successful!' : 'Payment Cancelled'}
+                    {isSuccess
+                        ? (isCOD ? '✅ Order Placed!' : '💳 Payment Successful!')
+                        : 'Payment Cancelled'}
                 </h1>
                 <p style={{ fontSize: '1.2rem', margin: '1rem 0' }}>
                     {isSuccess
-                        ? 'Thank you for your order. We will process it shortly.'
+                        ? (isCOD
+                            ? 'Thank you! Your order has been placed. Our team will contact you for delivery and collect payment on delivery.'
+                            : 'Thank you for your order. We will process it shortly.')
                         : 'Your payment was cancelled. Your order has not been completed.'}
                 </p>
 

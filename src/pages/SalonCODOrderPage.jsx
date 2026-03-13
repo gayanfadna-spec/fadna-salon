@@ -4,16 +4,17 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onrender.com/api';
 
-const OrderPage = () => {
+const SalonCODOrderPage = () => {
     const { salonId } = useParams();
     const navigate = useNavigate();
     const [step, setStep] = useState(1);
-    const [paymentMethod] = useState('Online'); // Salon: Online payment only
+    const paymentMethod = 'Cash on Delivery'; // Fixed — this page is COD only
     const [salon, setSalon] = useState(null);
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [cart, setCart] = useState({});
+    const [submitting, setSubmitting] = useState(false);
     const [formData, setFormData] = useState({
         customerName: '',
         customerPhone: '',
@@ -22,11 +23,9 @@ const OrderPage = () => {
         city: ''
     });
     const [orderId, setOrderId] = useState(null);
-    const [payhereParams, setPayhereParams] = useState(null);
 
     useEffect(() => {
-        // ... (existing fetchData logic remains the same, assuming it's correct)
-        console.log("OrderPage Mounted. SalonID:", salonId);
+        console.log("SalonCODOrderPage Mounted. SalonID:", salonId);
         if (!salonId) {
             setError("No Salon ID provided in URL.");
             setLoading(false);
@@ -47,7 +46,9 @@ const OrderPage = () => {
 
                 const productRes = await axios.get(`${API_URL}/products`);
                 if (productRes.data.success) {
-                    const filteredProducts = productRes.data.products.filter(p => !p.target || p.target === 'both' || p.target === 'salon');
+                    const filteredProducts = productRes.data.products.filter(
+                        p => !p.target || p.target === 'both' || p.target === 'salon'
+                    );
                     setProducts(filteredProducts);
                 }
             } catch (err) {
@@ -86,18 +87,7 @@ const OrderPage = () => {
                 return;
             }
 
-            // Create Draft Order
             try {
-                // If we already have an orderId, we could update it, but for now just log
-                // or if we went back and forth, we might want to update.
-                // For simplicity, let's create a draft or update if we have one.
-                // Our /draft endpoint creates new. Let's stick to creating one for now or check if we should add update logic to draft endpoint.
-                // Actually, let's just create it on first pass.
-
-                // If orderId exists, maybe we update? The current /draft makes a NEW one. 
-                // Let's just create for now to satisfy "Save on Next". 
-                // Optimization: Update existing if orderId is set.
-
                 const res = await axios.post(`${API_URL}/orders/draft`, {
                     salonId,
                     customerName: formData.customerName,
@@ -113,11 +103,6 @@ const OrderPage = () => {
                 }
             } catch (err) {
                 console.error("Failed to save draft", err);
-                // Optionally alert user or just proceed locally if backend fails?
-                // Better to alert as requirement is to save.
-                // But to not block flow, maybe just log and proceed?
-                // User said "details should be save", implies success requirement.
-                // Let's alert but allow proceed? No, better to force save.
                 alert("Failed to save details. Please try again.");
                 return;
             }
@@ -141,6 +126,7 @@ const OrderPage = () => {
 
         if (items.length === 0) return alert('Please add items to cart');
 
+        setSubmitting(true);
         try {
             const res = await axios.post(`${API_URL}/orders`, {
                 orderId,
@@ -152,59 +138,19 @@ const OrderPage = () => {
                 city: formData.city,
                 items,
                 totalAmount: calculateTotal(),
-                paymentMethod  // Always 'Online'
+                paymentMethod   // Always 'Cash on Delivery'
             });
 
-            if (res.data.success) {
-                setPayhereParams(res.data.payhere);
+            if (res.data.success && res.data.cod) {
+                navigate('/payment/success', { state: { orderId: res.data.orderId, cod: true } });
             }
         } catch (err) {
             console.error(err);
             alert(`Failed to place order: ${err.response?.data?.message || err.message}`);
+        } finally {
+            setSubmitting(false);
         }
     };
-
-    useEffect(() => {
-        if (payhereParams) {
-            window.payhere.onCompleted = async function onCompleted(orderId) {
-                console.log("Payment completed. OrderID:" + orderId);
-                try {
-                    await axios.put(`${API_URL}/orders/${orderId}/status`, { status: 'Paid' });
-                    navigate('/payment/success', { state: { orderId } });
-                } catch (err) {
-                    console.error("Failed to update status to Paid", err);
-                    alert("Payment successful but failed to update order status. Please contact support.");
-                }
-            };
-            window.payhere.onDismissed = async function onDismissed() {
-                console.log("Payment dismissed");
-                try {
-                    // Assuming payhereParams.order_id holds the order ID
-                    await axios.put(`${API_URL}/orders/${payhereParams.order_id}/status`, { status: 'Payment Failed' });
-                } catch (err) {
-                    console.error("Failed to update status to Payment Failed", err);
-                }
-                setLoading(false);
-                alert("Payment was dismissed. Order marked as Payment Failed.");
-            };
-            window.payhere.onError = async function onError(error) {
-                console.log("Error:" + error);
-                try {
-                    await axios.put(`${API_URL}/orders/${payhereParams.order_id}/status`, { status: 'Payment Failed' });
-                } catch (err) {
-                    console.error("Failed to update status to Payment Failed", err);
-                }
-                setError("Payment Error: " + error);
-                setLoading(false);
-            };
-            try {
-                window.payhere.startPayment(payhereParams);
-            } catch (err) {
-                console.error("Error starting PayHere:", err);
-                setError("Failed to start payment gateway.");
-            }
-        }
-    }, [payhereParams, navigate]);
 
     if (loading) return <div className="container" style={{ textAlign: 'center', marginTop: '2rem' }}>Loading Shop Details...</div>;
 
@@ -228,7 +174,25 @@ const OrderPage = () => {
                 <img src="/Fadna New Logo.png" alt="Fadna Logo" className="site-logo" />
             </div>
 
-            {/* Steps Indicator (Optional, but good for UX) */}
+            {/* COD Badge */}
+            <div style={{
+                display: 'flex', justifyContent: 'center', marginBottom: '1rem'
+            }}>
+                <span style={{
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    color: '#fff',
+                    borderRadius: '20px',
+                    padding: '0.4rem 1.2rem',
+                    fontSize: '0.85rem',
+                    fontWeight: 'bold',
+                    letterSpacing: '0.05em',
+                    boxShadow: '0 2px 8px rgba(245,158,11,0.4)'
+                }}>
+                    🚚 Cash on Delivery
+                </span>
+            </div>
+
+            {/* Steps Indicator */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
                 {[1, 2, 3].map(s => (
                     <div key={s} style={{
@@ -239,12 +203,13 @@ const OrderPage = () => {
             </div>
 
             <div className="glass-container" style={{ marginBottom: '2rem' }}>
-                <h2 style={{ marginBottom: '0.5rem' }}>{salon.name}</h2>
+                <h2 style={{ marginBottom: '0.5rem' }}>{salon.name} Salon</h2>
                 <p style={{ margin: 0, opacity: 0.7 }}>
                     {step === 1 ? "Enter your details" : step === 2 ? "Satiny" : "Select your products"}
                 </p>
             </div>
 
+            {/* Step 1: Customer Details */}
             {step === 1 && (
                 <div className="animate-fade-in">
                     <div style={{ marginBottom: '2rem' }}>
@@ -299,13 +264,13 @@ const OrderPage = () => {
                 </div>
             )}
 
+            {/* Step 2: Product Introduction */}
             {step === 2 && (
                 <div className="animate-fade-in" style={{ textAlign: 'center' }}>
                     <div className="video-container" style={{ marginBottom: '1.5rem', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
                         <iframe
                             width="100%"
                             height="315"
-                            //src="https://www.youtube.com/embed/dQw4w9WgXcQ" // Placeholder
                             src="https://www.youtube.com/embed/pH4Sgy8ihQ4"
                             title="Product Introduction"
                             frameBorder="0"
@@ -319,7 +284,6 @@ const OrderPage = () => {
 
                             SATINY යනු විද්‍යාත්මකව සනාථ කළ හර්බල් විසඳුමක් වන අතර, හිසකෙස් වැටීමට ප්‍රධාන හේතුවක් වන alpha-reductase එන්සයිමය ස්වභාවිකව අවහිර කරමින් මුල් හේතුවටම ප්‍රතිකාර කරයි.</p>
                         <p>කොළඹ විශ්වවිද්‍යාලයේ IBMBB ආයතනය සහ ආයුර්වේද දෙපාර්තමේන්තුව විසින් සංවර්ධනය කරන ලද SATINY, නවීන පර්යේෂණ හා පාරම්පරික වෛද්‍ය ඖෂධීය ශාක සාරයන් එකට එකතු කර නිර්මාණය කර ඇත. Eclipta prostrata සහ Cocos nucifera වැනි සම්ප්‍රදායික ශාක සාරයන් සමඟ එහි ක්‍රියාකාරී බොටැනිකල් සංයෝග හිසකෙස් වර්ධනය වැඩි කරමින්, හිසකෙස් වැටීම අඩු කර, ශක්තිය සහ දිප්තිය නැවත ලබාදේ.</p>
-
                     </div>
                     <div style={{ display: 'flex', gap: '1rem' }}>
                         <button onClick={() => setStep(1)} className="btn-secondary" style={{ flex: 1, padding: '0.8rem', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'white', borderRadius: '8px' }}>
@@ -332,6 +296,7 @@ const OrderPage = () => {
                 </div>
             )}
 
+            {/* Step 3: Product Selection & Order */}
             {step === 3 && (
                 <form onSubmit={handleSubmit} className="animate-fade-in">
                     <div className="catalog-grid" style={{ marginBottom: '2rem' }}>
@@ -369,25 +334,21 @@ const OrderPage = () => {
                         ))}
                     </div>
 
-                    <div style={{ marginBottom: '2rem' }}>
-                        <h3>Payment Method</h3>
-                        <div style={{ display: 'flex', gap: '1rem', flexDirection: 'column' }}>
-                            <label style={{
-                                display: 'flex', alignItems: 'center', gap: '0.5rem',
-                                background: 'rgba(255,255,255,0.1)',
-                                padding: '1rem', borderRadius: '8px',
-                                border: '1px solid var(--secondary-color)'
-                            }}>
-                                <input
-                                    type="radio"
-                                    name="paymentMethod"
-                                    value="Online"
-                                    checked={true}
-                                    readOnly
-                                    style={{ width: 'auto', marginBottom: 0, marginRight: '0.5rem' }}
-                                />
-                                <span>💳 Online Payment</span>
-                            </label>
+                    {/* COD Notice */}
+                    <div style={{
+                        background: 'rgba(245, 158, 11, 0.1)',
+                        border: '1px solid rgba(245, 158, 11, 0.4)',
+                        borderRadius: '10px',
+                        padding: '1rem',
+                        marginBottom: '1.5rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem'
+                    }}>
+                        <span style={{ fontSize: '1.5rem' }}>🚚</span>
+                        <div>
+                            <div style={{ fontWeight: 'bold', color: '#f59e0b' }}>Cash on Delivery</div>
+                            <div style={{ fontSize: '0.85rem', opacity: 0.8 }}>Pay when your order arrives. Our team will contact you to confirm delivery.</div>
                         </div>
                     </div>
 
@@ -400,13 +361,15 @@ const OrderPage = () => {
                             <button type="button" onClick={() => setStep(2)} className="btn-secondary" style={{ flex: 1, padding: '0.8rem', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'white', borderRadius: '8px' }}>
                                 Back
                             </button>
-                            <button type="submit" className="btn-primary" style={{ flex: 2, fontSize: '1.1rem' }}>Place Order</button>
+                            <button type="submit" className="btn-primary" style={{ flex: 2, fontSize: '1.1rem' }} disabled={submitting}>
+                                {submitting ? 'Placing Order...' : '🚚 Place COD Order'}
+                            </button>
                         </div>
                     </div>
-                </form >
+                </form>
             )}
-        </div >
+        </div>
     );
 };
 
-export default OrderPage;
+export default SalonCODOrderPage;
