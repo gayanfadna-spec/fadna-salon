@@ -10,6 +10,7 @@ import AdminForgotPasswordPage from './pages/AdminForgotPasswordPage';
 import AdminResetPasswordPage from './pages/AdminResetPasswordPage';
 import SalesmanDashboard from './pages/SalesmanDashboard';
 import AgentAdminDashboard from './pages/AgentAdminDashboard';
+import AgentDashboard from './pages/AgentDashboard';
 import AgentOrderPage from './pages/AgentOrderPage';
 
 import NetAgentDashboard from './pages/NetAgentDashboard';
@@ -35,6 +36,7 @@ function App() {
 
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/agent-admin" element={<AgentAdminDashboard />} />
+          <Route path="/agent-dashboard" element={<AgentDashboard />} />
           <Route path="/agent-order/:agentId" element={<AgentOrderPage />} />
           <Route path="/net-agent-admin" element={<NetAgentDashboard />} />
           <Route path="/net-agent-order/:agentId" element={<NetAgentOrderPage />} />

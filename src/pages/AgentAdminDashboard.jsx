@@ -430,6 +430,38 @@ const AgentAdminDashboard = () => {
         }
     };
 
+    const handleDownloadJPG = async (agent) => {
+        try {
+            const svgString = await generateQRSVG(agent);
+            const fileName = `${agent.name.replace(/\s+/g, '_')}-qr.jpg`;
+
+            const img = new Image();
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const scale = 3; // Higher quality
+                canvas.width = 300 * scale; // Set fixed base width for consistency
+                canvas.height = (300 * (img.height / img.width)) * scale;
+                const ctx = canvas.getContext('2d');
+
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                canvas.toBlob((blob) => {
+                    saveAs(blob, fileName);
+                    URL.revokeObjectURL(url);
+                }, 'image/jpeg', 0.95);
+            };
+            img.src = url;
+        } catch (err) {
+            console.error('Error generating JPG', err);
+            alert('Failed to generate JPG');
+        }
+    };
+
     const handleBatchPrint = async (agentsToPrint) => {
         if (!agentsToPrint || agentsToPrint.length === 0) return;
 
@@ -459,7 +491,7 @@ const AgentAdminDashboard = () => {
         printWindow.document.close();
     };
 
-    const handleBatchDownloadZip = async (agentsToDownload) => {
+    const handleBatchDownloadZip = async (agentsToDownload, format = 'svg') => {
         if (!agentsToDownload || agentsToDownload.length === 0) return;
 
         const zip = new JSZip();
@@ -467,16 +499,42 @@ const AgentAdminDashboard = () => {
         for (const agent of agentsToDownload) {
             try {
                 const svgString = await generateQRSVG(agent);
-                zip.file(`${agent.name.replace(/\s+/g, '_')}_${agent.agentCode}.svg`, svgString);
+                const safeName = agent.name.replace(/\s+/g, '_');
+                const code = agent.agentCode || 'DRAFT';
+
+                if (format === 'svg') {
+                    zip.file(`${safeName}_${code}.svg`, svgString);
+                } else {
+                    // Convert to JPG blob for ZIP
+                    const blob = await new Promise((resolve) => {
+                        const img = new Image();
+                        const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                        const url = URL.createObjectURL(svgBlob);
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const scale = 2.5;
+                            canvas.width = 300 * scale;
+                            canvas.height = (300 * (img.height / img.width)) * scale;
+                            const ctx = canvas.getContext('2d');
+                            ctx.fillStyle = 'white';
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                            canvas.toBlob((b) => {
+                                URL.revokeObjectURL(url);
+                                resolve(b);
+                            }, 'image/jpeg', 0.9);
+                        };
+                        img.src = url;
+                    });
+                    zip.file(`${safeName}_${code}.jpg`, blob);
+                }
             } catch (err) {
-                console.error("Error generating SVG for zip", err);
+                console.error(`Error generating ${format} for zip`, err);
             }
         }
 
-        zip.generateAsync({ type: "blob" })
-            .then(function (content) {
-                saveAs(content, "agents_qr_codes.zip");
-            });
+        const content = await zip.generateAsync({ type: "blob" });
+        saveAs(content, `agents_qr_codes_${format}.zip`);
     };
 
     const handleBatchDelete = async (agentsToDelete) => {
@@ -1071,13 +1129,22 @@ const AgentAdminDashboard = () => {
                                             NAME: {createdAgent?.name}
                                         </div>
                                         <br />
-                                        <button
-                                            onClick={() => handleDownloadQR(createdAgent)}
-                                            className="btn-primary"
-                                            style={{ display: 'inline-block', marginTop: '1rem', cursor: 'pointer' }}
-                                        >
-                                            Download QR with Code
-                                        </button>
+                                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '1rem' }}>
+                                            <button
+                                                onClick={() => handleDownloadQR(createdAgent)}
+                                                className="btn-primary"
+                                                style={{ cursor: 'pointer' }}
+                                            >
+                                                Download SVG
+                                            </button>
+                                            <button
+                                                onClick={() => handleDownloadJPG(createdAgent)}
+                                                className="btn-primary"
+                                                style={{ cursor: 'pointer', background: '#eab308', borderColor: '#eab308', color: '#000' }}
+                                            >
+                                                Download JPG
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {newCredentials && (
@@ -1234,15 +1301,26 @@ const AgentAdminDashboard = () => {
                                                         <td>{agent.username}</td>
                                                         <td style={{ fontFamily: 'monospace' }}>{agent.plainPassword}</td>
                                                         <td>
-                                                            {agent.agentCode ? (
-                                                                <button
-                                                                    onClick={() => handleDownloadQR(agent)}
-                                                                    className="btn-primary"
-                                                                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
-                                                                >
-                                                                    QR
-                                                                </button>
-                                                            ) : (
+                                                                    {agent.agentCode ? (
+                                                                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                                                            <button
+                                                                                onClick={() => handleDownloadQR(agent)}
+                                                                                className="btn-primary"
+                                                                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
+                                                                                title="Download SVG"
+                                                                            >
+                                                                                SVG
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleDownloadJPG(agent)}
+                                                                                className="btn-primary"
+                                                                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', background: '#eab308', border: 'none', color: '#000' }}
+                                                                                title="Download JPG"
+                                                                            >
+                                                                                JPG
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
                                                                 <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>No QR</span>
                                                             )}
                                                         </td>
@@ -1299,11 +1377,18 @@ const AgentAdminDashboard = () => {
                                                         Print Selected
                                                     </button>
                                                     <button
-                                                        onClick={() => handleBatchDownloadZip(agents.filter(s => selectedAgents.includes(s._id)))}
+                                                        onClick={() => handleBatchDownloadZip(agents.filter(s => selectedAgents.includes(s._id)), 'svg')}
                                                         className="btn-primary"
                                                         style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
                                                     >
-                                                        Download ZIP
+                                                        ZIP (SVG)
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleBatchDownloadZip(agents.filter(s => selectedAgents.includes(s._id)), 'jpg')}
+                                                        className="btn-primary"
+                                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', background: '#eab308', borderColor: '#eab308', color: '#000' }}
+                                                    >
+                                                        ZIP (JPG)
                                                     </button>
                                                     <button
                                                         onClick={() => handleBatchDelete(agents.filter(s => selectedAgents.includes(s._id)))}
@@ -1411,9 +1496,17 @@ const AgentAdminDashboard = () => {
                                                         <button
                                                             onClick={() => handleDownloadQR(agent)}
                                                             className="icon-btn success"
-                                                            title="Download QR"
+                                                            title="Download SVG"
                                                         >
                                                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDownloadJPG(agent)}
+                                                            className="icon-btn success"
+                                                            title="Download JPG"
+                                                            style={{ backgroundColor: '#eab308', color: '#000' }}
+                                                        >
+                                                            <span style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>JPG</span>
                                                         </button>
                                                         <a
                                                             href={`/agent-order/${agent.uniqueId}`}

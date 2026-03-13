@@ -196,6 +196,38 @@ const NetAgentDashboard = () => {
         } catch (err) { alert('Failed to generate QR'); }
     };
 
+    const handleDownloadJPG = async (agent) => {
+        try {
+            const svgString = await generateQRSVG(agent);
+            const fileName = `${agent.name.replace(/\s+/g, '_')}-qr.jpg`;
+
+            const img = new Image();
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const scale = 3;
+                canvas.width = 300 * scale;
+                canvas.height = (300 * (img.height / img.width)) * scale;
+                const ctx = canvas.getContext('2d');
+
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                canvas.toBlob((blob) => {
+                    saveAs(blob, fileName);
+                    URL.revokeObjectURL(url);
+                }, 'image/jpeg', 0.95);
+            };
+            img.src = url;
+        } catch (err) {
+            console.error('Error generating JPG', err);
+            alert('Failed to generate JPG');
+        }
+    };
+
     const handleBatchPrint = async (agentsToPrint) => {
         if (!agentsToPrint.length) return;
         const pw = window.open('', '_blank');
@@ -210,13 +242,45 @@ const NetAgentDashboard = () => {
         pw.document.close();
     };
 
-    const handleBatchDownloadZip = async (agentsToDownload) => {
+    const handleBatchDownloadZip = async (agentsToDownload, format = 'svg') => {
         const zip = new JSZip();
         for (const agent of agentsToDownload) {
-            const svg = await generateQRSVG(agent);
-            zip.file(`${agent.name.replace(/\s+/g, '_')}_${agent.agentCode || 'draft'}.svg`, svg);
+            try {
+                const svgString = await generateQRSVG(agent);
+                const safeName = agent.name.replace(/\s+/g, '_');
+                const code = agent.agentCode || 'DRAFT';
+
+                if (format === 'svg') {
+                    zip.file(`${safeName}_${code}.svg`, svgString);
+                } else {
+                    const blob = await new Promise((resolve) => {
+                        const img = new Image();
+                        const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                        const url = URL.createObjectURL(svgBlob);
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const scale = 2.5;
+                            canvas.width = 300 * scale;
+                            canvas.height = (300 * (img.height / img.width)) * scale;
+                            const ctx = canvas.getContext('2d');
+                            ctx.fillStyle = 'white';
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                            canvas.toBlob((b) => {
+                                URL.revokeObjectURL(url);
+                                resolve(b);
+                            }, 'image/jpeg', 0.9);
+                        };
+                        img.src = url;
+                    });
+                    zip.file(`${safeName}_${code}.jpg`, blob);
+                }
+            } catch (err) {
+                console.error(`Error adding ${format} to zip`, err);
+            }
         }
-        zip.generateAsync({ type: 'blob' }).then(content => saveAs(content, 'net_agents_qr.zip'));
+        const content = await zip.generateAsync({ type: "blob" });
+        saveAs(content, `net_agents_qr_codes_${format}.zip`);
     };
 
     const handleBulkCreate = async () => {
@@ -534,7 +598,10 @@ const NetAgentDashboard = () => {
                                 <p style={{ opacity: 0.7, fontSize: '0.85rem', wordBreak: 'break-all' }}>
                                     {BASE_URL}/net-agent-order/{createdAgent.uniqueId}
                                 </p>
-                                <button className="btn-primary" onClick={() => handleDownloadQR(createdAgent)} style={{ marginTop: '0.5rem' }}>⬇ Download QR</button>
+                                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginTop: '1rem' }}>
+                                    <button className="btn-primary" onClick={() => handleDownloadQR(createdAgent)}>⬇ SVG</button>
+                                    <button className="btn-primary" onClick={() => handleDownloadJPG(createdAgent)} style={{ background: '#eab308', borderColor: '#eab308', color: '#000' }}>⬇ JPG</button>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -562,7 +629,8 @@ const NetAgentDashboard = () => {
                             </div>
                             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                                 <button className="btn-primary" onClick={() => handleBatchPrint(filteredAgents.filter(a => a.agentCode))} style={{ padding: '0.6rem 1rem' }}>🖨 Print QRs</button>
-                                <button className="btn-primary" onClick={() => handleBatchDownloadZip(filteredAgents.filter(a => a.agentCode))} style={{ padding: '0.6rem 1rem' }}>📦 Download ZIP</button>
+                                <button className="btn-primary" onClick={() => handleBatchDownloadZip(filteredAgents.filter(a => a.agentCode), 'svg')} style={{ padding: '0.6rem 1rem' }}>📦 Download ZIP (SVG)</button>
+                                <button className="btn-primary" onClick={() => handleBatchDownloadZip(filteredAgents.filter(a => a.agentCode), 'jpg')} style={{ padding: '0.6rem 1rem', background: '#eab308', borderColor: '#eab308', color: '#000' }}>📦 Download ZIP (JPG)</button>
                                 <button className="btn-primary" onClick={handleExportAgents} style={{ padding: '0.6rem 1rem' }}>📥 Export CSV</button>
                             </div>
                         </div>
@@ -595,8 +663,24 @@ const NetAgentDashboard = () => {
                                             <td><span style={{ color: a.isActive ? '#4ade80' : '#6b7280' }}>{a.isActive ? '✓' : '✗'}</span></td>
                                             <td>
                                                 {a.agentCode ? (
-                                                    <button className="btn-primary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}
-                                                        onClick={() => handleDownloadQR(a)}>⬇ QR</button>
+                                                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                                        <button
+                                                            onClick={() => handleDownloadQR(a)}
+                                                            className="btn-primary"
+                                                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
+                                                            title="Download SVG"
+                                                        >
+                                                            SVG
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDownloadJPG(a)}
+                                                            className="btn-primary"
+                                                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', background: '#eab308', border: 'none', color: '#000' }}
+                                                            title="Download JPG"
+                                                        >
+                                                            JPG
+                                                        </button>
+                                                    </div>
                                                 ) : '—'}
                                             </td>
                                             <td style={{ display: 'flex', gap: '0.4rem' }}>

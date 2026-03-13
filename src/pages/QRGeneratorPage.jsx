@@ -110,6 +110,34 @@ const QRGeneratorPage = () => {
         return await QRCode.toDataURL(url, { margin: 2, width: 200 });
     };
 
+    const handleDownloadJPG = async (item, type) => {
+        try {
+            const svgString = await generateQRSVG(item, type);
+            const fileName = `${item.name.replace(/\s+/g, '_')}_${getCode(item, type)}.jpg`;
+
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const scale = 3;
+                canvas.width = 300 * scale;
+                canvas.height = (300 * (img.height / img.width)) * scale;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                canvas.toBlob((blob) => {
+                    saveAs(blob, fileName);
+                    URL.revokeObjectURL(url);
+                }, 'image/jpeg', 0.95);
+            };
+            img.src = url;
+        } catch (err) { alert('Failed to generate JPG'); }
+    };
+
     // ---- Generate preview for display ----
     const handleGenerateAll = async () => {
         setGenerating(true);
@@ -167,22 +195,49 @@ const QRGeneratorPage = () => {
     };
 
     // ---- Batch ZIP Download ----
-    const handleBatchZip = async (itemsToZip, type) => {
+    const handleBatchZip = async (itemsToZip, type, format = 'svg') => {
         if (!itemsToZip.length) return alert('No items to download');
         const zip = new JSZip();
+
         for (let i = 0; i < itemsToZip.length; i++) {
             const item = itemsToZip[i];
             setProgress(`Packaging ${i + 1}/${itemsToZip.length}: ${item.name}...`);
             try {
-                const svg = await generateQRSVG(item, type);
+                const svgString = await generateQRSVG(item, type);
                 const safeName = item.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
                 const code = getCode(item, type);
-                zip.file(`${safeName}_${code}.svg`, svg);
+
+                if (format === 'svg') {
+                    zip.file(`${safeName}_${code}.svg`, svgString);
+                } else {
+                    // Convert to JPG blob for ZIP
+                    const blob = await new Promise((resolve) => {
+                        const img = new Image();
+                        const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                        const url = URL.createObjectURL(svgBlob);
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const scale = 2.5;
+                            canvas.width = 300 * scale;
+                            canvas.height = (300 * (img.height / img.width)) * scale;
+                            const ctx = canvas.getContext('2d');
+                            ctx.fillStyle = 'white';
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                            canvas.toBlob((b) => {
+                                URL.revokeObjectURL(url);
+                                resolve(b);
+                            }, 'image/jpeg', 0.9);
+                        };
+                        img.src = url;
+                    });
+                    zip.file(`${safeName}_${code}.jpg`, blob);
+                }
             } catch (e) { console.error(e); }
         }
         setProgress('Creating ZIP file...');
         const content = await zip.generateAsync({ type: 'blob' });
-        saveAs(content, `qr_codes_${type}_${Date.now()}.zip`);
+        saveAs(content, `qr_codes_${type}_${format}_${Date.now()}.zip`);
         setProgress('');
     };
 
@@ -281,9 +336,14 @@ const QRGeneratorPage = () => {
                             🖨 Print {selectedItems.length > 0 ? `(${selectedItems.length})` : 'All'}
                         </button>
                         <button className="btn-primary"
-                            onClick={() => handleBatchZip(selectedItems.length > 0 ? selectedItems : items, activeTab)}
+                            onClick={() => handleBatchZip(selectedItems.length > 0 ? selectedItems : items, activeTab, 'svg')}
                             style={{ padding: '0.6rem 1.2rem' }}>
-                            📦 ZIP {selectedItems.length > 0 ? `(${selectedItems.length})` : 'All'}
+                            📦 ZIP (SVG)
+                        </button>
+                        <button className="btn-primary"
+                            onClick={() => handleBatchZip(selectedItems.length > 0 ? selectedItems : items, activeTab, 'jpg')}
+                            style={{ padding: '0.6rem 1.2rem', background: '#eab308', color: '#000', border: 'none' }}>
+                            📦 ZIP (JPG)
                         </button>
                     </div>
                 </div>
@@ -396,8 +456,13 @@ const QRGeneratorPage = () => {
                                             const safeName = item.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
                                             saveAs(new Blob([svg], { type: 'image/svg+xml' }), `${safeName}_${code}.svg`);
                                         }}
-                                        style={{ flex: 1, padding: '0.4rem', fontSize: '0.75rem', background: typeColor, border: 'none', color: 'white', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-                                        ⬇ SVG
+                                        style={{ flex: 1, padding: '0.4rem', fontSize: '0.65rem', background: typeColor, border: 'none', color: 'white', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                        SVG
+                                    </button>
+                                    <button
+                                        onClick={() => handleDownloadJPG(item, activeTab)}
+                                        style={{ flex: 1, padding: '0.4rem', fontSize: '0.65rem', background: '#eab308', border: 'none', color: '#000', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                        JPG
                                     </button>
                                     <a href={url} target="_blank" rel="noopener noreferrer"
                                         style={{ flex: 1, padding: '0.4rem', fontSize: '0.75rem', background: '#10b981', color: 'white', borderRadius: '6px', textAlign: 'center', textDecoration: 'none', fontWeight: 'bold' }}>

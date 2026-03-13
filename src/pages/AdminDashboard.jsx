@@ -430,6 +430,38 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleDownloadJPG = async (salon) => {
+        try {
+            const svgString = await generateQRSVG(salon);
+            const fileName = `${salon.name.replace(/\s+/g, '_')}-qr.jpg`;
+
+            const img = new Image();
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const scale = 3;
+                canvas.width = 300 * scale;
+                canvas.height = (300 * (img.height / img.width)) * scale;
+                const ctx = canvas.getContext('2d');
+
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                canvas.toBlob((blob) => {
+                    saveAs(blob, fileName);
+                    URL.revokeObjectURL(url);
+                }, 'image/jpeg', 0.95);
+            };
+            img.src = url;
+        } catch (err) {
+            console.error('Error generating JPG', err);
+            alert('Failed to generate JPG');
+        }
+    };
+
     const handleBatchPrint = async (salonsToPrint) => {
         if (!salonsToPrint || salonsToPrint.length === 0) return;
 
@@ -1071,13 +1103,22 @@ const AdminDashboard = () => {
                                             NAME: {createdSalon?.name}
                                         </div>
                                         <br />
-                                        <button
-                                            onClick={() => handleDownloadQR(createdSalon)}
-                                            className="btn-primary"
-                                            style={{ display: 'inline-block', marginTop: '1rem', cursor: 'pointer' }}
-                                        >
-                                            Download QR with Code
-                                        </button>
+                                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '1rem' }}>
+                                            <button
+                                                onClick={() => handleDownloadQR(createdSalon)}
+                                                className="btn-primary"
+                                                style={{ cursor: 'pointer' }}
+                                            >
+                                                Download SVG
+                                            </button>
+                                            <button
+                                                onClick={() => handleDownloadJPG(createdSalon)}
+                                                className="btn-primary"
+                                                style={{ cursor: 'pointer', background: '#eab308', borderColor: '#eab308', color: '#000' }}
+                                            >
+                                                Download JPG
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {newCredentials && (
@@ -1299,11 +1340,18 @@ const AdminDashboard = () => {
                                                         Print Selected
                                                     </button>
                                                     <button
-                                                        onClick={() => handleBatchDownloadZip(salons.filter(s => selectedSalons.includes(s._id)))}
+                                                        onClick={() => handleBatchDownloadZip(salons.filter(s => selectedSalons.includes(s._id)), 'svg')}
                                                         className="btn-primary"
                                                         style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
                                                     >
-                                                        Download ZIP
+                                                        ZIP (SVG)
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleBatchDownloadZip(salons.filter(s => selectedSalons.includes(s._id)), 'jpg')}
+                                                        className="btn-primary"
+                                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', background: '#eab308', borderColor: '#eab308', color: '#000' }}
+                                                    >
+                                                        ZIP (JPG)
                                                     </button>
                                                     <button
                                                         onClick={() => handleBatchDelete(salons.filter(s => selectedSalons.includes(s._id)))}
@@ -1411,9 +1459,17 @@ const AdminDashboard = () => {
                                                         <button
                                                             onClick={() => handleDownloadQR(salon)}
                                                             className="icon-btn success"
-                                                            title="Download QR"
+                                                            title="Download SVG"
                                                         >
                                                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDownloadJPG(salon)}
+                                                            className="icon-btn success"
+                                                            title="Download JPG"
+                                                            style={{ backgroundColor: '#eab308', color: '#000' }}
+                                                        >
+                                                            <span style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>JPG</span>
                                                         </button>
                                                         <a
                                                             href={`/order/${salon.uniqueId}`}

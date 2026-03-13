@@ -27,6 +27,12 @@ const LoginPage = () => {
                     localStorage.setItem('salonUser', JSON.stringify(res.data.salon));
                     navigate('/salon-dashboard');
                 }
+            } else if (loginType === 'agent') {
+                const res = await axios.post(`${API_URL}/agents/login`, formData);
+                if (res.data.success) {
+                    localStorage.setItem('agentUser', JSON.stringify(res.data.agent));
+                    navigate('/agent-dashboard');
+                }
             } else {
                 const res = await axios.post(`${API_URL}/auth/login`, formData);
                 if (res.data.success) {
@@ -61,33 +67,51 @@ const LoginPage = () => {
                     <img src="/Fadna New Logo.png" alt="Fadna Logo" className="site-logo" />
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem', gap: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem', gap: '0.8rem', flexWrap: 'wrap' }}>
                     <button
                         onClick={() => { setLoginType('salon'); setError(''); setFormData({ username: '', password: '' }); }}
                         style={{
                             background: loginType === 'salon' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
                             border: '1px solid rgba(255, 255, 255, 0.2)',
-                            padding: '0.5rem 1.5rem',
+                            padding: '0.5rem 1.2rem',
                             borderRadius: '20px',
                             color: 'white',
                             cursor: 'pointer',
                             fontWeight: loginType === 'salon' ? 'bold' : 'normal',
-                            transition: 'all 0.3s ease'
+                            transition: 'all 0.3s ease',
+                            fontSize: '0.9rem'
                         }}
                     >
                         Salon
+                    </button>
+                    <button
+                        onClick={() => { setLoginType('agent'); setError(''); setFormData({ username: '', password: '' }); }}
+                        style={{
+                            background: loginType === 'agent' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            padding: '0.5rem 1.2rem',
+                            borderRadius: '20px',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontWeight: loginType === 'agent' ? 'bold' : 'normal',
+                            transition: 'all 0.3s ease',
+                            fontSize: '0.9rem'
+                        }}
+                    >
+                        Agent
                     </button>
                     <button
                         onClick={() => { setLoginType('salesman'); setError(''); setFormData({ username: '', password: '' }); }}
                         style={{
                             background: loginType === 'salesman' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
                             border: '1px solid rgba(255, 255, 255, 0.2)',
-                            padding: '0.5rem 1.5rem',
+                            padding: '0.5rem 1.2rem',
                             borderRadius: '20px',
                             color: 'white',
                             cursor: 'pointer',
                             fontWeight: loginType === 'salesman' ? 'bold' : 'normal',
-                            transition: 'all 0.3s ease'
+                            transition: 'all 0.3s ease',
+                            fontSize: '0.9rem'
                         }}
                     >
                         Manager
@@ -97,12 +121,13 @@ const LoginPage = () => {
                         style={{
                             background: loginType === 'admin' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
                             border: '1px solid rgba(255, 255, 255, 0.2)',
-                            padding: '0.5rem 1.5rem',
+                            padding: '0.5rem 1.2rem',
                             borderRadius: '20px',
                             color: 'white',
                             cursor: 'pointer',
                             fontWeight: loginType === 'admin' ? 'bold' : 'normal',
-                            transition: 'all 0.3s ease'
+                            transition: 'all 0.3s ease',
+                            fontSize: '0.9rem'
                         }}
                     >
                         Admin
@@ -110,7 +135,7 @@ const LoginPage = () => {
                 </div>
 
                 <h1 style={{ textAlign: 'center', marginBottom: '2rem', fontSize: '1.8rem' }}>
-                    {loginType === 'salon' ? 'Salon Portal' : loginType === 'salesman' ? 'Manager Portal' : 'Admin Portal'}
+                    {loginType === 'salon' ? 'Salon Portal' : loginType === 'agent' ? 'Agent Portal' : loginType === 'salesman' ? 'Manager Portal' : 'Admin Portal'}
                 </h1>
 
                 {error && (
