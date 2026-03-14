@@ -4,6 +4,7 @@ import axios from 'axios';
 import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import * as XLSX from 'xlsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onrender.com/api';
 
@@ -509,6 +510,31 @@ const AdminDashboard = () => {
             .then(function (content) {
                 saveAs(content, "salons_qr_codes.zip");
             });
+    };
+    
+    const handleBatchExcelExport = (salonsToExport) => {
+        if (!salonsToExport || salonsToExport.length === 0) return;
+        
+        const baseUrl = 'https://www.portal.fadnals.lk';
+        const data = salonsToExport.map(salon => ({
+            'Salon Name': salon.name,
+            'Salon Code': salon.salonCode || 'N/A',
+            'Order Link': `${baseUrl}/order/${salon.uniqueId || salon._id}`
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(data);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Selected Salons");
+
+        // Set column widths
+        const wscols = [
+            { wch: 30 }, // Salon Name
+            { wch: 15 }, // Salon Code
+            { wch: 60 }  // Order Link
+        ];
+        worksheet['!cols'] = wscols;
+
+        XLSX.writeFile(workbook, "selected_salons_links.xlsx");
     };
 
     const handleBatchDelete = async (salonsToDelete) => {
@@ -1352,6 +1378,13 @@ const AdminDashboard = () => {
                                                         style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', background: '#eab308', borderColor: '#eab308', color: '#000' }}
                                                     >
                                                         ZIP (JPG)
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleBatchExcelExport(salons.filter(s => selectedSalons.includes(s._id)))}
+                                                        className="btn-primary"
+                                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', background: '#10b981', borderColor: '#10b981' }}
+                                                    >
+                                                        Excel Export
                                                     </button>
                                                     <button
                                                         onClick={() => handleBatchDelete(salons.filter(s => selectedSalons.includes(s._id)))}
