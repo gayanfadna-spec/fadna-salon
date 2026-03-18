@@ -11,7 +11,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onre
 const AdminDashboard = () => {
     const [salons, setSalons] = useState([]);
     const [orders, setOrders] = useState([]);
-    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
     const [qrCode, setQrCode] = useState(null);
     const [newCredentials, setNewCredentials] = useState(null);
     const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'orders', 'salons', 'monitor'
@@ -29,7 +29,7 @@ const AdminDashboard = () => {
     const [salonPerformance, setSalonPerformance] = useState([]);
     const [itemPerformance, setItemPerformance] = useState([]);
     const [products, setProducts] = useState([]);
-    const [newProduct, setNewProduct] = useState({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both' });
+    const [newProduct, setNewProduct] = useState({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both', commission: 0 });
     const [editingProductId, setEditingProductId] = useState(null);
     const [selectedSalonId, setSelectedSalonId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -131,7 +131,7 @@ const AdminDashboard = () => {
                 await axios.post(`${API_URL}/products`, newProduct);
                 alert('Product Created');
             }
-            setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both' });
+            setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both', commission: 0 });
             setEditingProductId(null);
             fetchProducts();
         } catch (err) {
@@ -145,7 +145,8 @@ const AdminDashboard = () => {
             price: product.price,
             discountType: product.discountType,
             discountValue: product.discountValue,
-            target: product.target || 'both'
+            target: product.target || 'both',
+            commission: product.commission || 0
         });
         setEditingProductId(product._id);
         setActiveTab('products');
@@ -180,7 +181,7 @@ const AdminDashboard = () => {
                 const res = await axios.put(`${API_URL}/salons/assign`, payload);
                 if (res.data.success) {
                     alert(`Successfully assigned details to Salon Code: ${newSalon.assignToCode}`);
-                    setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], nextVisitedDate: '', isActive: false, posmActive: false, assignToCode: '' });
+                    setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], nextVisitedDate: '', isActive: false, posmActive: false, assignToCode: '' });
                     fetchSalons();
                 }
             } else {
@@ -188,11 +189,11 @@ const AdminDashboard = () => {
                 if (res.data.success) {
                     if (formModeAdmin === 'draft') {
                         alert('Draft salon created successfully!');
-                        setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+                        setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
                         fetchSalons();
                     } else {
                         setQrCode(res.data.qrCode);
-                        setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+                        setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
                         fetchSalons();
 
                         // Set Credentials for display
@@ -229,6 +230,8 @@ const AdminDashboard = () => {
             contactNumber2: salon.contactNumber2 || '',
             remark: salon.remark || '',
             repName: salon.repName || '',
+            username: salon.username || '',
+            password: salon.plainPassword || '',
             accountDetails: salon.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' },
             isVisited: salon.isVisited || false,
             visitedDate: salon.visitedDate ? salon.visitedDate.split('T')[0] : '',
@@ -263,7 +266,7 @@ const AdminDashboard = () => {
             }
 
             if (res.data.success) {
-                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+                setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
                 setEditingSalonId(null);
                 fetchSalons();
                 alert('Salon Updated Successfully!');
@@ -275,7 +278,7 @@ const AdminDashboard = () => {
     };
 
     const handleCancelEdit = () => {
-        setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+        setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
         setEditingSalonId(null);
     };
 
@@ -1038,6 +1041,8 @@ const AdminDashboard = () => {
                                         ))}
                                     </select>
                                     <input type="text" placeholder="Remark" value={newSalon.remark} onChange={(e) => setNewSalon({ ...newSalon, remark: e.target.value })} />
+                                    <input type="text" placeholder="Username (Optional)" value={newSalon.username} onChange={(e) => setNewSalon({ ...newSalon, username: e.target.value })} />
+                                    <input type="text" placeholder="Password (Optional)" value={newSalon.password} onChange={(e) => setNewSalon({ ...newSalon, password: e.target.value })} />
                                 </div>
                                 <h3 style={{ marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Account Details</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -1592,6 +1597,13 @@ const AdminDashboard = () => {
                                         style={{ flex: 1 }}
                                     />
                                 )}
+                                <input
+                                    type="number"
+                                    placeholder="Commission (LKR)"
+                                    value={newProduct.commission}
+                                    onChange={(e) => setNewProduct({ ...newProduct, commission: e.target.value })}
+                                    style={{ flex: 1, padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }}
+                                />
                             </div>
 
                             <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
@@ -1604,7 +1616,7 @@ const AdminDashboard = () => {
                                         className="btn-primary outline"
                                         style={{ flex: 1 }}
                                         onClick={() => {
-                                            setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both' });
+                                            setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both', commission: 0 });
                                             setEditingProductId(null);
                                         }}
                                     >
@@ -1635,6 +1647,9 @@ const AdminDashboard = () => {
                                         )}
                                         <div style={{ marginTop: '0.2rem', color: '#38bdf8' }}>
                                             For: {p.target === 'salon' ? 'Salon Only' : p.target === 'agent' ? 'Agent Only' : 'Both'}
+                                        </div>
+                                        <div style={{ marginTop: '0.2rem', color: '#4ade80', fontWeight: 'bold' }}>
+                                            Commission: Rs.{p.commission || 0}
                                         </div>
                                     </div>
 

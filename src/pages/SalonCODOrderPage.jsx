@@ -120,7 +120,8 @@ const SalonCODOrderPage = () => {
                 productId: item._id,
                 productName: item.name,
                 quantity: qty,
-                price: item.finalPrice
+                price: item.finalPrice,
+                commission: item.commission || 0
             };
         });
 

@@ -134,7 +134,13 @@ const NetAgentOrderPage = () => {
         e.preventDefault();
         const items = Object.entries(cart).map(([itemId, qty]) => {
             const item = products.find(i => i._id === itemId);
-            return { productId: item._id, productName: item.name, quantity: qty, price: item.finalPrice };
+            return {
+                productId: item._id,
+                productName: item.name,
+                quantity: qty,
+                price: item.finalPrice,
+                commission: item.commission || 0
+            };
         });
         if (items.length === 0) return alert('Please add items to cart');
 
@@ -186,14 +192,7 @@ const NetAgentOrderPage = () => {
                 <img src="/Fadna New Logo.png" alt="Fadna Logo" className="site-logo" />
             </div>
 
-            {/* Badge */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
-                <span style={{
-                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                    color: '#fff', borderRadius: '20px', padding: '0.4rem 1.2rem',
-                    fontSize: '0.85rem', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(99,102,241,0.4)'
-                }}>🌐 Net.Agent — Satiny</span>
-            </div>
+
 
             {/* Step dots */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
@@ -206,7 +205,6 @@ const NetAgentOrderPage = () => {
             </div>
 
             <div className="glass-container" style={{ marginBottom: '2rem' }}>
-                <h2 style={{ marginBottom: '0.5rem' }}>{agent.name}</h2>
                 <p style={{ margin: 0, opacity: 0.7 }}>
                     {step === 1 ? "Enter your details" : step === 2 ? "About Satiny" : "Select your products"}
                 </p>

@@ -135,7 +135,8 @@ const AgentOrderPage = () => {
                 productId: item._id,
                 productName: item.name,
                 quantity: qty,
-                price: item.finalPrice
+                price: item.finalPrice,
+                commission: item.commission || 0
             };
         });
 
@@ -239,7 +240,6 @@ const AgentOrderPage = () => {
             </div>
 
             <div className="glass-container" style={{ marginBottom: '2rem' }}>
-                <h2 style={{ marginBottom: '0.5rem' }}>{agent.name}</h2>
                 <p style={{ margin: 0, opacity: 0.7 }}>
                     {step === 1 ? "Enter your details" : step === 2 ? "Our Products" : "Select your products"}
                 </p>

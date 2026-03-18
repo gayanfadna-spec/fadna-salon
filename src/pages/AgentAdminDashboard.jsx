@@ -10,7 +10,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onre
 const AgentAdminDashboard = () => {
     const [agents, setAgents] = useState([]);
     const [orders, setOrders] = useState([]);
-    const [newAgent, setNewAgent] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+    const [newAgent, setNewAgent] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
     const [qrCode, setQrCode] = useState(null);
     const [newCredentials, setNewCredentials] = useState(null);
     const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'orders', 'agents', 'monitor'
@@ -28,7 +28,7 @@ const AgentAdminDashboard = () => {
     const [agentPerformance, setAgentPerformance] = useState([]);
     const [itemPerformance, setItemPerformance] = useState([]);
     const [products, setProducts] = useState([]);
-    const [newProduct, setNewProduct] = useState({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both' });
+    const [newProduct, setNewProduct] = useState({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both', commission: 0 });
     const [editingProductId, setEditingProductId] = useState(null);
     const [selectedAgentId, setSelectedAgentId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -130,7 +130,7 @@ const AgentAdminDashboard = () => {
                 await axios.post(`${API_URL}/products`, newProduct);
                 alert('Product Created');
             }
-            setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both' });
+            setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both', commission: 0 });
             setEditingProductId(null);
             fetchProducts();
         } catch (err) {
@@ -144,7 +144,8 @@ const AgentAdminDashboard = () => {
             price: product.price,
             discountType: product.discountType,
             discountValue: product.discountValue,
-            target: product.target || 'both'
+            target: product.target || 'both',
+            commission: product.commission || 0
         });
         setEditingProductId(product._id);
         setActiveTab('products');
@@ -179,7 +180,7 @@ const AgentAdminDashboard = () => {
                 const res = await axios.put(`${API_URL}/agents/assign`, payload);
                 if (res.data.success) {
                     alert(`Successfully assigned details to Agent Code: ${newAgent.assignToCode}`);
-                    setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], nextVisitedDate: '', isActive: false, posmActive: false, assignToCode: '' });
+                    setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], nextVisitedDate: '', isActive: false, posmActive: false, assignToCode: '' });
                     fetchAgents();
                 }
             } else {
@@ -187,11 +188,11 @@ const AgentAdminDashboard = () => {
                 if (res.data.success) {
                     if (formModeAdmin === 'draft') {
                         alert('Draft agent created successfully!');
-                        setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+                        setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
                         fetchAgents();
                     } else {
                         setQrCode(res.data.qrCode);
-                        setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+                        setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
                         fetchAgents();
 
                         // Set Credentials for display
@@ -228,6 +229,8 @@ const AgentAdminDashboard = () => {
             contactNumber2: agent.contactNumber2 || '',
             remark: agent.remark || '',
             repName: agent.repName || '',
+            username: agent.username || '',
+            password: agent.plainPassword || '',
             accountDetails: agent.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' },
             isVisited: agent.isVisited || false,
             visitedDate: agent.visitedDate ? agent.visitedDate.split('T')[0] : '',
@@ -262,7 +265,7 @@ const AgentAdminDashboard = () => {
             }
 
             if (res.data.success) {
-                setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+                setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
                 setEditingAgentId(null);
                 fetchAgents();
                 alert('Agent Updated Successfully!');
@@ -274,7 +277,7 @@ const AgentAdminDashboard = () => {
     };
 
     const handleCancelEdit = () => {
-        setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+        setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
         setEditingAgentId(null);
     };
 
@@ -1038,6 +1041,8 @@ const AgentAdminDashboard = () => {
                                         ))}
                                     </select>
                                     <input type="text" placeholder="Remark" value={newAgent.remark} onChange={(e) => setNewAgent({ ...newAgent, remark: e.target.value })} />
+                                    <input type="text" placeholder="Username (Optional)" value={newAgent.username} onChange={(e) => setNewAgent({ ...newAgent, username: e.target.value })} />
+                                    <input type="text" placeholder="Password (Optional)" value={newAgent.password} onChange={(e) => setNewAgent({ ...newAgent, password: e.target.value })} />
                                 </div>
                                 <h3 style={{ marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Account Details</h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -1596,6 +1601,13 @@ const AgentAdminDashboard = () => {
                                         style={{ flex: 1 }}
                                     />
                                 )}
+                                <input
+                                    type="number"
+                                    placeholder="Commission (LKR)"
+                                    value={newProduct.commission}
+                                    onChange={(e) => setNewProduct({ ...newProduct, commission: e.target.value })}
+                                    style={{ flex: 1, padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }}
+                                />
                             </div>
 
                             <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
@@ -1608,7 +1620,7 @@ const AgentAdminDashboard = () => {
                                         className="btn-primary outline"
                                         style={{ flex: 1 }}
                                         onClick={() => {
-                                            setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both' });
+                                            setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both', commission: 0 });
                                             setEditingProductId(null);
                                         }}
                                     >
@@ -1639,6 +1651,9 @@ const AgentAdminDashboard = () => {
                                         )}
                                         <div style={{ marginTop: '0.2rem', color: '#38bdf8' }}>
                                             For: {p.target === 'salon' ? 'Salon Only' : p.target === 'agent' ? 'Agent Only' : 'Both'}
+                                        </div>
+                                        <div style={{ marginTop: '0.2rem', color: '#4ade80', fontWeight: 'bold' }}>
+                                            Commission: Rs.{p.commission || 0}
                                         </div>
                                     </div>
 

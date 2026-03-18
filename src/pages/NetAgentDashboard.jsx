@@ -29,6 +29,7 @@ const NetAgentDashboard = () => {
     const emptyForm = {
         name: '', location: '', contactNumber1: '', contactNumber2: '',
         remark: '', repName: '',
+        username: '', password: '',
         accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' },
         isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false,
         assignToCode: '', isDraft: false
@@ -132,6 +133,7 @@ const NetAgentDashboard = () => {
             name: agent.name || '', location: agent.location || '',
             contactNumber1: agent.contactNumber1 || '', contactNumber2: agent.contactNumber2 || '',
             remark: agent.remark || '', repName: agent.repName || '',
+            username: agent.username || '', password: agent.plainPassword || '',
             accountDetails: agent.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' },
             isVisited: agent.isVisited || false,
             visitedDate: agent.visitedDate ? agent.visitedDate.split('T')[0] : '',
@@ -560,6 +562,12 @@ const NetAgentDashboard = () => {
                                 <input placeholder="Remark" value={form.remark}
                                     onChange={e => setForm({ ...form, remark: e.target.value })}
                                     style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }} />
+                                <input placeholder="Username (Optional)" value={form.username}
+                                    onChange={e => setForm({ ...form, username: e.target.value })}
+                                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }} />
+                                <input placeholder="Password (Optional)" value={form.password}
+                                    onChange={e => setForm({ ...form, password: e.target.value })}
+                                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }} />
                             </div>
 
                             {/* Checkboxes */}
@@ -646,7 +654,7 @@ const NetAgentDashboard = () => {
                                         <th><input type="checkbox"
                                             checked={selectedAgents.length === filteredAgents.length && filteredAgents.length > 0}
                                             onChange={() => setSelectedAgents(selectedAgents.length === filteredAgents.length ? [] : filteredAgents.map(a => a._id))} /></th>
-                                        <th>Code</th><th>Name</th><th>Location</th><th>Rep</th>
+                                        <th>Code</th><th>Name</th><th>Credentials</th><th>Location</th><th>Rep</th>
                                         <th>Visited</th><th>Active</th><th>QR Link</th><th>Actions</th>
                                     </tr>
                                 </thead>
@@ -656,7 +664,11 @@ const NetAgentDashboard = () => {
                                             <td><input type="checkbox" checked={selectedAgents.includes(a._id)}
                                                 onChange={() => setSelectedAgents(prev => prev.includes(a._id) ? prev.filter(id => id !== a._id) : [...prev, a._id])} /></td>
                                             <td><span style={{ fontFamily: 'monospace', background: 'rgba(245,158,11,0.2)', padding: '2px 8px', borderRadius: '4px', color: '#f59e0b' }}>{a.agentCode || 'Draft'}</span></td>
-                                            <td><div style={{ fontWeight: 'bold' }}>{a.name}</div><div style={{ fontSize: '0.75rem', opacity: 0.6 }}>{a.username}</div></td>
+                                            <td><div style={{ fontWeight: 'bold' }}>{a.name}</div></td>
+                                            <td>
+                                                <div style={{ fontSize: '0.85rem', color: '#38bdf8' }}>{a.username}</div>
+                                                <div style={{ fontSize: '0.85rem', fontFamily: 'monospace', color: '#4ade80' }}>{a.plainPassword || '••••••'}</div>
+                                            </td>
                                             <td>{a.location || '—'}</td>
                                             <td>{a.repName || '—'}</td>
                                             <td><span style={{ color: a.isVisited ? '#4ade80' : '#6b7280' }}>{a.isVisited ? '✓' : '✗'}</span></td>

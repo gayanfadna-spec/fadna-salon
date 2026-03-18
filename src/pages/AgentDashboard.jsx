@@ -98,7 +98,7 @@ const AgentDashboard = () => {
                     </div>
                 </div>
                 <div className="glass-container" style={{ textAlign: 'center' }}>
-                    <h3 style={{ margin: '0 0 0.5rem 0', opacity: 0.7 }}>Total Revenue</h3>
+                    <h3 style={{ margin: '0 0 0.5rem 0', opacity: 0.7 }}>Total Earnings</h3>
                     <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#4ade80' }}>
                         Rs.{stats ? stats.totalRevenue : 0}
                     </div>
@@ -114,7 +114,7 @@ const AgentDashboard = () => {
                             <tr>
                                 <th>Product Name</th>
                                 <th>Qty Sold</th>
-                                <th>Revenue</th>
+                                <th>Commission Earnings</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -122,7 +122,7 @@ const AgentDashboard = () => {
                                 <tr key={item._id}>
                                     <td>{item._id}</td>
                                     <td>{item.totalQuantity}</td>
-                                    <td>Rs.{item.totalRevenue}</td>
+                                    <td style={{ color: '#4ade80', fontWeight: 'bold' }}>Rs.{item.totalRevenue}</td>
                                 </tr>
                             ))}
                             {itemPerformance.length === 0 && (
@@ -153,7 +153,7 @@ const AgentDashboard = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {orders.filter(order => !['Draft', 'Pending Payment', 'Payment Failed'].includes(order.status)).map(order => (
+                            {orders.filter(order => order.status !== 'Draft').map(order => (
                                 <tr key={order._id}>
                                     <td>{new Date(order.createdAt).toLocaleString()}</td>
                                     <td style={{ fontWeight: 'bold' }}>{order.merchantOrderId || order._id.slice(-6).toUpperCase()}</td>
