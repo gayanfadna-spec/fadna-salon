@@ -95,7 +95,7 @@ const SalesmanDashboard = () => {
                 }
                 const role = localStorage.getItem('adminRole');
                 const username = localStorage.getItem('loggedInUsername') || localStorage.getItem('salesmanUser');
-                const editedByValue = role === 'admin' ? 'admin' : (username || 'salesman');
+                const editedByValue = ['admin', 'superadmin'].includes(role) ? 'admin' : (username || 'salesman');
                 const payload = { ...newSalon, editedBy: editedByValue };
 
                 const res = await axios.put(`${API_URL}/salons/assign`, payload);
@@ -145,7 +145,7 @@ const SalesmanDashboard = () => {
         try {
             const role = localStorage.getItem('adminRole');
             const username = localStorage.getItem('loggedInUsername');
-            const editedByValue = role === 'admin' ? 'admin' : username;
+            const editedByValue = ['admin', 'superadmin'].includes(role) ? 'admin' : username;
             const payload = { ...editFormData, editedBy: editedByValue };
 
             let res;

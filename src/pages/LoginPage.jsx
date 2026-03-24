@@ -43,7 +43,7 @@ const LoginPage = () => {
                         localStorage.setItem('loggedInUsername', res.data.username);
                     }
 
-                    if (res.data.role === 'admin') {
+                    if (res.data.role === 'admin' || res.data.role === 'superadmin') {
                         localStorage.setItem('adminUser', 'true');
                         navigate('/admin');
                     } else {

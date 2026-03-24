@@ -17,6 +17,7 @@ const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'orders', 'salons', 'monitor'
     const [formModeAdmin, setFormModeAdmin] = useState('create'); // 'create' or 'assign'
     const navigate = useNavigate();
+    const adminRole = localStorage.getItem('adminRole');
 
     useEffect(() => {
         const storedAdmin = localStorage.getItem('adminUser');
@@ -33,12 +34,19 @@ const AdminDashboard = () => {
     const [editingProductId, setEditingProductId] = useState(null);
     const [selectedSalonId, setSelectedSalonId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [newAccount, setNewAccount] = useState({ username: '', password: '' });
+    const [newAccount, setNewAccount] = useState({ username: '', password: '', role: 'salesman' });
     const [accounts, setAccounts] = useState([]);
     const [editingAccountId, setEditingAccountId] = useState(null);
     const [reps, setReps] = useState([]);
     const [newRepName, setNewRepName] = useState('');
     const [selectedExcelFile, setSelectedExcelFile] = useState(null);
+    const [reportStartDate, setReportStartDate] = useState('');
+    const [reportEndDate, setReportEndDate] = useState('');
+    const [reportHistory, setReportHistory] = useState([]);
+    const [selectedRep, setSelectedRep] = useState('');
+    const [filterDetailedVisited, setFilterDetailedVisited] = useState(false);
+    const [filterDetailedActive, setFilterDetailedActive] = useState(false);
+    const [filterDetailedPOSM, setFilterDetailedPOSM] = useState(false);
 
     const fetchOrders = React.useCallback(async () => {
         try {
@@ -62,6 +70,8 @@ const AdminDashboard = () => {
     const fetchAnalytics = React.useCallback(async () => {
         try {
             const params = selectedSalonId ? { salonId: selectedSalonId } : {};
+            if (reportStartDate) params.startDate = reportStartDate;
+            if (reportEndDate) params.endDate = reportEndDate;
 
             const salonRes = await axios.get(`${API_URL}/analytics/salon-performance`, { params });
             if (salonRes.data.success) setSalonPerformance(salonRes.data.stats);
@@ -72,7 +82,7 @@ const AdminDashboard = () => {
         } catch (err) {
             console.error(err);
         }
-    }, [selectedSalonId]);
+    }, [selectedSalonId, reportStartDate, reportEndDate]);
 
     const fetchProducts = React.useCallback(async () => {
         try {
@@ -111,6 +121,35 @@ const AdminDashboard = () => {
         }
     }, []);
 
+    const fetchReportHistory = React.useCallback(async () => {
+        try {
+            const res = await axios.get(`${API_URL}/reports/history`);
+            if (res.data.success) setReportHistory(res.data.history);
+        } catch (err) {
+            console.error('Error fetching report history:', err);
+        }
+    }, []);
+
+    const logReportHistory = async (reportType, recordCount) => {
+        try {
+            const adminUser = JSON.parse(localStorage.getItem('adminUser'));
+            const downloadedBy = adminUser ? adminUser.username : 'Admin';
+            const dateRange = (reportStartDate || reportEndDate)
+                ? `${reportStartDate || 'Start'} to ${reportEndDate || 'End'}`
+                : 'All Time';
+
+            await axios.post(`${API_URL}/reports/history`, {
+                reportType,
+                downloadedBy,
+                recordCount,
+                dateRange
+            });
+            fetchReportHistory();
+        } catch (err) {
+            console.error('Error logging report history:', err);
+        }
+    };
+
     useEffect(() => {
         if (activeTab === 'accounts') {
             fetchAccounts();
@@ -119,7 +158,8 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         fetchReps();
-    }, [fetchReps]);
+        fetchReportHistory();
+    }, [fetchReps, fetchReportHistory]);
 
     const handleProductSubmit = async (e) => {
         e.preventDefault();
@@ -175,7 +215,7 @@ const AdminDashboard = () => {
                 }
                 const role = localStorage.getItem('adminRole');
                 const username = localStorage.getItem('loggedInUsername');
-                const editedByValue = role === 'admin' ? 'admin' : (username || 'admin');
+                const editedByValue = ['admin', 'superadmin'].includes(role) ? 'admin' : (username || 'admin');
                 const payload = { ...newSalon, editedBy: editedByValue };
 
                 const res = await axios.put(`${API_URL}/salons/assign`, payload);
@@ -255,7 +295,7 @@ const AdminDashboard = () => {
         try {
             const role = localStorage.getItem('adminRole');
             const username = localStorage.getItem('loggedInUsername');
-            const editedByValue = role === 'admin' ? 'admin' : username;
+            const editedByValue = ['admin', 'superadmin'].includes(role) ? 'admin' : username;
             const payload = { ...newSalon, editedBy: editedByValue };
 
             let res;
@@ -514,10 +554,10 @@ const AdminDashboard = () => {
                 saveAs(content, "salons_qr_codes.zip");
             });
     };
-    
+
     const handleBatchExcelExport = (salonsToExport) => {
         if (!salonsToExport || salonsToExport.length === 0) return;
-        
+
         const baseUrl = 'https://www.portal.fadnals.lk';
         const data = salonsToExport.map(salon => ({
             'Salon Name': salon.name,
@@ -578,9 +618,15 @@ const AdminDashboard = () => {
     });
 
     const handleExportSalons = () => {
-        if (!salons.length) return alert('No salons to export');
+        let itemsToExport = salons;
+        if (reportStartDate) itemsToExport = itemsToExport.filter(s => new Date(s.createdAt) >= new Date(reportStartDate));
+        if (reportEndDate) {
+            const end = new Date(reportEndDate + 'T23:59:59.999Z');
+            itemsToExport = itemsToExport.filter(s => new Date(s.createdAt) <= end);
+        }
+        if (!itemsToExport.length) return alert('No salons to export for this date range');
         const headers = ['Salon ID', 'Name', 'Location', 'Code', 'Username', 'Password', 'Bank Name', 'Branch', 'Account Number', 'Account Name', 'Contact 1', 'Contact 2', 'Rep Name', 'Remark', 'Registered Date', 'Visited', 'Visited Date', 'Revisited Dates', 'Active', 'POSM Active'];
-        const rows = salons.map(s => {
+        const rows = itemsToExport.map(s => {
             const acc = s.accountDetails || {};
             return [
                 s._id,
@@ -608,12 +654,19 @@ const AdminDashboard = () => {
         const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         saveAs(blob, 'salons_report.csv');
+        logReportHistory('Salons List', itemsToExport.length);
     };
 
-    const handleExportOrders = () => {
-        if (!orders.length) return alert('No orders to export');
+    const handleExportOrders = async () => {
+        let filteredOrders = adminRole === 'admin' ? orders.filter(o => o.status === 'Processing' || o.status === 'Paid') : orders;
+        if (reportStartDate) filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) >= new Date(reportStartDate));
+        if (reportEndDate) {
+            const end = new Date(reportEndDate + 'T23:59:59.999Z');
+            filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) <= end);
+        }
+        if (!filteredOrders.length) return alert('No orders to export');
         const headers = ['Order ID', 'Merchant Order ID', 'Date', 'Salon', 'Customer Name', 'Customer Phone', 'Additional Phone', 'Address', 'City', 'Status', 'Total Amount', 'Items'];
-        const rows = orders.map(o => [
+        const rows = filteredOrders.map(o => [
             o._id,
             o.merchantOrderId || o._id.slice(-6).toUpperCase(),
             `"${new Date(o.createdAt).toLocaleString()}"`,
@@ -630,6 +683,14 @@ const AdminDashboard = () => {
         const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         saveAs(blob, 'orders_report.csv');
+
+        try {
+            await axios.post(`${API_URL}/orders/mark-downloaded`, { orderIds: filteredOrders.map(o => o._id) });
+            fetchOrders();
+            logReportHistory('Orders Detail', filteredOrders.length);
+        } catch (err) {
+            console.error('Failed to mark downloaded status', err);
+        }
     };
 
     const handleExportPerformance = () => {
@@ -646,6 +707,7 @@ const AdminDashboard = () => {
         const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         saveAs(blob, 'performance_report.csv');
+        logReportHistory('Performance Summary', salonPerformance.length);
     };
 
     const activeSalonsCount = salons.filter(s => s.isActive).length;
@@ -665,144 +727,60 @@ const AdminDashboard = () => {
     const repChartData = Object.values(repStats).sort((a, b) => a.name.localeCompare(b.name));
 
     return (
-        <div className="container animate-fade-in">
-            <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap' }}>
+        <div className="admin-container animate-fade-in">
+            {/* Header - Logo and External Links */}
+            <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <img src="/Fadna New Logo.png" alt="Fadna Logo" className="site-logo" style={{ maxHeight: '40px' }} />
-                    <h1>Admin Dashboard</h1>
+                    <h1 style={{ margin: 0 }}>Admin Dashboard</h1>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '1rem', flex: 1 }}>
-                    {/* Top Row: Navigation Buttons */}
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        <button
-                            className={`btn-primary nav-btn ${activeTab === 'overview' ? '' : 'outline'}`}
-                            style={{ opacity: activeTab === 'overview' ? 1 : 0.7 }}
-                            onClick={() => setActiveTab('overview')}
-                        >
-                            Overview
-                        </button>
-                        <button
-                            className={`btn-primary nav-btn ${activeTab === 'orders' ? '' : 'outline'}`}
-                            style={{ opacity: activeTab === 'orders' ? 1 : 0.7 }}
-                            onClick={() => setActiveTab('orders')}
-                        >
-                            Orders
-                        </button>
-                        <button
-                            className={`btn-primary nav-btn ${activeTab === 'salons' ? '' : 'outline'}`}
-                            style={{ opacity: activeTab === 'salons' ? 1 : 0.7 }}
-                            onClick={() => setActiveTab('salons')}
-                        >
-                            Salons
-                        </button>
-                        <button
-                            className={`btn-primary nav-btn ${activeTab === 'products' ? '' : 'outline'}`}
-                            style={{ opacity: activeTab === 'products' ? 1 : 0.7 }}
-                            onClick={() => setActiveTab('products')}
-                        >
-                            Products
-                        </button>
-                        <button
-                            className={`btn-primary nav-btn ${activeTab === 'monitor' ? '' : 'outline'}`}
-                            style={{ opacity: activeTab === 'monitor' ? 1 : 0.7 }}
-                            onClick={() => setActiveTab('monitor')}
-                        >
-                            Monitor
-                        </button>
-                        <button
-                            className={`btn-primary nav-btn ${activeTab === 'accounts' ? '' : 'outline'}`}
-                            style={{ opacity: activeTab === 'accounts' ? 1 : 0.7 }}
-                            onClick={() => setActiveTab('accounts')}
-                        >
-                            Accounts
-                        </button>
-                        <button
-                            className={`btn-primary nav-btn ${activeTab === 'reports' ? '' : 'outline'}`}
-                            style={{ opacity: activeTab === 'reports' ? 1 : 0.7 }}
-                            onClick={() => setActiveTab('reports')}
-                        >
-                            Reports
-                        </button>
-                        <button
-                            className="btn-primary outline"
-                            style={{ padding: '0.5rem 1rem' }}
-                            onClick={() => navigate('/agent-admin')}
-                        >
-                            Agents Dashboard
-                        </button>
-                        <button
-                            className="btn-primary outline"
-                            style={{ padding: '0.5rem 1rem' }}
-                            onClick={() => navigate('/net-agent-admin')}
-                        >
-                            Net.Agents Dashboard
-                        </button>
-                        <button
-                            className="btn-primary"
-                            style={{ padding: '0.5rem 1rem', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }}
-                            onClick={() => navigate('/qr-generator')}
-                        >
-                            🔲 Scan Dashboard
-                        </button>
-                        <button
-                            onClick={() => {
-                                localStorage.removeItem('adminUser');
-                                navigate('/admin-login');
-                            }}
-                            className="btn-primary outline"
-                            style={{ borderColor: '#ef4444', color: '#ef4444', padding: '0.5rem 1rem' }}
-                        >
-                            Log Out
-                        </button>
-                    </div>
-
-                    {/* Bottom Row: Search and Filters */}
-                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'flex-end', width: '100%' }}>
-                        {(activeTab === 'orders' || activeTab === 'monitor' || activeTab === 'salons') && (
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <input
-                                    type="text"
-                                    placeholder="Search..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="header-control"
-                                    style={{
-                                        borderRadius: '8px',
-                                        border: '1px solid rgba(255,255,255,0.2)',
-                                        background: 'rgba(255,255,255,0.1)',
-                                        color: 'white',
-                                        outline: 'none',
-                                        maxWidth: '300px'
-                                    }}
-                                />
-                                <button className="btn-primary" style={{ padding: '0.5rem 1rem' }}>
-                                    Search
-                                </button>
-                            </div>
-                        )}
-                        <select
-                            className="header-control"
-                            style={{
-                                borderRadius: '8px',
-                                border: '1px solid rgba(255,255,255,0.2)',
-                                background: 'rgba(255,255,255,0.1)',
-                                color: 'white',
-                                outline: 'none'
-                            }}
-                            value={selectedSalonId}
-                            onChange={(e) => setSelectedSalonId(e.target.value)}
-                        >
-                            <option value="" style={{ color: 'black' }}>All Salons</option>
-                            {salons.map(salon => (
-                                <option key={salon._id} value={salon._id} style={{ color: 'black' }}>
-                                    {salon.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button className="btn-primary outline" style={{ padding: '0.5rem 1rem', opacity: 0.8 }} onClick={() => navigate('/agent-admin')}>Agents Dashboard</button>
+                    <button className="btn-primary outline" style={{ padding: '0.5rem 1rem', opacity: 0.8 }} onClick={() => navigate('/net-agent-admin')}>Net.Agents Dashboard</button>
+                    <button className="btn-primary" style={{ padding: '0.5rem 1rem', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }} onClick={() => navigate('/qr-generator')}>🔲 Scan Dashboard</button>
+                    <button className="btn-primary outline" style={{ borderColor: '#ef4444', color: '#ef4444', padding: '0.5rem 1rem' }}
+                        onClick={() => { localStorage.removeItem('adminUser'); navigate('/admin-login'); }}>Log Out</button>
                 </div>
             </header>
+
+            {/* Main Navigation Tabs */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div className="tabs-container" style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+                    <button className={`btn-primary nav-btn ${activeTab === 'overview' ? '' : 'outline'}`} style={{ opacity: activeTab === 'overview' ? 1 : 0.7 }} onClick={() => setActiveTab('overview')}>Overview</button>
+                    {(adminRole === 'admin' || adminRole === 'superadmin') && (
+                        <button className={`btn-primary nav-btn ${activeTab === 'orders' ? '' : 'outline'}`} style={{ opacity: activeTab === 'orders' ? 1 : 0.7 }} onClick={() => setActiveTab('orders')}>Orders</button>
+                    )}
+                    {(adminRole !== 'admin') && (
+                        <>
+                            <button className={`btn-primary nav-btn ${activeTab === 'salons' ? '' : 'outline'}`} style={{ opacity: activeTab === 'salons' ? 1 : 0.7 }} onClick={() => setActiveTab('salons')}>Salons</button>
+                            <button className={`btn-primary nav-btn ${activeTab === 'products' ? '' : 'outline'}`} style={{ opacity: activeTab === 'products' ? 1 : 0.7 }} onClick={() => setActiveTab('products')}>Products</button>
+                            <button className={`btn-primary nav-btn ${activeTab === 'monitor' ? '' : 'outline'}`} style={{ opacity: activeTab === 'monitor' ? 1 : 0.7 }} onClick={() => setActiveTab('monitor')}>Monitor</button>
+                            <button className={`btn-primary nav-btn ${activeTab === 'accounts' ? '' : 'outline'}`} style={{ opacity: activeTab === 'accounts' ? 1 : 0.7 }} onClick={() => setActiveTab('accounts')}>Accounts</button>
+                        </>
+                    )}
+                    {(adminRole === 'admin' || adminRole === 'superadmin') && (
+                        <button className={`btn-primary nav-btn ${activeTab === 'reports' ? '' : 'outline'}`} style={{ opacity: activeTab === 'reports' ? 1 : 0.7 }} onClick={() => setActiveTab('reports')}>Reports</button>
+                    )}
+                </div>
+
+                {/* Contextual Filters */}
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {(activeTab === 'orders' || activeTab === 'monitor' || activeTab === 'salons') && (
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <input type="text" placeholder="Search..." value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                style={{ padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', outline: 'none', transition: 'all 0.3s ease' }} />
+                            <button className="btn-primary" style={{ padding: '0.5rem 1rem' }}>Search</button>
+                        </div>
+                    )}
+                    <select value={selectedSalonId} onChange={(e) => setSelectedSalonId(e.target.value)}
+                        style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease' }}>
+                        <option value="" style={{ color: 'black' }}>All Salons</option>
+                        {salons.map(salon => <option key={salon._id} value={salon._id} style={{ color: 'black' }}>{salon.name}</option>)}
+                    </select>
+                </div>
+            </div>
 
             {activeTab === 'overview' && (
                 <section className="glass-container animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -856,94 +834,198 @@ const AdminDashboard = () => {
                             </table>
                         </div>
                     </div>
-                </section>
+
+                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                            <h3 style={{ margin: 0, color: '#fff' }}>Detailed Rep Salon List</h3>
+                            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', cursor: 'pointer', opacity: filterDetailedVisited ? 1 : 0.6 }}>
+                                        <input type="checkbox" checked={filterDetailedVisited} onChange={(e) => setFilterDetailedVisited(e.target.checked)} style={{ width: '16px', height: '16px', margin: 0 }} />
+                                        Visited
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', cursor: 'pointer', opacity: filterDetailedActive ? 1 : 0.6 }}>
+                                        <input type="checkbox" checked={filterDetailedActive} onChange={(e) => setFilterDetailedActive(e.target.checked)} style={{ width: '16px', height: '16px', margin: 0 }} />
+                                        Active
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', cursor: 'pointer', opacity: filterDetailedPOSM ? 1 : 0.6 }}>
+                                        <input type="checkbox" checked={filterDetailedPOSM} onChange={(e) => setFilterDetailedPOSM(e.target.checked)} style={{ width: '16px', height: '16px', margin: 0 }} />
+                                        POSM
+                                    </label>
+                                </div>
+                                <select
+                                    value={selectedRep}
+                                    onChange={(e) => setSelectedRep(e.target.value)}
+                                    style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', minWidth: '200px' }}
+                                >
+                                    <option value="" style={{ color: 'black' }}>Select a Rep</option>
+                                    {reps.map(rep => (
+                                        <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>
+                                    ))}
+                                    <option value="Unassigned" style={{ color: 'black' }}>Unassigned</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {selectedRep && (
+                            <div style={{ marginBottom: '1rem', opacity: 0.8, fontSize: '0.9rem' }}>
+                                Showing {salons.filter(s => {
+                                    const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+                                    if (rep !== selectedRep) return false;
+                                    if (filterDetailedVisited && !s.isVisited) return false;
+                                    if (filterDetailedActive && !s.isActive) return false;
+                                    if (filterDetailedPOSM && !s.posmActive) return false;
+                                    return true;
+                                }).length} salons for {selectedRep}
+                            </div>
+                        )}
+
+                        {selectedRep && (
+                            <div className="table-container">
+                                <table className="styled-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr>
+                                            <th>Salon Name</th>
+                                            <th>Phone Number</th>
+                                            <th>Address</th>
+                                            <th style={{ textAlign: 'center' }}>Visited</th>
+                                            <th style={{ textAlign: 'center' }}>Active</th>
+                                            <th style={{ textAlign: 'center' }}>POSM</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {salons
+                                            .filter(s => {
+                                                const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+                                                if (rep !== selectedRep) return false;
+                                                if (filterDetailedVisited && !s.isVisited) return false;
+                                                if (filterDetailedActive && !s.isActive) return false;
+                                                if (filterDetailedPOSM && !s.posmActive) return false;
+                                                return true;
+                                            })
+                                            .map((s, idx) => (
+                                                <tr key={idx}>
+                                                    <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>{s.name}</td>
+                                                    <td>{s.contactNumber1}{s.contactNumber2 ? `, ${s.contactNumber2}` : ''}</td>
+                                                    <td style={{ fontSize: '0.9rem', opacity: 0.8 }}>{s.location}</td>
+                                                    <td style={{ textAlign: 'center' }}>{s.isVisited ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
+                                                    <td style={{ textAlign: 'center' }}>{s.isActive ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
+                                                    <td style={{ textAlign: 'center' }}>{s.posmActive ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
+                                                </tr>
+                                            ))}
+                                        {salons.filter(s => {
+                                            const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+                                            if (rep !== selectedRep) return false;
+                                            if (filterDetailedVisited && !s.isVisited) return false;
+                                            if (filterDetailedActive && !s.isActive) return false;
+                                            if (filterDetailedPOSM && !s.posmActive) return false;
+                                            return true;
+                                        }).length === 0 && (
+                                                <tr>
+                                                    <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No salons found matching your criteria</td>
+                                                </tr>
+                                            )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        {!selectedRep && (
+                            <div style={{ textAlign: 'center', padding: '3rem', opacity: 0.5 }}>
+                                Please select a representative to view their salon details.
+                            </div>
+                        )}
+                    </div>
+                </section >
             )}
 
-            {activeTab === 'orders' && (
-                <section className="glass-container">
-                    <h2>Recent Orders</h2>
-                    <div className="table-container">
-                        <table className="styled-table">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Order ID</th>
-                                    <th>Agent/Salon</th>
-                                    <th>Customer</th>
-                                    <th>Items</th>
-                                    <th>Total</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {orders
-                                    .filter(order => {
-                                        if (!searchTerm) return true;
-                                        const term = searchTerm.toLowerCase();
-                                        return (
-                                            (order.salonName || '').toLowerCase().includes(term) ||
-                                            (order.customerName || '').toLowerCase().includes(term) ||
-                                            (order.customerPhone || '').toLowerCase().includes(term) ||
-                                            (order.additionalPhone || '').toLowerCase().includes(term) ||
-                                            (order.items || []).some(item => (item.productName || '').toLowerCase().includes(term))
-                                        );
-                                    })
-                                    .map(order => (
-                                        <tr key={order._id}>
-                                            <td>{new Date(order.createdAt).toLocaleString()}</td>
-                                            <td style={{ fontWeight: 'bold' }}>{order.merchantOrderId || order._id.slice(-6).toUpperCase()}</td>
-                                            <td>{order.salonName || order.agentName || '—'}</td>
-                                            <td>
-                                                <div style={{ fontWeight: 'bold' }}>{order.customerName}</div>
-                                                <small style={{ opacity: 0.7 }}>{order.customerPhone}</small><br />
-                                                <small style={{ opacity: 0.5 }}>{order.address}, {order.city}</small>
-                                            </td>
-                                            <td>
-                                                {order.items.map(i => (
-                                                    <div key={i._id} style={{ fontSize: '0.9rem' }}>• {i.productName} <span style={{ opacity: 0.5 }}>x{i.quantity}</span></div>
-                                                ))}
-                                            </td>
-                                            <td style={{ fontWeight: 'bold', color: 'var(--secondary-color)' }}>Rs.{order.totalAmount}</td>
-                                            <td>
-                                                <select
-                                                    value={order.status}
-                                                    onChange={async (e) => {
-                                                        try {
-                                                            const newStatus = e.target.value;
-                                                            await axios.put(`${API_URL}/orders/${order._id}/status`, { status: newStatus });
-                                                            fetchOrders();
-                                                        } catch (err) {
-                                                            console.error('Failed to update status', err);
-                                                            alert('Failed to update status');
-                                                        }
-                                                    }}
-                                                    className={`status-badge ${order.status.toLowerCase().replace(' ', '')}`}
-                                                    style={{
-                                                        border: 'none',
-                                                        cursor: 'pointer',
-                                                        outline: 'none',
-                                                        appearance: 'none',
-                                                        paddingRight: '1rem',
-                                                        textAlign: 'center'
-                                                    }}
-                                                >
-                                                    <option style={{ color: 'black' }} value="Pending Payment">Pending</option>
-                                                    <option style={{ color: 'black' }} value="Paid">Paid</option>
-                                                    <option style={{ color: 'black' }} value="Processing">Processing</option>
-                                                    <option style={{ color: 'black' }} value="Shipped">Shipped</option>
-                                                    <option style={{ color: 'black' }} value="Completed">Completed</option>
-                                                    <option style={{ color: 'black' }} value="Returned">Returned</option>
-                                                    <option style={{ color: 'black' }} value="Cancelled">Cancelled</option>
-                                                    <option style={{ color: 'black' }} value="Payment Failed">Payment Failed</option>
-                                                </select>
-                                            </td>
-                                        </tr>
-                                    ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            )
+            {
+                (adminRole === 'admin' || adminRole === 'superadmin') && activeTab === 'orders' && (
+                    <section className="glass-container">
+                        <h2>Recent Orders</h2>
+                        <div className="table-container">
+                            <table className="styled-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Order ID</th>
+                                        <th>Agent/Salon</th>
+                                        <th>Customer</th>
+                                        <th>Items</th>
+                                        <th>Total</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {orders
+                                        .filter(order => {
+                                            if (adminRole === 'admin' && order.status !== 'Processing' && order.status !== 'Paid') return false;
+                                            if (!searchTerm) return true;
+                                            const term = searchTerm.toLowerCase();
+                                            return (
+                                                (order.salonName || '').toLowerCase().includes(term) ||
+                                                (order.customerName || '').toLowerCase().includes(term) ||
+                                                (order.customerPhone || '').toLowerCase().includes(term) ||
+                                                (order.additionalPhone || '').toLowerCase().includes(term) ||
+                                                (order.items || []).some(item => (item.productName || '').toLowerCase().includes(term))
+                                            );
+                                        })
+                                        .map(order => (
+                                            <tr key={order._id} style={{ backgroundColor: order.isDownloaded ? 'rgba(220, 38, 38, 0.15)' : 'transparent' }}>
+                                                <td>{new Date(order.createdAt).toLocaleString()}</td>
+                                                <td style={{ fontWeight: 'bold' }}>{order.merchantOrderId || order._id.slice(-6).toUpperCase()}</td>
+                                                <td>{order.salonName || order.agentName || '—'}</td>
+                                                <td>
+                                                    <div style={{ fontWeight: 'bold' }}>{order.customerName}</div>
+                                                    <small style={{ opacity: 0.7 }}>{order.customerPhone}</small><br />
+                                                    <small style={{ opacity: 0.5 }}>{order.address}, {order.city}</small>
+                                                </td>
+                                                <td>
+                                                    {order.items.map(i => (
+                                                        <div key={i._id} style={{ fontSize: '0.9rem' }}>• {i.productName} <span style={{ opacity: 0.5 }}>x{i.quantity}</span></div>
+                                                    ))}
+                                                </td>
+                                                <td style={{ fontWeight: 'bold', color: 'var(--secondary-color)' }}>Rs.{order.totalAmount}</td>
+                                                <td>
+                                                    <select
+                                                        value={order.status}
+                                                        disabled={adminRole === 'admin'}
+                                                        onChange={async (e) => {
+                                                            try {
+                                                                const newStatus = e.target.value;
+                                                                await axios.put(`${API_URL}/orders/${order._id}/status`, { status: newStatus });
+                                                                fetchOrders();
+                                                            } catch (err) {
+                                                                console.error('Failed to update status', err);
+                                                                alert('Failed to update status');
+                                                            }
+                                                        }}
+                                                        className={`status-badge ${order.status.toLowerCase().replace(' ', '')}`}
+                                                        style={{
+                                                            border: 'none',
+                                                            cursor: 'pointer',
+                                                            outline: 'none',
+                                                            appearance: 'none',
+                                                            paddingRight: '1rem',
+                                                            textAlign: 'center'
+                                                        }}
+                                                    >
+                                                        <option style={{ color: 'black' }} value="Pending Payment">Pending</option>
+                                                        <option style={{ color: 'black' }} value="Paid">Paid</option>
+                                                        <option style={{ color: 'black' }} value="Processing">Processing</option>
+                                                        <option style={{ color: 'black' }} value="Shipped">Shipped</option>
+                                                        <option style={{ color: 'black' }} value="Completed">Completed</option>
+                                                        <option style={{ color: 'black' }} value="Returned">Returned</option>
+                                                        <option style={{ color: 'black' }} value="Cancelled">Cancelled</option>
+                                                        <option style={{ color: 'black' }} value="Payment Failed">Payment Failed</option>
+                                                    </select>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                )
             }
 
             {
@@ -1018,44 +1100,71 @@ const AdminDashboard = () => {
                                     </div>
                                 )}
 
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <input type="text" placeholder="Salon Name *" value={newSalon.name} onChange={(e) => setNewSalon({ ...newSalon, name: e.target.value })} required />
-                                    <input type="text" placeholder="Location" value={newSalon.location} onChange={(e) => setNewSalon({ ...newSalon, location: e.target.value })} />
-                                    <input type="text" placeholder="Contact Number 1" value={newSalon.contactNumber1} onChange={(e) => setNewSalon({ ...newSalon, contactNumber1: e.target.value })} />
-                                    <input type="text" placeholder="Contact Number 2" value={newSalon.contactNumber2} onChange={(e) => setNewSalon({ ...newSalon, contactNumber2: e.target.value })} />
-                                    <select
-                                        value={newSalon.repName}
-                                        onChange={(e) => setNewSalon({ ...newSalon, repName: e.target.value })}
-                                        style={{
-                                            padding: '0.8rem',
-                                            borderRadius: '8px',
-                                            border: '1px solid #ccc',
-                                            width: '100%',
-                                            fontFamily: 'inherit',
-                                            fontSize: '1rem'
-                                        }}
-                                    >
-                                        <option value="">Select Rep Name</option>
-                                        {reps.map(rep => (
-                                            <option key={rep._id} value={rep.name}>{rep.name}</option>
-                                        ))}
-                                    </select>
-                                    <input type="text" placeholder="Remark" value={newSalon.remark} onChange={(e) => setNewSalon({ ...newSalon, remark: e.target.value })} />
-                                    <input type="text" placeholder="Username (Optional)" value={newSalon.username} onChange={(e) => setNewSalon({ ...newSalon, username: e.target.value })} />
-                                    <input type="text" placeholder="Password (Optional)" value={newSalon.password} onChange={(e) => setNewSalon({ ...newSalon, password: e.target.value })} />
+                                <div className="form-grid">
+                                    <div className="input-group">
+                                        <label>Salon Name *</label>
+                                        <input type="text" placeholder="e.g. Elegant Hair" value={newSalon.name} onChange={(e) => setNewSalon({ ...newSalon, name: e.target.value })} required />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Location</label>
+                                        <input type="text" placeholder="e.g. Colombo 03" value={newSalon.location} onChange={(e) => setNewSalon({ ...newSalon, location: e.target.value })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Contact Number 1</label>
+                                        <input type="text" placeholder="Phone 1" value={newSalon.contactNumber1} onChange={(e) => setNewSalon({ ...newSalon, contactNumber1: e.target.value })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Contact Number 2</label>
+                                        <input type="text" placeholder="Phone 2" value={newSalon.contactNumber2} onChange={(e) => setNewSalon({ ...newSalon, contactNumber2: e.target.value })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Representative Name</label>
+                                        <select value={newSalon.repName} onChange={(e) => setNewSalon({ ...newSalon, repName: e.target.value })}>
+                                            <option value="" style={{ color: 'black' }}>Select Rep Name</option>
+                                            {reps.map(rep => (
+                                                <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Remark</label>
+                                        <input type="text" placeholder="Any notes..." value={newSalon.remark} onChange={(e) => setNewSalon({ ...newSalon, remark: e.target.value })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Username (Optional)</label>
+                                        <input type="text" placeholder="Custom Username" value={newSalon.username} onChange={(e) => setNewSalon({ ...newSalon, username: e.target.value })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Password (Optional)</label>
+                                        <input type="text" placeholder="Custom Password" value={newSalon.password} onChange={(e) => setNewSalon({ ...newSalon, password: e.target.value })} />
+                                    </div>
                                 </div>
-                                <h3 style={{ marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Account Details</h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-                                    <input type="text" placeholder="Bank Name" value={newSalon.accountDetails.bankName} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, bankName: e.target.value } })} />
-                                    <input type="text" placeholder="Branch" value={newSalon.accountDetails.branch} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, branch: e.target.value } })} />
-                                    <input type="text" placeholder="Account Number" value={newSalon.accountDetails.accountNumber} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, accountNumber: e.target.value } })} />
-                                    <input type="text" placeholder="Account Name" value={newSalon.accountDetails.accountName} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, accountName: e.target.value } })} />
+
+                                <h3 className="section-title">Account Details</h3>
+                                <div className="form-grid">
+                                    <div className="input-group">
+                                        <label>Bank Name</label>
+                                        <input type="text" placeholder="e.g. BOC" value={newSalon.accountDetails.bankName} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, bankName: e.target.value } })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Branch</label>
+                                        <input type="text" placeholder="e.g. City Branch" value={newSalon.accountDetails.branch} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, branch: e.target.value } })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Account Number</label>
+                                        <input type="text" placeholder="e.g. 123456789" value={newSalon.accountDetails.accountNumber} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, accountNumber: e.target.value } })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Account Name</label>
+                                        <input type="text" placeholder="e.g. John Doe" value={newSalon.accountDetails.accountName} onChange={(e) => setNewSalon({ ...newSalon, accountDetails: { ...newSalon.accountDetails, accountName: e.target.value } })} />
+                                    </div>
                                 </div>
-                                <h3 style={{ marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Status & Marks</h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'white' }}>
-                                            <input type="checkbox" checked={newSalon.isVisited} onChange={(e) => setNewSalon({ ...newSalon, isVisited: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+
+                                <h3 className="section-title">Status & Marks</h3>
+                                <div className="form-grid" style={{ marginBottom: '1.5rem', alignContent: 'start', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                                    <div className="input-group" style={{ justifyContent: 'center' }}>
+                                        <label style={{ cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
+                                            <input type="checkbox" checked={newSalon.isVisited} onChange={(e) => setNewSalon({ ...newSalon, isVisited: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
                                             Visited Salon
                                         </label>
                                         {newSalon.isVisited && (
@@ -1063,26 +1172,27 @@ const AdminDashboard = () => {
                                                 type="date"
                                                 value={newSalon.visitedDate}
                                                 onChange={(e) => setNewSalon({ ...newSalon, visitedDate: e.target.value })}
-                                                style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                                                style={{ marginTop: '0.5rem' }}
                                             />
                                         )}
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'white' }}>
-                                            <input type="checkbox" checked={newSalon.isActive} onChange={(e) => setNewSalon({ ...newSalon, isActive: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+                                    <div className="input-group" style={{ justifyContent: 'center' }}>
+                                        <label style={{ cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
+                                            <input type="checkbox" checked={newSalon.isActive} onChange={(e) => setNewSalon({ ...newSalon, isActive: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
                                             Active Salon
                                         </label>
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'white' }}>
-                                            <input type="checkbox" checked={newSalon.posmActive} onChange={(e) => setNewSalon({ ...newSalon, posmActive: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+                                    <div className="input-group" style={{ justifyContent: 'center' }}>
+                                        <label style={{ cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
+                                            <input type="checkbox" checked={newSalon.posmActive} onChange={(e) => setNewSalon({ ...newSalon, posmActive: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
                                             POSM Active Salon
                                         </label>
                                     </div>
                                 </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+
+                                <div className="input-group" style={{ marginBottom: '2rem' }}>
                                     <label style={{ color: 'white', fontSize: '1rem', fontWeight: 'bold' }}>Revisited Dates (Mark old visits here)</label>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', minHeight: '30px' }}>
                                         {(newSalon.revisitedDates || []).map((d, index) => (
                                             <div key={index} style={{ padding: '0.4rem 0.8rem', background: 'rgba(255,255,255,0.1)', borderRadius: '20px', color: '#bae6fd', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                 {new Date(d).toLocaleDateString()}
@@ -1090,19 +1200,19 @@ const AdminDashboard = () => {
                                                     const newArr = [...newSalon.revisitedDates];
                                                     newArr.splice(index, 1);
                                                     setNewSalon({ ...newSalon, revisitedDates: newArr });
-                                                }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '1.1rem', lineHeight: 1, cursor: 'pointer', padding: 0 }}>&times;</button>
+                                                }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '1.2rem', lineHeight: 1, cursor: 'pointer', padding: 0, fontWeight: 'bold' }}>&times;</button>
                                             </div>
                                         ))}
                                     </div>
                                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                                        <input type="date" id={`revisit-date-${editingSalonId || 'new'}`} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+                                        <input type="date" id={`revisit-date-${editingSalonId || 'new'}`} style={{ flex: 1, margin: 0 }} />
                                         <button type="button" onClick={() => {
                                             const dateVal = document.getElementById(`revisit-date-${editingSalonId || 'new'}`).value;
                                             if (dateVal) {
                                                 setNewSalon({ ...newSalon, revisitedDates: [...(newSalon.revisitedDates || []), dateVal] });
                                                 document.getElementById(`revisit-date-${editingSalonId || 'new'}`).value = '';
                                             }
-                                        }} className="btn-primary" style={{ padding: '0.5rem 1rem' }}>Add Date</button>
+                                        }} className="btn-primary" style={{ whiteSpace: 'nowrap' }}>+ Add Date</button>
                                     </div>
                                 </div>
                                 <button type="submit" className="btn-primary" style={{ width: '100%', marginBottom: editingSalonId ? '0.5rem' : '0' }}>
@@ -1545,136 +1655,138 @@ const AdminDashboard = () => {
                 )
             }
 
-            {activeTab === 'products' && (
-                <div style={{ display: 'flex', gap: '2rem', flexDirection: 'column' }}>
-                    <section className="glass-container">
-                        <h2>{editingProductId ? 'Edit Product' : 'Add New Product'}</h2>
-                        <form onSubmit={handleProductSubmit}>
-                            <div style={{ display: 'flex', gap: '1rem' }}>
-                                <input
-                                    type="text"
-                                    placeholder="Product Name"
-                                    value={newProduct.name}
-                                    onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                                    required
-                                    style={{ flex: 2 }}
-                                />
-                                <input
-                                    type="number"
-                                    placeholder="Price (LKR)"
-                                    value={newProduct.price}
-                                    onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                                    required
-                                    style={{ flex: 1 }}
-                                />
-                            </div>
-                            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', alignItems: 'center' }}>
-                                <select
-                                    value={newProduct.discountType}
-                                    onChange={(e) => setNewProduct({ ...newProduct, discountType: e.target.value })}
-                                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', flex: 1 }}
-                                >
-                                    <option value="none">No Discount</option>
-                                    <option value="percentage">Percentage (%)</option>
-                                    <option value="amount">Fixed Amount (LKR)</option>
-                                </select>
-                                <select
-                                    value={newProduct.target}
-                                    onChange={(e) => setNewProduct({ ...newProduct, target: e.target.value })}
-                                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', flex: 1 }}
-                                >
-                                    <option value="both">Both</option>
-                                    <option value="salon">Salon Only</option>
-                                    <option value="agent">Agent Only</option>
-                                </select>
-                                {newProduct.discountType !== 'none' && (
+            {
+                activeTab === 'products' && (
+                    <div style={{ display: 'flex', gap: '2rem', flexDirection: 'column' }}>
+                        <section className="glass-container">
+                            <h2>{editingProductId ? 'Edit Product' : 'Add New Product'}</h2>
+                            <form onSubmit={handleProductSubmit}>
+                                <div style={{ display: 'flex', gap: '1rem' }}>
+                                    <input
+                                        type="text"
+                                        placeholder="Product Name"
+                                        value={newProduct.name}
+                                        onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                                        required
+                                        style={{ flex: 2 }}
+                                    />
                                     <input
                                         type="number"
-                                        placeholder="Discount Value"
-                                        value={newProduct.discountValue}
-                                        onChange={(e) => setNewProduct({ ...newProduct, discountValue: e.target.value })}
+                                        placeholder="Price (LKR)"
+                                        value={newProduct.price}
+                                        onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
                                         required
                                         style={{ flex: 1 }}
                                     />
-                                )}
-                                <input
-                                    type="number"
-                                    placeholder="Commission (LKR)"
-                                    value={newProduct.commission}
-                                    onChange={(e) => setNewProduct({ ...newProduct, commission: e.target.value })}
-                                    style={{ flex: 1, padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }}
-                                />
-                            </div>
-
-                            <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
-                                <button type="submit" className="btn-primary" style={{ flex: 1 }}>
-                                    {editingProductId ? 'Update Product' : 'Add Product'}
-                                </button>
-                                {editingProductId && (
-                                    <button
-                                        type="button"
-                                        className="btn-primary outline"
-                                        style={{ flex: 1 }}
-                                        onClick={() => {
-                                            setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both', commission: 0 });
-                                            setEditingProductId(null);
-                                        }}
-                                    >
-                                        Cancel
-                                    </button>
-                                )}
-                            </div>
-                        </form>
-                    </section>
-
-                    <section className="glass-container">
-                        <h2>Product List</h2>
-                        <div className="salon-grid" style={{ marginTop: '1rem' }}>
-                            {products.map(p => (
-                                <div key={p._id} className="salon-card" style={{ gap: '0.5rem' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                        <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{p.name}</h3>
-                                        <span className={`status-badge ${p.discountType !== 'none' ? 'cancelled' : 'returned'}`}>
-                                            Rs.{p.finalPrice}
-                                        </span>
-                                    </div>
-                                    <div style={{ fontSize: '0.9rem', opacity: 0.7 }}>
-                                        Base: Rs.{p.price}
-                                        {p.discountType !== 'none' && (
-                                            <span style={{ color: '#ef4444', marginLeft: '0.5rem' }}>
-                                                ({p.discountType === 'percentage' ? `${p.discountValue}%` : `Rs.${p.discountValue}`} OFF)
-                                            </span>
-                                        )}
-                                        <div style={{ marginTop: '0.2rem', color: '#38bdf8' }}>
-                                            For: {p.target === 'salon' ? 'Salon Only' : p.target === 'agent' ? 'Agent Only' : 'Both'}
-                                        </div>
-                                        <div style={{ marginTop: '0.2rem', color: '#4ade80', fontWeight: 'bold' }}>
-                                            Commission: Rs.{p.commission || 0}
-                                        </div>
-                                    </div>
-
-                                    <div className="card-actions" style={{ marginTop: '1rem' }}>
-                                        <button
-                                            onClick={() => handleEditProduct(p)}
-                                            className="icon-btn primary"
-                                            title="Edit Product"
-                                        >
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteProduct(p._id)}
-                                            className="icon-btn danger"
-                                            title="Delete Product"
-                                        >
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                        </button>
-                                    </div>
                                 </div>
-                            ))}
-                        </div>
-                    </section>
-                </div>
-            )}
+                                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', alignItems: 'center' }}>
+                                    <select
+                                        value={newProduct.discountType}
+                                        onChange={(e) => setNewProduct({ ...newProduct, discountType: e.target.value })}
+                                        style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', flex: 1 }}
+                                    >
+                                        <option value="none">No Discount</option>
+                                        <option value="percentage">Percentage (%)</option>
+                                        <option value="amount">Fixed Amount (LKR)</option>
+                                    </select>
+                                    <select
+                                        value={newProduct.target}
+                                        onChange={(e) => setNewProduct({ ...newProduct, target: e.target.value })}
+                                        style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', flex: 1 }}
+                                    >
+                                        <option value="both">Both</option>
+                                        <option value="salon">Salon Only</option>
+                                        <option value="agent">Agent Only</option>
+                                    </select>
+                                    {newProduct.discountType !== 'none' && (
+                                        <input
+                                            type="number"
+                                            placeholder="Discount Value"
+                                            value={newProduct.discountValue}
+                                            onChange={(e) => setNewProduct({ ...newProduct, discountValue: e.target.value })}
+                                            required
+                                            style={{ flex: 1 }}
+                                        />
+                                    )}
+                                    <input
+                                        type="number"
+                                        placeholder="Commission (LKR)"
+                                        value={newProduct.commission}
+                                        onChange={(e) => setNewProduct({ ...newProduct, commission: e.target.value })}
+                                        style={{ flex: 1, padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }}
+                                    />
+                                </div>
+
+                                <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
+                                    <button type="submit" className="btn-primary" style={{ flex: 1 }}>
+                                        {editingProductId ? 'Update Product' : 'Add Product'}
+                                    </button>
+                                    {editingProductId && (
+                                        <button
+                                            type="button"
+                                            className="btn-primary outline"
+                                            style={{ flex: 1 }}
+                                            onClick={() => {
+                                                setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both', commission: 0 });
+                                                setEditingProductId(null);
+                                            }}
+                                        >
+                                            Cancel
+                                        </button>
+                                    )}
+                                </div>
+                            </form>
+                        </section>
+
+                        <section className="glass-container">
+                            <h2>Product List</h2>
+                            <div className="salon-grid" style={{ marginTop: '1rem' }}>
+                                {products.map(p => (
+                                    <div key={p._id} className="salon-card" style={{ gap: '0.5rem' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{p.name}</h3>
+                                            <span className={`status-badge ${p.discountType !== 'none' ? 'cancelled' : 'returned'}`}>
+                                                Rs.{p.finalPrice}
+                                            </span>
+                                        </div>
+                                        <div style={{ fontSize: '0.9rem', opacity: 0.7 }}>
+                                            Base: Rs.{p.price}
+                                            {p.discountType !== 'none' && (
+                                                <span style={{ color: '#ef4444', marginLeft: '0.5rem' }}>
+                                                    ({p.discountType === 'percentage' ? `${p.discountValue}%` : `Rs.${p.discountValue}`} OFF)
+                                                </span>
+                                            )}
+                                            <div style={{ marginTop: '0.2rem', color: '#38bdf8' }}>
+                                                For: {p.target === 'salon' ? 'Salon Only' : p.target === 'agent' ? 'Agent Only' : 'Both'}
+                                            </div>
+                                            <div style={{ marginTop: '0.2rem', color: '#4ade80', fontWeight: 'bold' }}>
+                                                Commission: Rs.{p.commission || 0}
+                                            </div>
+                                        </div>
+
+                                        <div className="card-actions" style={{ marginTop: '1rem' }}>
+                                            <button
+                                                onClick={() => handleEditProduct(p)}
+                                                className="icon-btn primary"
+                                                title="Edit Product"
+                                            >
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteProduct(p._id)}
+                                                className="icon-btn danger"
+                                                title="Delete Product"
+                                            >
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    </div>
+                )
+            }
 
             {
                 activeTab === 'monitor' && (
@@ -1746,210 +1858,279 @@ const AdminDashboard = () => {
                 )
             }
 
-            {activeTab === 'accounts' && (
-                <section className="glass-container">
-                    <h2>Account Management</h2>
-                    <div style={{ marginBottom: '2rem', background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '1rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                            <h3 style={{ margin: 0 }}>{editingAccountId ? 'Edit Account' : 'Create Salesman Account'}</h3>
-                            {editingAccountId && (
-                                <button onClick={() => {
-                                    setEditingAccountId(null);
-                                    setNewAccount({ username: '', password: '' });
-                                }} className="btn-primary outline" style={{ padding: '0.4rem 1rem' }}>Cancel Edit</button>
-                            )}
-                        </div>
-                        <form onSubmit={async (e) => {
-                            e.preventDefault();
-                            try {
-                                if (editingAccountId) {
-                                    // Prepare payload: only send password if it's not empty
-                                    const payload = { username: newAccount.username };
-                                    if (newAccount.password) {
-                                        payload.password = newAccount.password;
-                                    }
-                                    const res = await axios.put(`${API_URL}/auth/accounts/${editingAccountId}`, payload);
-                                    if (res.data.success) {
-                                        alert('Account Updated Successfully');
-                                        setNewAccount({ username: '', password: '' });
+            {
+                activeTab === 'accounts' && (
+                    <section className="glass-container">
+                        <h2>Account Management</h2>
+                        <div style={{ marginBottom: '2rem', background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '1rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                <h3 style={{ margin: 0 }}>{editingAccountId ? 'Edit Account' : 'Create Salesman Account'}</h3>
+                                {editingAccountId && (
+                                    <button onClick={() => {
                                         setEditingAccountId(null);
-                                        fetchAccounts();
-                                    }
-                                } else {
-                                    const res = await axios.post(`${API_URL}/auth/salesman`, newAccount);
-                                    if (res.data.success) {
-                                        alert('Salesman Account Created Successfully');
-                                        setNewAccount({ username: '', password: '' });
-                                        fetchAccounts();
-                                    }
-                                }
-                            } catch (err) {
-                                alert(err.response?.data?.error || 'Error saving account');
-                            }
-                        }}>
-                            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                                <input
-                                    type="text"
-                                    placeholder="Username"
-                                    value={newAccount.username}
-                                    onChange={(e) => setNewAccount({ ...newAccount, username: e.target.value })}
-                                    required
-                                    style={{ flex: 1 }}
-                                />
-                                <input
-                                    type="text"
-                                    placeholder={editingAccountId ? "New Password (leave blank to keep current)" : "Password"}
-                                    value={newAccount.password}
-                                    onChange={(e) => setNewAccount({ ...newAccount, password: e.target.value })}
-                                    required={!editingAccountId}
-                                    style={{ flex: 1 }}
-                                />
+                                        setNewAccount({ username: '', password: '', role: 'salesman' });
+                                    }} className="btn-primary outline" style={{ padding: '0.4rem 1rem' }}>Cancel Edit</button>
+                                )}
                             </div>
-                            <button type="submit" className="btn-primary" style={{ width: '100%' }}>
-                                {editingAccountId ? 'Update Account' : 'Create Account'}
-                            </button>
-                        </form>
-                    </div>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                try {
+                                    if (editingAccountId) {
+                                        // Prepare payload: only send password if it's not empty
+                                        const payload = { username: newAccount.username, role: newAccount.role };
+                                        if (newAccount.password) {
+                                            payload.password = newAccount.password;
+                                        }
+                                        const res = await axios.put(`${API_URL}/auth/accounts/${editingAccountId}`, payload);
+                                        if (res.data.success) {
+                                            alert('Account Updated Successfully');
+                                            setNewAccount({ username: '', password: '', role: 'salesman' });
+                                            setEditingAccountId(null);
+                                            fetchAccounts();
+                                        }
+                                    } else {
+                                        const res = await axios.post(`${API_URL}/auth/salesman`, newAccount);
+                                        if (res.data.success) {
+                                            alert('Account Created Successfully');
+                                            setNewAccount({ username: '', password: '', role: 'salesman' });
+                                            fetchAccounts();
+                                        }
+                                    }
+                                } catch (err) {
+                                    alert(err.response?.data?.error || 'Error saving account');
+                                }
+                            }}>
+                                <div className="form-grid" style={{ marginBottom: '1.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                                    <div className="input-group">
+                                        <label>Username</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g. jdoe123"
+                                            value={newAccount.username}
+                                            onChange={(e) => setNewAccount({ ...newAccount, username: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Account Role</label>
+                                        <select
+                                            value={newAccount.role}
+                                            onChange={(e) => setNewAccount({ ...newAccount, role: e.target.value })}
+                                            required
+                                        >
+                                            <option value="salesman" style={{ color: 'black' }}>Salesman</option>
+                                            <option value="admin" style={{ color: 'black' }}>Admin</option>
+                                            <option value="superadmin" style={{ color: 'black' }}>Super Admin</option>
+                                        </select>
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Password</label>
+                                        <input
+                                            type="text"
+                                            placeholder={editingAccountId ? "Leave blank to keep current" : "Enter a secure PIN/Password"}
+                                            value={newAccount.password}
+                                            onChange={(e) => setNewAccount({ ...newAccount, password: e.target.value })}
+                                            required={!editingAccountId}
+                                        />
+                                    </div>
+                                </div>
+                                <button type="submit" className="btn-primary" style={{ width: '100%' }}>
+                                    {editingAccountId ? 'Update Account' : 'Create Account'}
+                                </button>
+                            </form>
+                        </div>
 
-                    <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '1rem' }}>
-                        <h3>Current Accounts</h3>
-                        <div className="table-container" style={{ marginTop: '1rem' }}>
-                            <table className="styled-table">
-                                <thead>
-                                    <tr>
-                                        <th>Username</th>
-                                        <th>Role</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {accounts.map(acc => (
-                                        <tr key={acc._id}>
-                                            <td style={{ fontWeight: 'bold' }}>{acc.username}</td>
-                                            <td>
-                                                <span className={`status-badge ${acc.role === 'admin' ? 'completed' : 'processing'}`} style={{ textTransform: 'capitalize' }}>
-                                                    {acc.role}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                    <button
-                                                        onClick={() => {
-                                                            setEditingAccountId(acc._id);
-                                                            setNewAccount({ username: acc.username, password: '' });
-                                                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                                                        }}
-                                                        className="icon-btn primary"
-                                                        title="Edit Account"
-                                                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                    {acc.role !== 'admin' && (
+                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '1rem' }}>
+                            <h3>Current Accounts</h3>
+                            <div className="table-container" style={{ marginTop: '1rem' }}>
+                                <table className="styled-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Username</th>
+                                            <th>Role</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {accounts.map(acc => (
+                                            <tr key={acc._id}>
+                                                <td style={{ fontWeight: 'bold' }}>{acc.username}</td>
+                                                <td>
+                                                    <span className={`status-badge ${['admin', 'superadmin'].includes(acc.role) ? 'completed' : 'processing'}`} style={{ textTransform: 'capitalize' }}>
+                                                        {acc.role}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                         <button
-                                                            onClick={async () => {
-                                                                if (window.confirm('Are you sure you want to delete this account?')) {
-                                                                    try {
-                                                                        const res = await axios.delete(`${API_URL}/auth/accounts/${acc._id}`);
-                                                                        if (res.data.success) {
-                                                                            fetchAccounts();
-                                                                        }
-                                                                    } catch (err) {
-                                                                        alert('Error deleting account');
-                                                                    }
-                                                                }
+                                                            onClick={() => {
+                                                                setEditingAccountId(acc._id);
+                                                                setNewAccount({ username: acc.username, password: '', role: acc.role || 'salesman' });
+                                                                window.scrollTo({ top: 0, behavior: 'smooth' });
                                                             }}
-                                                            className="icon-btn danger"
-                                                            title="Delete Account"
+                                                            className="icon-btn primary"
+                                                            title="Edit Account"
                                                             style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
                                                         >
-                                                            Delete
+                                                            Edit
                                                         </button>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {accounts.length === 0 && (
-                                        <tr>
-                                            <td colSpan="3" style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>No accounts found.</td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
+                                                        {!['admin', 'superadmin'].includes(acc.role) && (
+                                                            <button
+                                                                onClick={async () => {
+                                                                    if (window.confirm('Are you sure you want to delete this account?')) {
+                                                                        try {
+                                                                            const res = await axios.delete(`${API_URL}/auth/accounts/${acc._id}`);
+                                                                            if (res.data.success) {
+                                                                                fetchAccounts();
+                                                                            }
+                                                                        } catch (err) {
+                                                                            alert('Error deleting account');
+                                                                        }
+                                                                    }
+                                                                }}
+                                                                className="icon-btn danger"
+                                                                title="Delete Account"
+                                                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {accounts.length === 0 && (
+                                            <tr>
+                                                <td colSpan="3" style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>No accounts found.</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                    </div>
-                    <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '1rem', marginTop: '2rem' }}>
-                        <h3>Reps Dropdown List Management</h3>
-                        <form onSubmit={async (e) => {
-                            e.preventDefault();
-                            try {
-                                const res = await axios.post(`${API_URL}/reps`, { name: newRepName });
-                                if (res.data.success) {
-                                    alert('Rep Created');
-                                    setNewRepName('');
-                                    fetchReps();
+                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '1rem', marginTop: '2rem' }}>
+                            <h3>Reps Dropdown List Management</h3>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                try {
+                                    const res = await axios.post(`${API_URL}/reps`, { name: newRepName });
+                                    if (res.data.success) {
+                                        alert('Rep Created');
+                                        setNewRepName('');
+                                        fetchReps();
+                                    }
+                                } catch (err) {
+                                    alert(err.response?.data?.error || 'Error creating rep');
                                 }
-                            } catch (err) {
-                                alert(err.response?.data?.error || 'Error creating rep');
-                            }
-                        }} style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                            <input type="text" placeholder="Rep Name" value={newRepName} onChange={(e) => setNewRepName(e.target.value)} required style={{ flex: 1 }} />
-                            <button type="submit" className="btn-primary">Add Rep</button>
-                        </form>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
-                            {reps.map(rep => (
-                                <div key={rep._id} style={{ background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <span>{rep.name}</span>
-                                    <button onClick={async () => {
-                                        if (window.confirm('Delete this rep?')) {
-                                            await axios.delete(`${API_URL}/reps/${rep._id}`);
-                                            fetchReps();
-                                        }
-                                    }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0', fontSize: '1rem', fontWeight: 'bold' }} title="Delete Rep">✕</button>
-                                </div>
-                            ))}
-                            {reps.length === 0 && <span style={{ opacity: 0.5 }}>No Reps Found</span>}
+                            }} style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                                <input type="text" placeholder="Rep Name" value={newRepName} onChange={(e) => setNewRepName(e.target.value)} required style={{ flex: 1 }} />
+                                <button type="submit" className="btn-primary">Add Rep</button>
+                            </form>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+                                {reps.map(rep => (
+                                    <div key={rep._id} style={{ background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <span>{rep.name}</span>
+                                        <button onClick={async () => {
+                                            if (window.confirm('Delete this rep?')) {
+                                                await axios.delete(`${API_URL}/reps/${rep._id}`);
+                                                fetchReps();
+                                            }
+                                        }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0', fontSize: '1rem', fontWeight: 'bold' }} title="Delete Rep">✕</button>
+                                    </div>
+                                ))}
+                                {reps.length === 0 && <span style={{ opacity: 0.5 }}>No Reps Found</span>}
+                            </div>
                         </div>
-                    </div>
-                </section>
-            )}
+                    </section>
+                )
+            }
 
-            {activeTab === 'reports' && (
-                <section className="glass-container">
-                    <h2>Reports & Export</h2>
-                    <p style={{ opacity: 0.8, marginBottom: '2rem' }}>Download summary reports for data analysis and backup.</p>
+            {
+                (adminRole === 'admin' || adminRole === 'superadmin') && activeTab === 'reports' && (
+                    <section className="glass-container">
+                        <h2>Reports & Export</h2>
+                        <p style={{ opacity: 0.8, marginBottom: '2rem' }}>Download summary reports for data analysis and backup.</p>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
-                            <h3 style={{ margin: 0 }}>Salon List Report</h3>
-                            <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9rem', flex: 1 }}>Export a complete list of all registered salons including their contact, account details, and activity-marks.</p>
-                            <button onClick={handleExportSalons} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                Download Salons CSV
-                            </button>
-                        </div>
-
-                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
-                            <h3 style={{ margin: 0 }}>Orders Report</h3>
-                            <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9rem', flex: 1 }}>Export all recorded orders with their current statuses, customer info, and purchased items.</p>
-                            <button onClick={handleExportOrders} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                Download Orders CSV
-                            </button>
+                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Start Date</label>
+                                <input type="date" value={reportStartDate} onChange={e => setReportStartDate(e.target.value)}
+                                    style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', colorScheme: 'dark' }} />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>End Date</label>
+                                <input type="date" value={reportEndDate} onChange={e => setReportEndDate(e.target.value)}
+                                    style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', colorScheme: 'dark' }} />
+                            </div>
+                            <div style={{ alignSelf: 'flex-end' }}>
+                                <button onClick={fetchAnalytics} className="btn-primary" style={{ padding: '0.5rem 1rem' }}>Apply Filters</button>
+                            </div>
                         </div>
 
-                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
-                            <h3 style={{ margin: 0 }}>Performance Report</h3>
-                            <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9rem', flex: 1 }}>Export a summarized performance table showing the count of orders, returns, and total revenue per salon.</p>
-                            <button onClick={handleExportPerformance} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                Download Performance CSV
-                            </button>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
+                                <h3 style={{ margin: 0 }}>Salon List Report</h3>
+                                <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9rem', flex: 1 }}>Export a complete list of all registered salons including their contact, account details, and activity-marks.</p>
+                                <button onClick={handleExportSalons} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                    Download Salons CSV
+                                </button>
+                            </div>
+
+                            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
+                                <h3 style={{ margin: 0 }}>Orders Report</h3>
+                                <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9rem', flex: 1 }}>Export all recorded orders with their current statuses, customer info, and purchased items.</p>
+                                <button onClick={handleExportOrders} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                    Download Orders CSV
+                                </button>
+                            </div>
+
+                            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
+                                <h3 style={{ margin: 0 }}>Performance Report</h3>
+                                <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9rem', flex: 1 }}>Export a summarized performance table showing the count of orders, returns, and total revenue per salon.</p>
+                                <button onClick={handleExportPerformance} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                    Download Performance CSV
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                </section>
-            )}
+
+                        <div style={{ marginTop: '3rem' }}>
+                            <h2 style={{ marginBottom: '1.5rem' }}>Download History</h2>
+                            <div className="table-container shadow-sm">
+                                <table className="styled-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Date & Time</th>
+                                            <th>Report Type</th>
+                                            <th>Downloaded By</th>
+                                            <th>Records</th>
+                                            <th>Date Range Filter</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {reportHistory.map((log) => (
+                                            <tr key={log._id}>
+                                                <td>{new Date(log.createdAt).toLocaleString()}</td>
+                                                <td style={{ fontWeight: 'bold' }}>{log.reportType}</td>
+                                                <td>{log.downloadedBy}</td>
+                                                <td>{log.recordCount}</td>
+                                                <td style={{ opacity: 0.7, fontSize: '0.9rem' }}>{log.dateRange}</td>
+                                            </tr>
+                                        ))}
+                                        {reportHistory.length === 0 && (
+                                            <tr>
+                                                <td colSpan="5" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No download history yet</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+                )
+            }
 
         </div >
     );

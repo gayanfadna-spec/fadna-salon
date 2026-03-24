@@ -12,6 +12,7 @@ const NetAgentDashboard = () => {
     const navigate = useNavigate();
     const [agents, setAgents] = useState([]);
     const [orders, setOrders] = useState([]);
+    const adminRole = localStorage.getItem('adminRole');
     const [products, setProducts] = useState([]);
     const [reps, setReps] = useState([]);
     const [activeTab, setActiveTab] = useState('overview');
@@ -25,6 +26,9 @@ const NetAgentDashboard = () => {
     const [selectedAgents, setSelectedAgents] = useState([]);
     const [selectedExcelFile, setSelectedExcelFile] = useState(null);
     const [formMode, setFormMode] = useState('create'); // 'create' | 'assign'
+    const [reportStartDate, setReportStartDate] = useState('');
+    const [reportEndDate, setReportEndDate] = useState('');
+    const [reportHistory, setReportHistory] = useState([]);
 
     const emptyForm = {
         name: '', location: '', contactNumber1: '', contactNumber2: '',
@@ -76,8 +80,34 @@ const NetAgentDashboard = () => {
         } catch (err) { console.error(err); }
     }, []);
 
-    useEffect(() => { fetchAgents(); fetchOrders(); fetchProducts(); fetchReps(); },
-        [fetchAgents, fetchOrders, fetchProducts, fetchReps]);
+    const fetchReportHistory = React.useCallback(async () => {
+        try {
+            const res = await axios.get(`${API_URL}/reports/history`);
+            if (res.data.success) setReportHistory(res.data.history);
+        } catch (err) { console.error(err); }
+    }, []);
+
+    const logReportHistory = async (reportType, recordCount) => {
+        try {
+            const adminUser = JSON.parse(localStorage.getItem('adminUser'));
+            const downloadedBy = adminUser ? adminUser.username : 'Admin';
+            const dateRange = (reportStartDate || reportEndDate)
+                ? `${reportStartDate || 'Start'} to ${reportEndDate || 'End'}`
+                : 'All Time';
+
+            await axios.post(`${API_URL}/reports/history`, {
+                reportType,
+                downloadedBy,
+                recordCount,
+                dateRange
+            });
+            fetchReportHistory();
+        } catch (err) { console.error(err); }
+    };
+
+    useEffect(() => {
+        fetchAgents(); fetchOrders(); fetchProducts(); fetchReps(); fetchReportHistory();
+    }, [fetchAgents, fetchOrders, fetchProducts, fetchReps, fetchReportHistory]);
 
     // --- Agent CRUD ---
     const handleCreate = async (e) => {
@@ -304,10 +334,11 @@ const NetAgentDashboard = () => {
         } catch (err) { alert(err.response?.data?.error || 'Upload error'); }
     };
 
-    const handleExportOrders = () => {
-        if (!orders.length) return alert('No orders');
+    const handleExportOrders = async () => {
+        const filteredOrders = adminRole === 'admin' ? orders.filter(o => o.status === 'Processing' || o.status === 'Paid') : orders;
+        if (!filteredOrders.length) return alert('No orders');
         const headers = ['Date', 'Order ID', 'Agent', 'Customer', 'Phone', 'Additional Phone', 'Address', 'City', 'Items', 'Total', 'Status', 'Payment'];
-        const rows = orders.map(o => [
+        const rows = filteredOrders.map(o => [
             new Date(o.createdAt).toLocaleString(),
             o.merchantOrderId || o._id.slice(-6).toUpperCase(),
             `"${(o.agentName || '').replace(/"/g, '""')}"`,
@@ -322,7 +353,16 @@ const NetAgentDashboard = () => {
             o.paymentMethod
         ]);
         const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-        saveAs(new Blob([csv], { type: 'text/csv' }), 'net_agent_orders.csv');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        saveAs(blob, 'net_agent_orders.csv');
+
+        try {
+            await axios.post(`${API_URL}/orders/mark-downloaded`, { orderIds: filteredOrders.map(o => o._id) });
+            fetchOrders();
+            logReportHistory('Net Agent Orders', filteredOrders.length);
+        } catch (err) {
+            console.error('Failed to mark downloaded status', err);
+        }
     };
 
     const handleExportAgents = () => {
@@ -337,7 +377,7 @@ const NetAgentDashboard = () => {
             a.visitedDate ? new Date(a.visitedDate).toLocaleDateString() : ''
         ]);
         const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-        saveAs(new Blob([csv], { type: 'text/csv' }), 'net_agents.csv');
+        saveAs(new Blob([csv], { type: 'text/csv' }), 'net_agents_list.csv');
     };
 
     // --- Derived stats ---
@@ -378,9 +418,9 @@ const NetAgentDashboard = () => {
     );
 
     return (
-        <div className="container animate-fade-in">
-            {/* Header */}
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div className="admin-container animate-fade-in">
+            {/* Header - Logo and External Links */}
+            <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <img src="/Fadna New Logo.png" alt="Fadna Logo" style={{ maxHeight: '40px' }} />
                     <div>
@@ -390,31 +430,38 @@ const NetAgentDashboard = () => {
                         </div>
                     </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        {navBtn('overview', 'Overview')}
-                        {navBtn('orders', 'Orders')}
-                        {navBtn('agents', 'Agents')}
-                        <button className="btn-primary" style={{ padding: '0.5rem 1rem', opacity: 0.7 }} onClick={() => navigate('/admin')}>Salon Dashboard</button>
-                        <button className="btn-primary" style={{ padding: '0.5rem 1rem', opacity: 0.7 }} onClick={() => navigate('/agent-admin')}>Agent Dashboard</button>
-                        <button className="btn-primary" style={{ padding: '0.5rem 1rem', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }} onClick={() => navigate('/qr-generator')}>🔲 Scan Dashboard</button>
-                        <button className="btn-primary outline" style={{ padding: '0.5rem 1rem', borderColor: '#ef4444', color: '#ef4444' }}
-                            onClick={() => { localStorage.removeItem('adminUser'); navigate('/admin-login'); }}>Log Out</button>
-                    </div>
-                    {(activeTab === 'orders' || activeTab === 'agents') && (
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <input type="text" placeholder="Search..." value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)', color: 'white', outline: 'none' }} />
-                            <select value={selectedAgentId} onChange={e => setSelectedAgentId(e.target.value)}
-                                style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)', color: 'white' }}>
-                                <option value="" style={{ color: 'black' }}>All Agents</option>
-                                {agents.map(a => <option key={a._id} value={a._id} style={{ color: 'black' }}>{a.name}</option>)}
-                            </select>
-                        </div>
-                    )}
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button className="btn-primary outline" style={{ padding: '0.5rem 1rem', opacity: 0.8 }} onClick={() => navigate('/admin')}>Salon Dashboard</button>
+                    <button className="btn-primary outline" style={{ padding: '0.5rem 1rem', opacity: 0.8 }} onClick={() => navigate('/agent-admin')}>Agent Dashboard</button>
+                    <button className="btn-primary" style={{ padding: '0.5rem 1rem', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }} onClick={() => navigate('/qr-generator')}>🔲 Scan Dashboard</button>
+                    <button className="btn-primary outline" style={{ borderColor: '#ef4444', color: '#ef4444', padding: '0.5rem 1rem' }}
+                        onClick={() => { localStorage.removeItem('adminUser'); navigate('/admin-login'); }}>Log Out</button>
                 </div>
             </header>
+
+            {/* Main Navigation Tabs */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div className="tabs-container" style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+                    {navBtn('overview', 'Overview')}
+                    {(adminRole === 'admin' || adminRole === 'superadmin') && navBtn('orders', 'Orders')}
+                    {(adminRole !== 'admin') && navBtn('agents', 'Agents')}
+                    {(adminRole === 'admin' || adminRole === 'superadmin') && navBtn('reports', 'Reports')}
+                </div>
+
+                {/* Contextual Filters */}
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {(activeTab === 'orders' || activeTab === 'agents') && (
+                        <input type="text" placeholder="Search..." value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            style={{ padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', outline: 'none', transition: 'all 0.3s ease' }} />
+                    )}
+                    <select value={selectedAgentId} onChange={e => setSelectedAgentId(e.target.value)}
+                        style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease' }}>
+                        <option value="" style={{ color: 'black' }}>All Agents</option>
+                        {agents.map(a => <option key={a._id} value={a._id} style={{ color: 'black' }}>{a.name}</option>)}
+                    </select>
+                </div>
+            </div>
 
             {/* ========== OVERVIEW ========== */}
             {activeTab === 'overview' && (
@@ -446,8 +493,8 @@ const NetAgentDashboard = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {orders.slice(0, 10).map(o => (
-                                    <tr key={o._id}>
+                                {orders.filter(o => adminRole !== 'admin' || o.status === 'Processing' || o.status === 'Paid').slice(0, 10).map(o => (
+                                    <tr key={o._id} style={{ backgroundColor: o.isDownloaded ? 'rgba(220, 38, 38, 0.15)' : 'transparent' }}>
                                         <td>{new Date(o.createdAt).toLocaleDateString()}</td>
                                         <td>{o.merchantOrderId || o._id.slice(-6).toUpperCase()}</td>
                                         <td>{o.salonName || o.agentName || '—'}</td>
@@ -455,7 +502,7 @@ const NetAgentDashboard = () => {
                                         <td>Rs.{o.totalAmount}</td>
                                         <td><span className="status-badge" style={{ background: `${statusColors[o.status] || '#6b7280'}22`, color: statusColors[o.status] || '#fff', border: `1px solid ${statusColors[o.status] || '#6b7280'}` }}>{o.status}</span></td>
                                         <td>
-                                            <select value={o.status} onChange={e => updateStatus(o._id, e.target.value)}
+                                            <select value={o.status} disabled={adminRole === 'admin'} onChange={e => updateStatus(o._id, e.target.value)}
                                                 style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', padding: '0.3rem', fontSize: '0.8rem' }}>
                                                 {['Processing', 'Shipped', 'Completed', 'Cancelled', 'Returned'].map(s => <option key={s} value={s} style={{ color: 'black' }}>{s}</option>)}
                                             </select>
@@ -470,7 +517,7 @@ const NetAgentDashboard = () => {
             )}
 
             {/* ========== ORDERS ========== */}
-            {activeTab === 'orders' && (
+            {(adminRole === 'admin' || adminRole === 'superadmin') && activeTab === 'orders' && (
                 <section className="glass-container animate-fade-in">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                         <h2>COD Orders</h2>
@@ -486,13 +533,14 @@ const NetAgentDashboard = () => {
                             </thead>
                             <tbody>
                                 {orders.filter(o => {
+                                    if (adminRole === 'admin' && o.status !== 'Processing' && o.status !== 'Paid') return false;
                                     if (!searchTerm) return true;
                                     const t = searchTerm.toLowerCase();
                                     return (o.customerName || '').toLowerCase().includes(t) ||
                                         (o.customerPhone || '').includes(t) ||
                                         (o.agentName || '').toLowerCase().includes(t);
                                 }).map(o => (
-                                    <tr key={o._id}>
+                                    <tr key={o._id} style={{ backgroundColor: o.isDownloaded ? 'rgba(220, 38, 38, 0.15)' : 'transparent' }}>
                                         <td style={{ whiteSpace: 'nowrap' }}>{new Date(o.createdAt).toLocaleDateString()}</td>
                                         <td>{o.merchantOrderId || o._id.slice(-6).toUpperCase()}</td>
                                         <td>{o.salonName || o.agentName || '—'}</td>
@@ -503,7 +551,7 @@ const NetAgentDashboard = () => {
                                         <td>Rs.{o.totalAmount}</td>
                                         <td><span className="status-badge" style={{ background: `${statusColors[o.status] || '#6b7280'}22`, color: statusColors[o.status] || '#fff', border: `1px solid ${statusColors[o.status] || '#6b7280'}` }}>{o.status}</span></td>
                                         <td>
-                                            <select value={o.status} onChange={e => updateStatus(o._id, e.target.value)}
+                                            <select value={o.status} disabled={adminRole === 'admin'} onChange={e => updateStatus(o._id, e.target.value)}
                                                 style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', padding: '0.3rem', fontSize: '0.8rem' }}>
                                                 {['Processing', 'Shipped', 'Completed', 'Cancelled', 'Returned'].map(s => <option key={s} value={s} style={{ color: 'black' }}>{s}</option>)}
                                             </select>
@@ -537,51 +585,70 @@ const NetAgentDashboard = () => {
 
                         <form onSubmit={editingAgentId ? handleUpdate : handleCreate}>
                             {formMode === 'assign' && !editingAgentId && (
-                                <input placeholder="Net.Agent Code (e.g. NAA1B234)" value={form.assignToCode}
-                                    onChange={e => setForm({ ...form, assignToCode: e.target.value })}
-                                    style={{ width: '100%', padding: '0.8rem', marginBottom: '1rem', borderRadius: '8px', border: '1px solid #ccc' }} />
+                                <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid rgba(56,189,248,0.5)' }}>
+                                    <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#38bdf8', background: 'none', WebkitTextFillColor: 'initial' }}>
+                                        Enter Pre-Registered QR Code
+                                    </h3>
+                                    <input placeholder="Net.Agent Code (e.g. NAA1B234)" value={form.assignToCode}
+                                        onChange={e => setForm({ ...form, assignToCode: e.target.value })}
+                                        style={{ width: '100%', margin: 0 }} />
+                                </div>
                             )}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <input placeholder="Full Name *" value={form.name} required
-                                    onChange={e => setForm({ ...form, name: e.target.value })}
-                                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }} />
-                                <input placeholder="Location" value={form.location}
-                                    onChange={e => setForm({ ...form, location: e.target.value })}
-                                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }} />
-                                <input placeholder="Phone 1" value={form.contactNumber1}
-                                    onChange={e => setForm({ ...form, contactNumber1: e.target.value })}
-                                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }} />
-                                <input placeholder="Phone 2" value={form.contactNumber2}
-                                    onChange={e => setForm({ ...form, contactNumber2: e.target.value })}
-                                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }} />
-                                <select value={form.repName} onChange={e => setForm({ ...form, repName: e.target.value })}
-                                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', background: 'rgba(255,255,255,0.1)', color: 'white' }}>
-                                    <option value="" style={{ color: 'black' }}>Select Rep</option>
-                                    {reps.map(r => <option key={r._id} value={r.name} style={{ color: 'black' }}>{r.name}</option>)}
-                                </select>
-                                <input placeholder="Remark" value={form.remark}
-                                    onChange={e => setForm({ ...form, remark: e.target.value })}
-                                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }} />
-                                <input placeholder="Username (Optional)" value={form.username}
-                                    onChange={e => setForm({ ...form, username: e.target.value })}
-                                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }} />
-                                <input placeholder="Password (Optional)" value={form.password}
-                                    onChange={e => setForm({ ...form, password: e.target.value })}
-                                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc' }} />
+                            <div className="form-grid">
+                                <div className="input-group">
+                                    <label>Full Name *</label>
+                                    <input placeholder="e.g. John Doe" value={form.name} required onChange={e => setForm({ ...form, name: e.target.value })} />
+                                </div>
+                                <div className="input-group">
+                                    <label>Location</label>
+                                    <input placeholder="e.g. Colombo 05" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} />
+                                </div>
+                                <div className="input-group">
+                                    <label>Phone 1</label>
+                                    <input placeholder="Phone 1" value={form.contactNumber1} onChange={e => setForm({ ...form, contactNumber1: e.target.value })} />
+                                </div>
+                                <div className="input-group">
+                                    <label>Phone 2</label>
+                                    <input placeholder="Phone 2" value={form.contactNumber2} onChange={e => setForm({ ...form, contactNumber2: e.target.value })} />
+                                </div>
+                                <div className="input-group">
+                                    <label>Representative Name</label>
+                                    <select value={form.repName} onChange={e => setForm({ ...form, repName: e.target.value })}>
+                                        <option value="" style={{ color: 'black' }}>Select Rep</option>
+                                        {reps.map(r => <option key={r._id} value={r.name} style={{ color: 'black' }}>{r.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="input-group">
+                                    <label>Remark</label>
+                                    <input placeholder="Remark" value={form.remark} onChange={e => setForm({ ...form, remark: e.target.value })} />
+                                </div>
+                                <div className="input-group">
+                                    <label>Username (Optional)</label>
+                                    <input placeholder="Username" value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} />
+                                </div>
+                                <div className="input-group">
+                                    <label>Password (Optional)</label>
+                                    <input placeholder="Password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+                                </div>
                             </div>
 
-                            {/* Checkboxes */}
-                            <div style={{ display: 'flex', gap: '2rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+                            <h3 className="section-title">Status</h3>
+                            <div className="form-grid" style={{ marginBottom: '1.5rem', alignContent: 'start', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
                                 {[['isVisited', 'Visited'], ['isActive', 'Active'], ['posmActive', 'POSM Active']].map(([key, lbl]) => (
-                                    <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                        <input type="checkbox" checked={form[key]} onChange={e => setForm({ ...form, [key]: e.target.checked })} />
-                                        {lbl}
-                                    </label>
+                                    <div key={key} className="input-group" style={{ justifyContent: 'center' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'white', fontSize: '1rem' }}>
+                                            <input type="checkbox" checked={form[key]} onChange={e => setForm({ ...form, [key]: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
+                                            {lbl}
+                                        </label>
+                                    </div>
                                 ))}
                             </div>
+
                             {form.isVisited && (
-                                <input type="date" value={form.visitedDate} onChange={e => setForm({ ...form, visitedDate: e.target.value })}
-                                    style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', marginTop: '0.75rem', width: '100%' }} />
+                                <div className="input-group" style={{ marginBottom: '1.5rem' }}>
+                                    <label>Visited Date</label>
+                                    <input type="date" value={form.visitedDate} onChange={e => setForm({ ...form, visitedDate: e.target.value })} style={{ width: '100%', margin: 0 }} />
+                                </div>
                             )}
 
                             <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
@@ -734,6 +801,65 @@ const NetAgentDashboard = () => {
                                 }} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', border: '1px solid #ef4444', color: '#ef4444', background: 'transparent', borderRadius: '6px', cursor: 'pointer' }}>🗑 Delete Selected</button>
                             </div>
                         )}
+                    </div>
+                </section>
+            )}
+            {activeTab === 'reports' && (
+                <section className="glass-container animate-fade-in">
+                    <h2>Reports & Export</h2>
+                    <p style={{ opacity: 0.8, marginBottom: '2rem' }}>Download and track report history.</p>
+
+                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Start Date</label>
+                            <input type="date" value={reportStartDate} onChange={e => setReportStartDate(e.target.value)}
+                                style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', colorScheme: 'dark' }} />
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>End Date</label>
+                            <input type="date" value={reportEndDate} onChange={e => setReportEndDate(e.target.value)}
+                                style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', colorScheme: 'dark' }} />
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <h3 style={{ margin: 0 }}>Net Agents List</h3>
+                            <button onClick={handleExportAgents} className="btn-primary">Download CSV</button>
+                        </div>
+                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <h3 style={{ margin: 0 }}>COD Orders Detail</h3>
+                            <button onClick={handleExportOrders} className="btn-primary">Download CSV</button>
+                        </div>
+                    </div>
+
+                    <div style={{ marginTop: '3rem' }}>
+                        <h2 style={{ marginBottom: '1.5rem' }}>Download History</h2>
+                        <div className="table-container">
+                            <table className="styled-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date & Time</th>
+                                        <th>Type</th>
+                                        <th>User</th>
+                                        <th>Records</th>
+                                        <th>Filter</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {reportHistory.map(log => (
+                                        <tr key={log._id}>
+                                            <td>{new Date(log.createdAt).toLocaleString()}</td>
+                                            <td style={{ fontWeight: 'bold' }}>{log.reportType}</td>
+                                            <td>{log.downloadedBy}</td>
+                                            <td>{log.recordCount}</td>
+                                            <td style={{ opacity: 0.7, fontSize: '0.9rem' }}>{log.dateRange}</td>
+                                        </tr>
+                                    ))}
+                                    {!reportHistory.length && <tr><td colSpan="5" style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>No history found</td></tr>}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </section>
             )}

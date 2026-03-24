@@ -16,6 +16,7 @@ const AgentAdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'orders', 'agents', 'monitor'
     const [formModeAdmin, setFormModeAdmin] = useState('create'); // 'create' or 'assign'
     const navigate = useNavigate();
+    const adminRole = localStorage.getItem('adminRole');
 
     useEffect(() => {
         const storedAdmin = localStorage.getItem('adminUser');
@@ -32,12 +33,19 @@ const AgentAdminDashboard = () => {
     const [editingProductId, setEditingProductId] = useState(null);
     const [selectedAgentId, setSelectedAgentId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [newAccount, setNewAccount] = useState({ username: '', password: '' });
+    const [newAccount, setNewAccount] = useState({ username: '', password: '', role: 'salesman' });
     const [accounts, setAccounts] = useState([]);
     const [editingAccountId, setEditingAccountId] = useState(null);
     const [reps, setReps] = useState([]);
     const [newRepName, setNewRepName] = useState('');
     const [selectedExcelFile, setSelectedExcelFile] = useState(null);
+    const [reportStartDate, setReportStartDate] = useState('');
+    const [reportEndDate, setReportEndDate] = useState('');
+    const [reportHistory, setReportHistory] = useState([]);
+    const [selectedRep, setSelectedRep] = useState('');
+    const [filterDetailedVisited, setFilterDetailedVisited] = useState(false);
+    const [filterDetailedActive, setFilterDetailedActive] = useState(false);
+    const [filterDetailedPOSM, setFilterDetailedPOSM] = useState(false);
 
     const fetchOrders = React.useCallback(async () => {
         try {
@@ -61,6 +69,8 @@ const AgentAdminDashboard = () => {
     const fetchAnalytics = React.useCallback(async () => {
         try {
             const params = selectedAgentId ? { agentId: selectedAgentId } : {};
+            if (reportStartDate) params.startDate = reportStartDate;
+            if (reportEndDate) params.endDate = reportEndDate;
 
             const agentRes = await axios.get(`${API_URL}/analytics/agent-performance`, { params });
             if (agentRes.data.success) setAgentPerformance(agentRes.data.stats);
@@ -71,7 +81,7 @@ const AgentAdminDashboard = () => {
         } catch (err) {
             console.error(err);
         }
-    }, [selectedAgentId]);
+    }, [selectedAgentId, reportStartDate, reportEndDate]);
 
     const fetchProducts = React.useCallback(async () => {
         try {
@@ -110,6 +120,35 @@ const AgentAdminDashboard = () => {
         }
     }, []);
 
+    const fetchReportHistory = React.useCallback(async () => {
+        try {
+            const res = await axios.get(`${API_URL}/reports/history`);
+            if (res.data.success) setReportHistory(res.data.history);
+        } catch (err) {
+            console.error('Error fetching report history:', err);
+        }
+    }, []);
+
+    const logReportHistory = async (reportType, recordCount) => {
+        try {
+            const adminUser = JSON.parse(localStorage.getItem('adminUser'));
+            const downloadedBy = adminUser ? adminUser.username : 'Admin';
+            const dateRange = (reportStartDate || reportEndDate)
+                ? `${reportStartDate || 'Start'} to ${reportEndDate || 'End'}`
+                : 'All Time';
+
+            await axios.post(`${API_URL}/reports/history`, {
+                reportType,
+                downloadedBy,
+                recordCount,
+                dateRange
+            });
+            fetchReportHistory();
+        } catch (err) {
+            console.error('Error logging report history:', err);
+        }
+    };
+
     useEffect(() => {
         if (activeTab === 'accounts') {
             fetchAccounts();
@@ -118,7 +157,8 @@ const AgentAdminDashboard = () => {
 
     useEffect(() => {
         fetchReps();
-    }, [fetchReps]);
+        fetchReportHistory();
+    }, [fetchReps, fetchReportHistory]);
 
     const handleProductSubmit = async (e) => {
         e.preventDefault();
@@ -174,7 +214,7 @@ const AgentAdminDashboard = () => {
                 }
                 const role = localStorage.getItem('adminRole');
                 const username = localStorage.getItem('loggedInUsername');
-                const editedByValue = role === 'admin' ? 'admin' : (username || 'admin');
+                const editedByValue = ['admin', 'superadmin'].includes(role) ? 'admin' : (username || 'admin');
                 const payload = { ...newAgent, editedBy: editedByValue };
 
                 const res = await axios.put(`${API_URL}/agents/assign`, payload);
@@ -254,7 +294,7 @@ const AgentAdminDashboard = () => {
         try {
             const role = localStorage.getItem('adminRole');
             const username = localStorage.getItem('loggedInUsername');
-            const editedByValue = role === 'admin' ? 'admin' : username;
+            const editedByValue = ['admin', 'superadmin'].includes(role) ? 'admin' : username;
             const payload = { ...newAgent, editedBy: editedByValue };
 
             let res;
@@ -578,9 +618,15 @@ const AgentAdminDashboard = () => {
     });
 
     const handleExportAgents = () => {
-        if (!agents.length) return alert('No agents to export');
+        let itemsToExport = agents;
+        if (reportStartDate) itemsToExport = itemsToExport.filter(s => new Date(s.createdAt) >= new Date(reportStartDate));
+        if (reportEndDate) {
+            const end = new Date(reportEndDate + 'T23:59:59.999Z');
+            itemsToExport = itemsToExport.filter(s => new Date(s.createdAt) <= end);
+        }
+        if (!itemsToExport.length) return alert('No agents to export for this date range');
         const headers = ['Agent ID', 'Name', 'Location', 'Code', 'Username', 'Password', 'Bank Name', 'Branch', 'Account Number', 'Account Name', 'Contact 1', 'Contact 2', 'Rep Name', 'Remark', 'Registered Date', 'Visited', 'Visited Date', 'Revisited Dates', 'Active', 'POSM Active'];
-        const rows = agents.map(s => {
+        const rows = itemsToExport.map(s => {
             const acc = s.accountDetails || {};
             return [
                 s._id,
@@ -608,12 +654,19 @@ const AgentAdminDashboard = () => {
         const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         saveAs(blob, 'agents_report.csv');
+        logReportHistory('Agents List', itemsToExport.length);
     };
 
-    const handleExportOrders = () => {
-        if (!orders.length) return alert('No orders to export');
+    const handleExportOrders = async () => {
+        let filteredOrders = adminRole === 'admin' ? orders.filter(o => o.status === 'Processing' || o.status === 'Paid') : orders;
+        if (reportStartDate) filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) >= new Date(reportStartDate));
+        if (reportEndDate) {
+            const end = new Date(reportEndDate + 'T23:59:59.999Z');
+            filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) <= end);
+        }
+        if (!filteredOrders.length) return alert('No orders to export');
         const headers = ['Order ID', 'Merchant Order ID', 'Date', 'Agent', 'Customer Name', 'Customer Phone', 'Additional Phone', 'Address', 'City', 'Status', 'Total Amount', 'Items'];
-        const rows = orders.map(o => [
+        const rows = filteredOrders.map(o => [
             o._id,
             o.merchantOrderId || o._id.slice(-6).toUpperCase(),
             `"${new Date(o.createdAt).toLocaleString()}"`,
@@ -630,6 +683,14 @@ const AgentAdminDashboard = () => {
         const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         saveAs(blob, 'orders_report.csv');
+
+        try {
+            await axios.post(`${API_URL}/orders/mark-downloaded`, { orderIds: filteredOrders.map(o => o._id) });
+            fetchOrders();
+            logReportHistory('Orders Detail', filteredOrders.length);
+        } catch (err) {
+            console.error('Failed to mark downloaded status', err);
+        }
     };
 
     const handleExportPerformance = () => {
@@ -646,6 +707,7 @@ const AgentAdminDashboard = () => {
         const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         saveAs(blob, 'performance_report.csv');
+        logReportHistory('Performance Summary', agentPerformance.length);
     };
 
     const activeAgentsCount = agents.filter(s => s.isActive).length;
@@ -665,144 +727,60 @@ const AgentAdminDashboard = () => {
     const repChartData = Object.values(repStats).sort((a, b) => a.name.localeCompare(b.name));
 
     return (
-        <div className="container animate-fade-in">
-            <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap' }}>
+        <div className="admin-container animate-fade-in">
+            {/* Header - Logo and External Links */}
+            <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <img src="/Fadna New Logo.png" alt="Fadna Logo" className="site-logo" style={{ maxHeight: '40px' }} />
-                    <h1>Agent Admin Dashboard</h1>
+                    <h1 style={{ margin: 0 }}>Agent Admin Dashboard</h1>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '1rem', flex: 1 }}>
-                    {/* Top Row: Navigation Buttons */}
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        <button
-                            className={`btn-primary nav-btn ${activeTab === 'overview' ? '' : 'outline'}`}
-                            style={{ opacity: activeTab === 'overview' ? 1 : 0.7 }}
-                            onClick={() => setActiveTab('overview')}
-                        >
-                            Overview
-                        </button>
-                        <button
-                            className={`btn-primary nav-btn ${activeTab === 'orders' ? '' : 'outline'}`}
-                            style={{ opacity: activeTab === 'orders' ? 1 : 0.7 }}
-                            onClick={() => setActiveTab('orders')}
-                        >
-                            Orders
-                        </button>
-                        <button
-                            className={`btn-primary nav-btn ${activeTab === 'agents' ? '' : 'outline'}`}
-                            style={{ opacity: activeTab === 'agents' ? 1 : 0.7 }}
-                            onClick={() => setActiveTab('agents')}
-                        >
-                            Agents
-                        </button>
-                        <button
-                            className={`btn-primary nav-btn ${activeTab === 'products' ? '' : 'outline'}`}
-                            style={{ opacity: activeTab === 'products' ? 1 : 0.7 }}
-                            onClick={() => setActiveTab('products')}
-                        >
-                            Products
-                        </button>
-                        <button
-                            className={`btn-primary nav-btn ${activeTab === 'monitor' ? '' : 'outline'}`}
-                            style={{ opacity: activeTab === 'monitor' ? 1 : 0.7 }}
-                            onClick={() => setActiveTab('monitor')}
-                        >
-                            Monitor
-                        </button>
-                        <button
-                            className={`btn-primary nav-btn ${activeTab === 'accounts' ? '' : 'outline'}`}
-                            style={{ opacity: activeTab === 'accounts' ? 1 : 0.7 }}
-                            onClick={() => setActiveTab('accounts')}
-                        >
-                            Accounts
-                        </button>
-                        <button
-                            className={`btn-primary nav-btn ${activeTab === 'reports' ? '' : 'outline'}`}
-                            style={{ opacity: activeTab === 'reports' ? 1 : 0.7 }}
-                            onClick={() => setActiveTab('reports')}
-                        >
-                            Reports
-                        </button>
-                        <button
-                            className="btn-primary"
-                            style={{ padding: '0.5rem 1rem' }}
-                            onClick={() => navigate('/admin')}
-                        >
-                            Salons Dashboard
-                        </button>
-                        <button
-                            className="btn-primary outline"
-                            style={{ padding: '0.5rem 1rem' }}
-                            onClick={() => navigate('/net-agent-admin')}
-                        >
-                            Net.Agents Dashboard
-                        </button>
-                        <button
-                            className="btn-primary"
-                            style={{ padding: '0.5rem 1rem', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }}
-                            onClick={() => navigate('/qr-generator')}
-                        >
-                            🔲 Scan Dashboard
-                        </button>
-                        <button
-                            onClick={() => {
-                                localStorage.removeItem('adminUser');
-                                navigate('/admin-login');
-                            }}
-                            className="btn-primary outline"
-                            style={{ borderColor: '#ef4444', color: '#ef4444', padding: '0.5rem 1rem' }}
-                        >
-                            Log Out
-                        </button>
-                    </div>
-
-                    {/* Bottom Row: Search and Filters */}
-                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'flex-end', width: '100%' }}>
-                        {(activeTab === 'orders' || activeTab === 'monitor' || activeTab === 'agents') && (
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <input
-                                    type="text"
-                                    placeholder="Search..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="header-control"
-                                    style={{
-                                        borderRadius: '8px',
-                                        border: '1px solid rgba(255,255,255,0.2)',
-                                        background: 'rgba(255,255,255,0.1)',
-                                        color: 'white',
-                                        outline: 'none',
-                                        maxWidth: '300px'
-                                    }}
-                                />
-                                <button className="btn-primary" style={{ padding: '0.5rem 1rem' }}>
-                                    Search
-                                </button>
-                            </div>
-                        )}
-                        <select
-                            className="header-control"
-                            style={{
-                                borderRadius: '8px',
-                                border: '1px solid rgba(255,255,255,0.2)',
-                                background: 'rgba(255,255,255,0.1)',
-                                color: 'white',
-                                outline: 'none'
-                            }}
-                            value={selectedAgentId}
-                            onChange={(e) => setSelectedAgentId(e.target.value)}
-                        >
-                            <option value="" style={{ color: 'black' }}>All Agents</option>
-                            {agents.map(agent => (
-                                <option key={agent._id} value={agent._id} style={{ color: 'black' }}>
-                                    {agent.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button className="btn-primary outline" style={{ padding: '0.5rem 1rem', opacity: 0.8 }} onClick={() => navigate('/admin')}>Salons Dashboard</button>
+                    <button className="btn-primary outline" style={{ padding: '0.5rem 1rem', opacity: 0.8 }} onClick={() => navigate('/net-agent-admin')}>Net.Agents Dashboard</button>
+                    <button className="btn-primary" style={{ padding: '0.5rem 1rem', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }} onClick={() => navigate('/qr-generator')}>🔲 Scan Dashboard</button>
+                    <button className="btn-primary outline" style={{ borderColor: '#ef4444', color: '#ef4444', padding: '0.5rem 1rem' }}
+                        onClick={() => { localStorage.removeItem('adminUser'); navigate('/admin-login'); }}>Log Out</button>
                 </div>
             </header>
+
+            {/* Main Navigation Tabs */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div className="tabs-container" style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+                    <button className={`btn-primary nav-btn ${activeTab === 'overview' ? '' : 'outline'}`} style={{ opacity: activeTab === 'overview' ? 1 : 0.7 }} onClick={() => setActiveTab('overview')}>Overview</button>
+                    {(adminRole === 'admin' || adminRole === 'superadmin') && (
+                        <button className={`btn-primary nav-btn ${activeTab === 'orders' ? '' : 'outline'}`} style={{ opacity: activeTab === 'orders' ? 1 : 0.7 }} onClick={() => setActiveTab('orders')}>Orders</button>
+                    )}
+                    {(adminRole !== 'admin') && (
+                        <>
+                            <button className={`btn-primary nav-btn ${activeTab === 'agents' ? '' : 'outline'}`} style={{ opacity: activeTab === 'agents' ? 1 : 0.7 }} onClick={() => setActiveTab('agents')}>Agents</button>
+                            <button className={`btn-primary nav-btn ${activeTab === 'products' ? '' : 'outline'}`} style={{ opacity: activeTab === 'products' ? 1 : 0.7 }} onClick={() => setActiveTab('products')}>Products</button>
+                            <button className={`btn-primary nav-btn ${activeTab === 'monitor' ? '' : 'outline'}`} style={{ opacity: activeTab === 'monitor' ? 1 : 0.7 }} onClick={() => setActiveTab('monitor')}>Monitor</button>
+                            <button className={`btn-primary nav-btn ${activeTab === 'accounts' ? '' : 'outline'}`} style={{ opacity: activeTab === 'accounts' ? 1 : 0.7 }} onClick={() => setActiveTab('accounts')}>Accounts</button>
+                        </>
+                    )}
+                    {(adminRole === 'admin' || adminRole === 'superadmin') && (
+                        <button className={`btn-primary nav-btn ${activeTab === 'reports' ? '' : 'outline'}`} style={{ opacity: activeTab === 'reports' ? 1 : 0.7 }} onClick={() => setActiveTab('reports')}>Reports</button>
+                    )}
+                </div>
+
+                {/* Contextual Filters */}
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {(activeTab === 'orders' || activeTab === 'monitor' || activeTab === 'agents') && (
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <input type="text" placeholder="Search..." value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                style={{ padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', outline: 'none', transition: 'all 0.3s ease' }} />
+                            <button className="btn-primary" style={{ padding: '0.5rem 1rem' }}>Search</button>
+                        </div>
+                    )}
+                    <select value={selectedAgentId} onChange={(e) => setSelectedAgentId(e.target.value)}
+                        style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease' }}>
+                        <option value="" style={{ color: 'black' }}>All Agents</option>
+                        {agents.map(agent => <option key={agent._id} value={agent._id} style={{ color: 'black' }}>{agent.name}</option>)}
+                    </select>
+                </div>
+            </div>
 
             {activeTab === 'overview' && (
                 <section className="glass-container animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -856,10 +834,113 @@ const AgentAdminDashboard = () => {
                             </table>
                         </div>
                     </div>
+
+                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                            <h3 style={{ margin: 0, color: '#fff' }}>Detailed Rep Agent List</h3>
+                            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', cursor: 'pointer', opacity: filterDetailedVisited ? 1 : 0.6 }}>
+                                        <input type="checkbox" checked={filterDetailedVisited} onChange={(e) => setFilterDetailedVisited(e.target.checked)} style={{ width: '16px', height: '16px', margin: 0 }} />
+                                        Visited
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', cursor: 'pointer', opacity: filterDetailedActive ? 1 : 0.6 }}>
+                                        <input type="checkbox" checked={filterDetailedActive} onChange={(e) => setFilterDetailedActive(e.target.checked)} style={{ width: '16px', height: '16px', margin: 0 }} />
+                                        Active
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', cursor: 'pointer', opacity: filterDetailedPOSM ? 1 : 0.6 }}>
+                                        <input type="checkbox" checked={filterDetailedPOSM} onChange={(e) => setFilterDetailedPOSM(e.target.checked)} style={{ width: '16px', height: '16px', margin: 0 }} />
+                                        POSM
+                                    </label>
+                                </div>
+                                <select
+                                    value={selectedRep}
+                                    onChange={(e) => setSelectedRep(e.target.value)}
+                                    style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', minWidth: '200px' }}
+                                >
+                                    <option value="" style={{ color: 'black' }}>Select a Rep</option>
+                                    {reps.map(rep => (
+                                        <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>
+                                    ))}
+                                    <option value="Unassigned" style={{ color: 'black' }}>Unassigned</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {selectedRep && (
+                            <div style={{ marginBottom: '1rem', opacity: 0.8, fontSize: '0.9rem' }}>
+                                Showing {agents.filter(a => {
+                                    const rep = (a.repName && a.repName.trim() !== '') ? a.repName : 'Unassigned';
+                                    if (rep !== selectedRep) return false;
+                                    if (filterDetailedVisited && !a.isVisited) return false;
+                                    if (filterDetailedActive && !a.isActive) return false;
+                                    if (filterDetailedPOSM && !a.posmActive) return false;
+                                    return true;
+                                }).length} agents for {selectedRep}
+                            </div>
+                        )}
+
+                        {selectedRep && (
+                            <div className="table-container">
+                                <table className="styled-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr>
+                                            <th>Agent Name</th>
+                                            <th>Phone Number</th>
+                                            <th>Address</th>
+                                            <th style={{ textAlign: 'center' }}>Visited</th>
+                                            <th style={{ textAlign: 'center' }}>Active</th>
+                                            <th style={{ textAlign: 'center' }}>POSM</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {agents
+                                            .filter(a => {
+                                                const rep = (a.repName && a.repName.trim() !== '') ? a.repName : 'Unassigned';
+                                                if (rep !== selectedRep) return false;
+
+                                                if (filterDetailedVisited && !a.isVisited) return false;
+                                                if (filterDetailedActive && !a.isActive) return false;
+                                                if (filterDetailedPOSM && !a.posmActive) return false;
+
+                                                return true;
+                                            })
+                                            .map((a, idx) => (
+                                                <tr key={a._id} style={{ background: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                                                    <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>{a.name}</td>
+                                                    <td>{a.contactNumber1}{a.contactNumber2 ? `, ${a.contactNumber2}` : ''}</td>
+                                                    <td style={{ fontSize: '0.9rem', opacity: 0.8 }}>{a.location}</td>
+                                                    <td style={{ textAlign: 'center' }}>{a.isVisited ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
+                                                    <td style={{ textAlign: 'center' }}>{a.isActive ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
+                                                    <td style={{ textAlign: 'center' }}>{a.posmActive ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
+                                                </tr>
+                                            ))}
+                                        {agents.filter(a => {
+                                            const rep = (a.repName && a.repName.trim() !== '') ? a.repName : 'Unassigned';
+                                            if (rep !== selectedRep) return false;
+                                            if (filterDetailedVisited && !a.isVisited) return false;
+                                            if (filterDetailedActive && !a.isActive) return false;
+                                            if (filterDetailedPOSM && !a.posmActive) return false;
+                                            return true;
+                                        }).length === 0 && (
+                                                <tr>
+                                                    <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No agents found matching your criteria</td>
+                                                </tr>
+                                            )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        {!selectedRep && (
+                            <div style={{ textAlign: 'center', padding: '3rem', opacity: 0.5 }}>
+                                Please select a representative to view their agent details.
+                            </div>
+                        )}
+                    </div>
                 </section>
             )}
 
-            {activeTab === 'orders' && (
+            {(adminRole === 'admin' || adminRole === 'superadmin') && activeTab === 'orders' && (
                 <section className="glass-container">
                     <h2>Recent Orders</h2>
                     <div className="table-container">
@@ -878,6 +959,7 @@ const AgentAdminDashboard = () => {
                             <tbody>
                                 {orders
                                     .filter(order => {
+                                        if (adminRole === 'admin' && order.status !== 'Processing' && order.status !== 'Paid') return false;
                                         if (!searchTerm) return true;
                                         const term = searchTerm.toLowerCase();
                                         return (
@@ -889,7 +971,7 @@ const AgentAdminDashboard = () => {
                                         );
                                     })
                                     .map(order => (
-                                        <tr key={order._id}>
+                                        <tr key={order._id} style={{ backgroundColor: order.isDownloaded ? 'rgba(220, 38, 38, 0.15)' : 'transparent' }}>
                                             <td>{new Date(order.createdAt).toLocaleString()}</td>
                                             <td style={{ fontWeight: 'bold' }}>{order.merchantOrderId || order._id.slice(-6).toUpperCase()}</td>
                                             <td>{order.salonName || order.agentName || '—'}</td>
@@ -907,6 +989,7 @@ const AgentAdminDashboard = () => {
                                             <td>
                                                 <select
                                                     value={order.status}
+                                                    disabled={adminRole === 'admin'}
                                                     onChange={async (e) => {
                                                         try {
                                                             const newStatus = e.target.value;
@@ -1018,44 +1101,71 @@ const AgentAdminDashboard = () => {
                                     </div>
                                 )}
 
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <input type="text" placeholder="Agent Name *" value={newAgent.name} onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })} required />
-                                    <input type="text" placeholder="Location" value={newAgent.location} onChange={(e) => setNewAgent({ ...newAgent, location: e.target.value })} />
-                                    <input type="text" placeholder="Contact Number 1" value={newAgent.contactNumber1} onChange={(e) => setNewAgent({ ...newAgent, contactNumber1: e.target.value })} />
-                                    <input type="text" placeholder="Contact Number 2" value={newAgent.contactNumber2} onChange={(e) => setNewAgent({ ...newAgent, contactNumber2: e.target.value })} />
-                                    <select
-                                        value={newAgent.repName}
-                                        onChange={(e) => setNewAgent({ ...newAgent, repName: e.target.value })}
-                                        style={{
-                                            padding: '0.8rem',
-                                            borderRadius: '8px',
-                                            border: '1px solid #ccc',
-                                            width: '100%',
-                                            fontFamily: 'inherit',
-                                            fontSize: '1rem'
-                                        }}
-                                    >
-                                        <option value="">Select Rep Name</option>
-                                        {reps.map(rep => (
-                                            <option key={rep._id} value={rep.name}>{rep.name}</option>
-                                        ))}
-                                    </select>
-                                    <input type="text" placeholder="Remark" value={newAgent.remark} onChange={(e) => setNewAgent({ ...newAgent, remark: e.target.value })} />
-                                    <input type="text" placeholder="Username (Optional)" value={newAgent.username} onChange={(e) => setNewAgent({ ...newAgent, username: e.target.value })} />
-                                    <input type="text" placeholder="Password (Optional)" value={newAgent.password} onChange={(e) => setNewAgent({ ...newAgent, password: e.target.value })} />
+                                <div className="form-grid">
+                                    <div className="input-group">
+                                        <label>Agent Name *</label>
+                                        <input type="text" placeholder="e.g. John Doe" value={newAgent.name} onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })} required />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Location</label>
+                                        <input type="text" placeholder="e.g. Colombo 05" value={newAgent.location} onChange={(e) => setNewAgent({ ...newAgent, location: e.target.value })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Contact Number 1</label>
+                                        <input type="text" placeholder="Phone 1" value={newAgent.contactNumber1} onChange={(e) => setNewAgent({ ...newAgent, contactNumber1: e.target.value })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Contact Number 2</label>
+                                        <input type="text" placeholder="Phone 2" value={newAgent.contactNumber2} onChange={(e) => setNewAgent({ ...newAgent, contactNumber2: e.target.value })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Representative Name</label>
+                                        <select value={newAgent.repName} onChange={(e) => setNewAgent({ ...newAgent, repName: e.target.value })}>
+                                            <option value="" style={{ color: 'black' }}>Select Rep Name</option>
+                                            {reps.map(rep => (
+                                                <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Remark</label>
+                                        <input type="text" placeholder="Any notes..." value={newAgent.remark} onChange={(e) => setNewAgent({ ...newAgent, remark: e.target.value })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Username (Optional)</label>
+                                        <input type="text" placeholder="Custom Username" value={newAgent.username} onChange={(e) => setNewAgent({ ...newAgent, username: e.target.value })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Password (Optional)</label>
+                                        <input type="text" placeholder="Custom Password" value={newAgent.password} onChange={(e) => setNewAgent({ ...newAgent, password: e.target.value })} />
+                                    </div>
                                 </div>
-                                <h3 style={{ marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Account Details</h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-                                    <input type="text" placeholder="Bank Name" value={newAgent.accountDetails.bankName} onChange={(e) => setNewAgent({ ...newAgent, accountDetails: { ...newAgent.accountDetails, bankName: e.target.value } })} />
-                                    <input type="text" placeholder="Branch" value={newAgent.accountDetails.branch} onChange={(e) => setNewAgent({ ...newAgent, accountDetails: { ...newAgent.accountDetails, branch: e.target.value } })} />
-                                    <input type="text" placeholder="Account Number" value={newAgent.accountDetails.accountNumber} onChange={(e) => setNewAgent({ ...newAgent, accountDetails: { ...newAgent.accountDetails, accountNumber: e.target.value } })} />
-                                    <input type="text" placeholder="Account Name" value={newAgent.accountDetails.accountName} onChange={(e) => setNewAgent({ ...newAgent, accountDetails: { ...newAgent.accountDetails, accountName: e.target.value } })} />
+
+                                <h3 className="section-title">Account Details</h3>
+                                <div className="form-grid">
+                                    <div className="input-group">
+                                        <label>Bank Name</label>
+                                        <input type="text" placeholder="e.g. BOC" value={newAgent.accountDetails.bankName} onChange={(e) => setNewAgent({ ...newAgent, accountDetails: { ...newAgent.accountDetails, bankName: e.target.value } })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Branch</label>
+                                        <input type="text" placeholder="e.g. City Branch" value={newAgent.accountDetails.branch} onChange={(e) => setNewAgent({ ...newAgent, accountDetails: { ...newAgent.accountDetails, branch: e.target.value } })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Account Number</label>
+                                        <input type="text" placeholder="e.g. 123456789" value={newAgent.accountDetails.accountNumber} onChange={(e) => setNewAgent({ ...newAgent, accountDetails: { ...newAgent.accountDetails, accountNumber: e.target.value } })} />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>Account Name</label>
+                                        <input type="text" placeholder="e.g. John Doe" value={newAgent.accountDetails.accountName} onChange={(e) => setNewAgent({ ...newAgent, accountDetails: { ...newAgent.accountDetails, accountName: e.target.value } })} />
+                                    </div>
                                 </div>
-                                <h3 style={{ marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.1rem' }}>Status & Marks</h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'white' }}>
-                                            <input type="checkbox" checked={newAgent.isVisited} onChange={(e) => setNewAgent({ ...newAgent, isVisited: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+
+                                <h3 className="section-title">Status & Marks</h3>
+                                <div className="form-grid" style={{ marginBottom: '1.5rem', alignContent: 'start', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                                    <div className="input-group" style={{ justifyContent: 'center' }}>
+                                        <label style={{ cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
+                                            <input type="checkbox" checked={newAgent.isVisited} onChange={(e) => setNewAgent({ ...newAgent, isVisited: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
                                             Visited Agent
                                         </label>
                                         {newAgent.isVisited && (
@@ -1063,26 +1173,27 @@ const AgentAdminDashboard = () => {
                                                 type="date"
                                                 value={newAgent.visitedDate}
                                                 onChange={(e) => setNewAgent({ ...newAgent, visitedDate: e.target.value })}
-                                                style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                                                style={{ marginTop: '0.5rem' }}
                                             />
                                         )}
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'white' }}>
-                                            <input type="checkbox" checked={newAgent.isActive} onChange={(e) => setNewAgent({ ...newAgent, isActive: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+                                    <div className="input-group" style={{ justifyContent: 'center' }}>
+                                        <label style={{ cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
+                                            <input type="checkbox" checked={newAgent.isActive} onChange={(e) => setNewAgent({ ...newAgent, isActive: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
                                             Active Agent
                                         </label>
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'white' }}>
-                                            <input type="checkbox" checked={newAgent.posmActive} onChange={(e) => setNewAgent({ ...newAgent, posmActive: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+                                    <div className="input-group" style={{ justifyContent: 'center' }}>
+                                        <label style={{ cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
+                                            <input type="checkbox" checked={newAgent.posmActive} onChange={(e) => setNewAgent({ ...newAgent, posmActive: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
                                             POSM Active Agent
                                         </label>
                                     </div>
                                 </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+
+                                <div className="input-group" style={{ marginBottom: '2rem' }}>
                                     <label style={{ color: 'white', fontSize: '1rem', fontWeight: 'bold' }}>Revisited Dates (Mark old visits here)</label>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', minHeight: '30px' }}>
                                         {(newAgent.revisitedDates || []).map((d, index) => (
                                             <div key={index} style={{ padding: '0.4rem 0.8rem', background: 'rgba(255,255,255,0.1)', borderRadius: '20px', color: '#bae6fd', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                 {new Date(d).toLocaleDateString()}
@@ -1090,19 +1201,19 @@ const AgentAdminDashboard = () => {
                                                     const newArr = [...newAgent.revisitedDates];
                                                     newArr.splice(index, 1);
                                                     setNewAgent({ ...newAgent, revisitedDates: newArr });
-                                                }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '1.1rem', lineHeight: 1, cursor: 'pointer', padding: 0 }}>&times;</button>
+                                                }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '1.2rem', lineHeight: 1, cursor: 'pointer', padding: 0, fontWeight: 'bold' }}>&times;</button>
                                             </div>
                                         ))}
                                     </div>
                                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                                        <input type="date" id={`revisit-date-${editingAgentId || 'new'}`} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+                                        <input type="date" id={`revisit-date-${editingAgentId || 'new'}`} style={{ flex: 1, margin: 0 }} />
                                         <button type="button" onClick={() => {
                                             const dateVal = document.getElementById(`revisit-date-${editingAgentId || 'new'}`).value;
                                             if (dateVal) {
                                                 setNewAgent({ ...newAgent, revisitedDates: [...(newAgent.revisitedDates || []), dateVal] });
                                                 document.getElementById(`revisit-date-${editingAgentId || 'new'}`).value = '';
                                             }
-                                        }} className="btn-primary" style={{ padding: '0.5rem 1rem' }}>Add Date</button>
+                                        }} className="btn-primary" style={{ whiteSpace: 'nowrap' }}>+ Add Date</button>
                                     </div>
                                 </div>
                                 <button type="submit" className="btn-primary" style={{ width: '100%', marginBottom: editingAgentId ? '0.5rem' : '0' }}>
@@ -1306,26 +1417,26 @@ const AgentAdminDashboard = () => {
                                                         <td>{agent.username}</td>
                                                         <td style={{ fontFamily: 'monospace' }}>{agent.plainPassword}</td>
                                                         <td>
-                                                                    {agent.agentCode ? (
-                                                                        <div style={{ display: 'flex', gap: '0.4rem' }}>
-                                                                            <button
-                                                                                onClick={() => handleDownloadQR(agent)}
-                                                                                className="btn-primary"
-                                                                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
-                                                                                title="Download SVG"
-                                                                            >
-                                                                                SVG
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => handleDownloadJPG(agent)}
-                                                                                className="btn-primary"
-                                                                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', background: '#eab308', border: 'none', color: '#000' }}
-                                                                                title="Download JPG"
-                                                                            >
-                                                                                JPG
-                                                                            </button>
-                                                                        </div>
-                                                                    ) : (
+                                                            {agent.agentCode ? (
+                                                                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                                                    <button
+                                                                        onClick={() => handleDownloadQR(agent)}
+                                                                        className="btn-primary"
+                                                                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
+                                                                        title="Download SVG"
+                                                                    >
+                                                                        SVG
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleDownloadJPG(agent)}
+                                                                        className="btn-primary"
+                                                                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', background: '#eab308', border: 'none', color: '#000' }}
+                                                                        title="Download JPG"
+                                                                    >
+                                                                        JPG
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
                                                                 <span style={{ fontSize: '0.8rem', opacity: 0.5 }}>No QR</span>
                                                             )}
                                                         </td>
@@ -1759,7 +1870,7 @@ const AgentAdminDashboard = () => {
                             {editingAccountId && (
                                 <button onClick={() => {
                                     setEditingAccountId(null);
-                                    setNewAccount({ username: '', password: '' });
+                                    setNewAccount({ username: '', password: '', role: 'salesman' });
                                 }} className="btn-primary outline" style={{ padding: '0.4rem 1rem' }}>Cancel Edit</button>
                             )}
                         </div>
@@ -1768,22 +1879,22 @@ const AgentAdminDashboard = () => {
                             try {
                                 if (editingAccountId) {
                                     // Prepare payload: only send password if it's not empty
-                                    const payload = { username: newAccount.username };
+                                    const payload = { username: newAccount.username, role: newAccount.role };
                                     if (newAccount.password) {
                                         payload.password = newAccount.password;
                                     }
                                     const res = await axios.put(`${API_URL}/auth/accounts/${editingAccountId}`, payload);
                                     if (res.data.success) {
                                         alert('Account Updated Successfully');
-                                        setNewAccount({ username: '', password: '' });
+                                        setNewAccount({ username: '', password: '', role: 'salesman' });
                                         setEditingAccountId(null);
                                         fetchAccounts();
                                     }
                                 } else {
                                     const res = await axios.post(`${API_URL}/auth/salesman`, newAccount);
                                     if (res.data.success) {
-                                        alert('Salesman Account Created Successfully');
-                                        setNewAccount({ username: '', password: '' });
+                                        alert('Account Created Successfully');
+                                        setNewAccount({ username: '', password: '', role: 'salesman' });
                                         fetchAccounts();
                                     }
                                 }
@@ -1791,23 +1902,39 @@ const AgentAdminDashboard = () => {
                                 alert(err.response?.data?.error || 'Error saving account');
                             }
                         }}>
-                            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                                <input
-                                    type="text"
-                                    placeholder="Username"
-                                    value={newAccount.username}
-                                    onChange={(e) => setNewAccount({ ...newAccount, username: e.target.value })}
-                                    required
-                                    style={{ flex: 1 }}
-                                />
-                                <input
-                                    type="text"
-                                    placeholder={editingAccountId ? "New Password (leave blank to keep current)" : "Password"}
-                                    value={newAccount.password}
-                                    onChange={(e) => setNewAccount({ ...newAccount, password: e.target.value })}
-                                    required={!editingAccountId}
-                                    style={{ flex: 1 }}
-                                />
+                            <div className="form-grid" style={{ marginBottom: '1.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                                <div className="input-group">
+                                    <label>Username</label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. jdoe123"
+                                        value={newAccount.username}
+                                        onChange={(e) => setNewAccount({ ...newAccount, username: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label>Account Role</label>
+                                    <select
+                                        value={newAccount.role}
+                                        onChange={(e) => setNewAccount({ ...newAccount, role: e.target.value })}
+                                        required
+                                    >
+                                        <option value="salesman" style={{ color: 'black' }}>Salesman</option>
+                                        <option value="admin" style={{ color: 'black' }}>Admin</option>
+                                        <option value="superadmin" style={{ color: 'black' }}>Super Admin</option>
+                                    </select>
+                                </div>
+                                <div className="input-group">
+                                    <label>Password</label>
+                                    <input
+                                        type="text"
+                                        placeholder={editingAccountId ? "Leave blank to keep current" : "Enter a secure PIN/Password"}
+                                        value={newAccount.password}
+                                        onChange={(e) => setNewAccount({ ...newAccount, password: e.target.value })}
+                                        required={!editingAccountId}
+                                    />
+                                </div>
                             </div>
                             <button type="submit" className="btn-primary" style={{ width: '100%' }}>
                                 {editingAccountId ? 'Update Account' : 'Create Account'}
@@ -1831,7 +1958,7 @@ const AgentAdminDashboard = () => {
                                         <tr key={acc._id}>
                                             <td style={{ fontWeight: 'bold' }}>{acc.username}</td>
                                             <td>
-                                                <span className={`status-badge ${acc.role === 'admin' ? 'completed' : 'processing'}`} style={{ textTransform: 'capitalize' }}>
+                                                <span className={`status-badge ${['admin', 'superadmin'].includes(acc.role) ? 'completed' : 'processing'}`} style={{ textTransform: 'capitalize' }}>
                                                     {acc.role}
                                                 </span>
                                             </td>
@@ -1840,16 +1967,16 @@ const AgentAdminDashboard = () => {
                                                     <button
                                                         onClick={() => {
                                                             setEditingAccountId(acc._id);
-                                                            setNewAccount({ username: acc.username, password: '' });
+                                                            setNewAccount({ username: acc.username, password: '', role: acc.role || 'salesman' });
                                                             window.scrollTo({ top: 0, behavior: 'smooth' });
                                                         }}
                                                         className="icon-btn primary"
-                                                        title="Edit Account"
+                                                        title="Edit"
                                                         style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
                                                     >
                                                         Edit
                                                     </button>
-                                                    {acc.role !== 'admin' && (
+                                                    {!['admin', 'superadmin'].includes(acc.role) && (
                                                         <button
                                                             onClick={async () => {
                                                                 if (window.confirm('Are you sure you want to delete this account?')) {
@@ -1919,10 +2046,26 @@ const AgentAdminDashboard = () => {
                 </section>
             )}
 
-            {activeTab === 'reports' && (
+            {(adminRole === 'admin' || adminRole === 'superadmin') && activeTab === 'reports' && (
                 <section className="glass-container">
                     <h2>Reports & Export</h2>
                     <p style={{ opacity: 0.8, marginBottom: '2rem' }}>Download summary reports for data analysis and backup.</p>
+
+                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>Start Date</label>
+                            <input type="date" value={reportStartDate} onChange={e => setReportStartDate(e.target.value)}
+                                style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', colorScheme: 'dark' }} />
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>End Date</label>
+                            <input type="date" value={reportEndDate} onChange={e => setReportEndDate(e.target.value)}
+                                style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', colorScheme: 'dark' }} />
+                        </div>
+                        <div style={{ alignSelf: 'flex-end' }}>
+                            <button onClick={fetchAnalytics} className="btn-primary" style={{ padding: '0.5rem 1rem' }}>Apply Filters</button>
+                        </div>
+                    </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
                         <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
@@ -1950,6 +2093,39 @@ const AgentAdminDashboard = () => {
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                                 Download Performance CSV
                             </button>
+                        </div>
+                    </div>
+
+                    <div style={{ marginTop: '3rem' }}>
+                        <h2 style={{ marginBottom: '1.5rem' }}>Download History</h2>
+                        <div className="table-container shadow-sm">
+                            <table className="styled-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date & Time</th>
+                                        <th>Report Type</th>
+                                        <th>Downloaded By</th>
+                                        <th>Records</th>
+                                        <th>Date Range Filter</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {reportHistory.map((log) => (
+                                        <tr key={log._id}>
+                                            <td>{new Date(log.createdAt).toLocaleString()}</td>
+                                            <td style={{ fontWeight: 'bold' }}>{log.reportType}</td>
+                                            <td>{log.downloadedBy}</td>
+                                            <td>{log.recordCount}</td>
+                                            <td style={{ opacity: 0.7, fontSize: '0.9rem' }}>{log.dateRange}</td>
+                                        </tr>
+                                    ))}
+                                    {reportHistory.length === 0 && (
+                                        <tr>
+                                            <td colSpan="5" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No download history yet</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </section>
