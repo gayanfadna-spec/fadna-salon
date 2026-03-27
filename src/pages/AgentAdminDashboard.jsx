@@ -606,6 +606,8 @@ const AgentAdminDashboard = () => {
     };
 
     const filteredAgents = agents.filter(agent => {
+        const rep = (agent.repName && agent.repName.trim() !== '') ? agent.repName : 'Unassigned';
+        if (selectedRep && rep !== selectedRep) return false;
         if (selectedAgentId && agent._id !== selectedAgentId) return false;
         if (!searchTerm) return true;
         const term = searchTerm.toLowerCase();
@@ -613,7 +615,8 @@ const AgentAdminDashboard = () => {
             (agent.name || '').toLowerCase().includes(term) ||
             (agent.location || '').toLowerCase().includes(term) ||
             (agent.username || '').toLowerCase().includes(term) ||
-            (agent.agentCode || '').toLowerCase().includes(term)
+            (agent.agentCode || '').toLowerCase().includes(term) ||
+            (agent.repName || '').toLowerCase().includes(term)
         );
     });
 
@@ -774,6 +777,13 @@ const AgentAdminDashboard = () => {
                             <button className="btn-primary" style={{ padding: '0.5rem 1rem' }}>Search</button>
                         </div>
                     )}
+                    <select value={selectedRep} onChange={(e) => setSelectedRep(e.target.value)}
+                        style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease' }}>
+                        <option value="" style={{ color: 'black' }}>All Reps</option>
+                        {reps.map(rep => <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>)}
+                        <option value="Unassigned" style={{ color: 'black' }}>Unassigned</option>
+                    </select>
+
                     <select value={selectedAgentId} onChange={(e) => setSelectedAgentId(e.target.value)}
                         style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease' }}>
                         <option value="" style={{ color: 'black' }}>All Agents</option>
@@ -1457,6 +1467,8 @@ const AgentAdminDashboard = () => {
                             {/* This logic was previously inside an IIFE, now moved out for direct use */}
                             {(() => {
                                 const filteredAgents = agents.filter(agent => {
+                                    const rep = (agent.repName && agent.repName.trim() !== '') ? agent.repName : 'Unassigned';
+                                    if (selectedRep && rep !== selectedRep) return false;
                                     if (selectedAgentId && agent._id !== selectedAgentId) return false;
                                     if (!searchTerm) return true;
                                     const term = searchTerm.toLowerCase();
@@ -1464,7 +1476,8 @@ const AgentAdminDashboard = () => {
                                         agent.name.toLowerCase().includes(term) ||
                                         (agent.location && agent.location.toLowerCase().includes(term)) ||
                                         (agent.username && agent.username.toLowerCase().includes(term)) ||
-                                        (agent.agentCode && agent.agentCode.toLowerCase().includes(term))
+                                        (agent.agentCode && agent.agentCode.toLowerCase().includes(term)) ||
+                                        (agent.repName && agent.repName.toLowerCase().includes(term))
                                     );
                                 });
 

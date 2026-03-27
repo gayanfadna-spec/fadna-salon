@@ -20,6 +20,7 @@ const SalesmanDashboard = () => {
     const [reps, setReps] = useState([]);
     const [selectedExcelFile, setSelectedExcelFile] = useState(null);
     const [newBulkSalons, setNewBulkSalons] = useState([]);
+    const [filterVisited, setFilterVisited] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -139,6 +140,20 @@ const SalesmanDashboard = () => {
         document.body.removeChild(link);
     };
 
+    const handleDeleteSalon = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this salon?')) return;
+        try {
+            const res = await axios.delete(`${API_URL}/salons/${id}`);
+            if (res.data.success) {
+                alert('Salon deleted successfully');
+                fetchSalons();
+            }
+        } catch (err) {
+            console.error('Error deleting salon:', err);
+            alert(err.response?.data?.message || 'Error deleting salon');
+        }
+    };
+
     const handleUpdateSalon = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
@@ -245,6 +260,17 @@ const SalesmanDashboard = () => {
                                 onFocus={(e) => e.target.style.borderColor = 'var(--primary-color)'}
                                 onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
                             />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#cbd5e1', fontSize: '0.9rem' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={filterVisited}
+                                    onChange={(e) => setFilterVisited(e.target.checked)}
+                                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                />
+                                Visited Only
+                            </label>
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button
@@ -714,6 +740,7 @@ const SalesmanDashboard = () => {
                     <div className="salon-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
                         {salons
                             .filter(salon => {
+                                if (filterVisited && !salon.isVisited) return false;
                                 if (!searchTerm) return true;
                                 const term = searchTerm.toLowerCase();
                                 return (
@@ -774,6 +801,14 @@ const SalesmanDashboard = () => {
                                             style={{ flex: 1, padding: '0.6rem', background: 'rgba(99, 102, 241, 0.1)', color: '#818cf8', border: '1px solid rgba(99, 102, 241, 0.2)', borderRadius: '8px', fontSize: '0.9rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', transition: 'all 0.2s' }}
                                         >
                                             <Edit3 size={16} /> Edit
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteSalon(salon._id)}
+                                            className="icon-btn danger"
+                                            style={{ padding: '0.6rem', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '8px', fontSize: '0.9rem', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}
+                                            title="Delete Salon"
+                                        >
+                                            <X size={16} />
                                         </button>
                                     </div>
 

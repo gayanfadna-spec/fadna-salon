@@ -47,6 +47,47 @@ const AdminDashboard = () => {
     const [filterDetailedVisited, setFilterDetailedVisited] = useState(false);
     const [filterDetailedActive, setFilterDetailedActive] = useState(false);
     const [filterDetailedPOSM, setFilterDetailedPOSM] = useState(false);
+    const [visibleCount, setVisibleCount] = useState(50);
+
+    const filteredSalons = React.useMemo(() => {
+        return salons.filter(salon => {
+            const rep = (salon.repName && salon.repName.trim() !== '') ? salon.repName : 'Unassigned';
+            if (selectedRep && rep !== selectedRep) return false;
+            if (selectedSalonId && salon._id !== selectedSalonId) return false;
+
+            if (!searchTerm) return true;
+            const term = searchTerm.toLowerCase();
+            return (
+                (salon.name || '').toLowerCase().includes(term) ||
+                (salon.location || '').toLowerCase().includes(term) ||
+                (salon.username || '').toLowerCase().includes(term) ||
+                (salon.salonCode || '').toLowerCase().includes(term) ||
+                (salon.repName || '').toLowerCase().includes(term)
+            );
+        });
+    }, [salons, selectedRep, searchTerm, selectedSalonId]);
+
+    const detailedFilteredSalons = React.useMemo(() => {
+        if (!selectedRep) return [];
+        return salons.filter(s => {
+            const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+            if (rep !== selectedRep) return false;
+            if (filterDetailedVisited && !s.isVisited) return false;
+            if (filterDetailedActive && !s.isActive) return false;
+            if (filterDetailedPOSM && !s.posmActive) return false;
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                return (
+                    (s.name || '').toLowerCase().includes(term) ||
+                    (s.location || '').toLowerCase().includes(term) ||
+                    (s.salonCode || '').toLowerCase().includes(term)
+                );
+            }
+            return true;
+        });
+    }, [salons, selectedRep, searchTerm, filterDetailedVisited, filterDetailedActive, filterDetailedPOSM]);
+
+    const detailedFilteredSalonsCount = detailedFilteredSalons.length;
 
     const fetchOrders = React.useCallback(async () => {
         try {
@@ -102,6 +143,10 @@ const AdminDashboard = () => {
     useEffect(() => {
         fetchSalons();
     }, [fetchSalons]);
+
+    useEffect(() => {
+        setVisibleCount(50);
+    }, [selectedRep, searchTerm, selectedSalonId]);
 
     const fetchAccounts = React.useCallback(async () => {
         try {
@@ -605,17 +650,7 @@ const AdminDashboard = () => {
         alert(`Batch process finished. ${successCount} salons deleted.`);
     };
 
-    const filteredSalons = salons.filter(salon => {
-        if (selectedSalonId && salon._id !== selectedSalonId) return false;
-        if (!searchTerm) return true;
-        const term = searchTerm.toLowerCase();
-        return (
-            (salon.name || '').toLowerCase().includes(term) ||
-            (salon.location || '').toLowerCase().includes(term) ||
-            (salon.username || '').toLowerCase().includes(term) ||
-            (salon.salonCode || '').toLowerCase().includes(term)
-        );
-    });
+    // Duplicate declaration removed and moved to top useMemo for performance
 
     const handleExportSalons = () => {
         let itemsToExport = salons;
@@ -766,7 +801,7 @@ const AdminDashboard = () => {
 
                 {/* Contextual Filters */}
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {(activeTab === 'orders' || activeTab === 'monitor' || activeTab === 'salons') && (
+                    {(activeTab === 'orders' || activeTab === 'monitor' || activeTab === 'salons' || activeTab === 'overview') && (
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <input type="text" placeholder="Search..." value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -774,6 +809,13 @@ const AdminDashboard = () => {
                             <button className="btn-primary" style={{ padding: '0.5rem 1rem' }}>Search</button>
                         </div>
                     )}
+                    <select value={selectedRep} onChange={(e) => setSelectedRep(e.target.value)}
+                        style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease' }}>
+                        <option value="" style={{ color: 'black' }}>All Reps</option>
+                        {reps.map(rep => <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>)}
+                        <option value="Unassigned" style={{ color: 'black' }}>Unassigned</option>
+                    </select>
+
                     <select value={selectedSalonId} onChange={(e) => setSelectedSalonId(e.target.value)}
                         style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease' }}>
                         <option value="" style={{ color: 'black' }}>All Salons</option>
@@ -869,14 +911,7 @@ const AdminDashboard = () => {
 
                         {selectedRep && (
                             <div style={{ marginBottom: '1rem', opacity: 0.8, fontSize: '0.9rem' }}>
-                                Showing {salons.filter(s => {
-                                    const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
-                                    if (rep !== selectedRep) return false;
-                                    if (filterDetailedVisited && !s.isVisited) return false;
-                                    if (filterDetailedActive && !s.isActive) return false;
-                                    if (filterDetailedPOSM && !s.posmActive) return false;
-                                    return true;
-                                }).length} salons for {selectedRep}
+                                Showing {detailedFilteredSalonsCount} salons for {selectedRep}
                             </div>
                         )}
 
@@ -891,40 +926,43 @@ const AdminDashboard = () => {
                                             <th style={{ textAlign: 'center' }}>Visited</th>
                                             <th style={{ textAlign: 'center' }}>Active</th>
                                             <th style={{ textAlign: 'center' }}>POSM</th>
+                                            <th style={{ textAlign: 'center' }}>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {salons
-                                            .filter(s => {
-                                                const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
-                                                if (rep !== selectedRep) return false;
-                                                if (filterDetailedVisited && !s.isVisited) return false;
-                                                if (filterDetailedActive && !s.isActive) return false;
-                                                if (filterDetailedPOSM && !s.posmActive) return false;
-                                                return true;
-                                            })
-                                            .map((s, idx) => (
-                                                <tr key={idx}>
-                                                    <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>{s.name}</td>
-                                                    <td>{s.contactNumber1}{s.contactNumber2 ? `, ${s.contactNumber2}` : ''}</td>
-                                                    <td style={{ fontSize: '0.9rem', opacity: 0.8 }}>{s.location}</td>
-                                                    <td style={{ textAlign: 'center' }}>{s.isVisited ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
-                                                    <td style={{ textAlign: 'center' }}>{s.isActive ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
-                                                    <td style={{ textAlign: 'center' }}>{s.posmActive ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
-                                                </tr>
-                                            ))}
-                                        {salons.filter(s => {
-                                            const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
-                                            if (rep !== selectedRep) return false;
-                                            if (filterDetailedVisited && !s.isVisited) return false;
-                                            if (filterDetailedActive && !s.isActive) return false;
-                                            if (filterDetailedPOSM && !s.posmActive) return false;
-                                            return true;
-                                        }).length === 0 && (
-                                                <tr>
-                                                    <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No salons found matching your criteria</td>
-                                                </tr>
-                                            )}
+                                        {detailedFilteredSalons.map((s, idx) => (
+                                            <tr key={idx}>
+                                                <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>{s.name}</td>
+                                                <td>{s.contactNumber1}{s.contactNumber2 ? `, ${s.contactNumber2}` : ''}</td>
+                                                <td style={{ fontSize: '0.9rem', opacity: 0.8 }}>{s.location}</td>
+                                                <td style={{ textAlign: 'center' }}>{s.isVisited ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
+                                                <td style={{ textAlign: 'center' }}>{s.isActive ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
+                                                <td style={{ textAlign: 'center' }}>{s.posmActive ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                                                        <button
+                                                            onClick={() => { handleEditClick(s); setActiveTab('salons'); }}
+                                                            className="btn-primary outline"
+                                                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteSalon(s._id)}
+                                                            className="btn-primary danger"
+                                                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', backgroundColor: '#ef4444', borderColor: '#ef4444' }}
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {detailedFilteredSalons.length === 0 && (
+                                            <tr>
+                                                <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No salons found matching your criteria</td>
+                                            </tr>
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
@@ -958,6 +996,10 @@ const AdminDashboard = () => {
                                 <tbody>
                                     {orders
                                         .filter(order => {
+                                            const orderSalon = salons.find(s => s._id === order.salonId);
+                                            const orderRep = (orderSalon && orderSalon.repName && orderSalon.repName.trim() !== '') ? orderSalon.repName : 'Unassigned';
+
+                                            if (selectedRep && orderRep !== selectedRep) return false;
                                             if (adminRole === 'admin' && order.status !== 'Processing' && order.status !== 'Paid') return false;
                                             if (!searchTerm) return true;
                                             const term = searchTerm.toLowerCase();
@@ -966,6 +1008,7 @@ const AdminDashboard = () => {
                                                 (order.customerName || '').toLowerCase().includes(term) ||
                                                 (order.customerPhone || '').toLowerCase().includes(term) ||
                                                 (order.additionalPhone || '').toLowerCase().includes(term) ||
+                                                (orderRep || '').toLowerCase().includes(term) ||
                                                 (order.items || []).some(item => (item.productName || '').toLowerCase().includes(term))
                                             );
                                         })
@@ -1443,213 +1486,206 @@ const AdminDashboard = () => {
                         <section className="glass-container">
                             {/* Filter salons based on search term and selectedSalonId */}
                             {/* This logic was previously inside an IIFE, now moved out for direct use */}
-                            {(() => {
-                                const filteredSalons = salons.filter(salon => {
-                                    if (selectedSalonId && salon._id !== selectedSalonId) return false;
-                                    if (!searchTerm) return true;
-                                    const term = searchTerm.toLowerCase();
-                                    return (
-                                        salon.name.toLowerCase().includes(term) ||
-                                        (salon.location && salon.location.toLowerCase().includes(term)) ||
-                                        (salon.username && salon.username.toLowerCase().includes(term)) ||
-                                        (salon.salonCode && salon.salonCode.toLowerCase().includes(term))
-                                    );
-                                });
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                    <h2 style={{ margin: 0 }}>Registered Salons ({filteredSalons.length})</h2>
+                                    <button
+                                        onClick={() => handleSelectAll(filteredSalons)}
+                                        className="btn-primary outline"
+                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                                    >
+                                        {selectedSalons.length === filteredSalons.length && filteredSalons.length > 0 ? 'Deselect All' : 'Select All'}
+                                    </button>
+                                </div>
 
-                                return (
-                                    <>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                                <h2 style={{ margin: 0 }}>Registered Salons ({filteredSalons.length})</h2>
-                                                <button
-                                                    onClick={() => handleSelectAll(filteredSalons)}
-                                                    className="btn-primary outline"
-                                                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
-                                                >
-                                                    {selectedSalons.length === filteredSalons.length && filteredSalons.length > 0 ? 'Deselect All' : 'Select All'}
-                                                </button>
+                                {selectedSalons.length > 0 && (
+                                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '8px' }}>
+                                        <span style={{ fontSize: '0.9rem' }}>{selectedSalons.length} Selected</span>
+                                        <button
+                                            onClick={() => handleBatchPrint(salons.filter(s => selectedSalons.includes(s._id)))}
+                                            className="btn-primary"
+                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                                        >
+                                            Print Selected
+                                        </button>
+                                        <button
+                                            onClick={() => handleBatchDownloadZip(salons.filter(s => selectedSalons.includes(s._id)), 'svg')}
+                                            className="btn-primary"
+                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                                        >
+                                            ZIP (SVG)
+                                        </button>
+                                        <button
+                                            onClick={() => handleBatchDownloadZip(salons.filter(s => selectedSalons.includes(s._id)), 'jpg')}
+                                            className="btn-primary"
+                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', background: '#eab308', borderColor: '#eab308', color: '#000' }}
+                                        >
+                                            ZIP (JPG)
+                                        </button>
+                                        <button
+                                            onClick={() => handleBatchExcelExport(salons.filter(s => selectedSalons.includes(s._id)))}
+                                            className="btn-primary"
+                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', background: '#10b981', borderColor: '#10b981' }}
+                                        >
+                                            Excel Export
+                                        </button>
+                                        <button
+                                            onClick={() => handleBatchDelete(salons.filter(s => selectedSalons.includes(s._id)))}
+                                            className="btn-primary danger"
+                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: '#ef4444', borderColor: '#ef4444' }}
+                                        >
+                                            Delete Selected
+                                        </button>
+                                        <button
+                                            onClick={() => setSelectedSalons([])}
+                                            className="btn-primary outline"
+                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                                        >
+                                            Clear Selection
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="salon-grid">
+                                {filteredSalons.slice(0, visibleCount).map(salon => (
+                                    <div key={salon._id} className={`salon-card ${selectedSalons.includes(salon._id) ? 'selected' : ''}`} style={{ position: 'relative', border: selectedSalons.includes(salon._id) ? '2px solid var(--secondary-color)' : 'none' }}>
+                                        <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedSalons.includes(salon._id)}
+                                                onChange={() => handleSelectSalon(salon._id)}
+                                                style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                            <div>
+                                                <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                    {salon.name}
+                                                    {salon.isVisited && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: 'rgba(74,222,128,0.2)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>Visited</span>}
+                                                    {salon.isActive && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: 'rgba(56,189,248,0.2)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}>Active</span>}
+                                                    {salon.posmActive && <span style={{ fontSize: '0.6rem', padding: '0.2rem 0.4rem', borderRadius: '12px', background: 'rgba(192,132,252,0.2)', color: '#c084fc', border: '1px solid rgba(192,132,252,0.3)', whiteSpace: 'nowrap' }}>POSM</span>}
+                                                    {!salon.salonCode && <span style={{ fontSize: '0.6rem', padding: '0.2rem 0.4rem', borderRadius: '12px', background: 'rgba(239,68,68,0.2)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)', whiteSpace: 'nowrap' }}>DRAFT</span>}
+                                                </h3>
+                                                <div className="salon-meta" style={{ marginTop: '0.25rem' }}>
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                                                    {salon.location || 'No Location'}
+                                                </div>
+                                                <div style={{ marginTop: '0.25rem', fontSize: '0.8rem', opacity: 0.6 }}>
+                                                    Created: {salon.createdAt ? new Date(salon.createdAt).toLocaleDateString() : 'N/A'}
+                                                </div>
+                                                <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--secondary-color)', fontWeight: 'bold' }}>
+                                                    Code: {salon.salonCode || 'N/A'}
+                                                </div>
                                             </div>
-
-                                            {selectedSalons.length > 0 && (
-                                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '8px' }}>
-                                                    <span style={{ fontSize: '0.9rem' }}>{selectedSalons.length} Selected</span>
-                                                    <button
-                                                        onClick={() => handleBatchPrint(salons.filter(s => selectedSalons.includes(s._id)))}
-                                                        className="btn-primary"
-                                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
-                                                    >
-                                                        Print Selected
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleBatchDownloadZip(salons.filter(s => selectedSalons.includes(s._id)), 'svg')}
-                                                        className="btn-primary"
-                                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
-                                                    >
-                                                        ZIP (SVG)
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleBatchDownloadZip(salons.filter(s => selectedSalons.includes(s._id)), 'jpg')}
-                                                        className="btn-primary"
-                                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', background: '#eab308', borderColor: '#eab308', color: '#000' }}
-                                                    >
-                                                        ZIP (JPG)
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleBatchExcelExport(salons.filter(s => selectedSalons.includes(s._id)))}
-                                                        className="btn-primary"
-                                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', background: '#10b981', borderColor: '#10b981' }}
-                                                    >
-                                                        Excel Export
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleBatchDelete(salons.filter(s => selectedSalons.includes(s._id)))}
-                                                        className="btn-primary danger"
-                                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', backgroundColor: '#ef4444', borderColor: '#ef4444' }}
-                                                    >
-                                                        Delete Selected
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setSelectedSalons([])}
-                                                        className="btn-primary outline"
-                                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
-                                                    >
-                                                        Clear Selection
-                                                    </button>
-                                                </div>
-                                            )}
                                         </div>
 
-                                        <div className="salon-grid">
-                                            {filteredSalons.map(salon => (
+                                        <div className="credential-box">
+                                            <div className="credential-row">
+                                                <span style={{ opacity: 0.6 }}>User:</span>
+                                                <span className="mono-text">{salon.username}</span>
+                                            </div>
+                                            <div className="credential-row">
+                                                <span style={{ opacity: 0.6 }}>Pass:</span>
+                                                <span className="mono-text" style={{ color: salon.plainPassword ? '#4ade80' : 'inherit' }}>
+                                                    {salon.plainPassword || '••••••'}
+                                                </span>
+                                            </div>
+                                        </div>
 
-                                                <div key={salon._id} className={`salon-card ${selectedSalons.includes(salon._id) ? 'selected' : ''}`} style={{ position: 'relative', border: selectedSalons.includes(salon._id) ? '2px solid var(--secondary-color)' : 'none' }}>
-                                                    <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedSalons.includes(salon._id)}
-                                                            onChange={() => handleSelectSalon(salon._id)}
-                                                            style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                                                        />
-                                                    </div>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                        <div>
-                                                            <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                                                {salon.name}
-                                                                {salon.isVisited && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: 'rgba(74,222,128,0.2)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>Visited</span>}
-                                                                {salon.isActive && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: 'rgba(56,189,248,0.2)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}>Active</span>}
-                                                                {salon.posmActive && <span style={{ fontSize: '0.6rem', padding: '0.2rem 0.4rem', borderRadius: '12px', background: 'rgba(192,132,252,0.2)', color: '#c084fc', border: '1px solid rgba(192,132,252,0.3)', whiteSpace: 'nowrap' }}>POSM</span>}
-                                                                {!salon.salonCode && <span style={{ fontSize: '0.6rem', padding: '0.2rem 0.4rem', borderRadius: '12px', background: 'rgba(239,68,68,0.2)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)', whiteSpace: 'nowrap' }}>DRAFT</span>}
-                                                            </h3>
-                                                            <div className="salon-meta" style={{ marginTop: '0.25rem' }}>
-                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                                                                {salon.location || 'No Location'}
-                                                            </div>
-                                                            <div style={{ marginTop: '0.25rem', fontSize: '0.8rem', opacity: 0.6 }}>
-                                                                Created: {salon.createdAt ? new Date(salon.createdAt).toLocaleDateString() : 'N/A'}
-                                                            </div>
-                                                            <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--secondary-color)', fontWeight: 'bold' }}>
-                                                                Code: {salon.salonCode || 'N/A'}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="credential-box">
-                                                        <div className="credential-row">
-                                                            <span style={{ opacity: 0.6 }}>User:</span>
-                                                            <span className="mono-text">{salon.username}</span>
-                                                        </div>
-                                                        <div className="credential-row">
-                                                            <span style={{ opacity: 0.6 }}>Pass:</span>
-                                                            <span className="mono-text" style={{ color: salon.plainPassword ? '#4ade80' : 'inherit' }}>
-                                                                {salon.plainPassword || '••••••'}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-
-                                                    {expandedSalonId === salon._id && (
-                                                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', marginTop: '1rem', fontSize: '0.85rem' }}>
-                                                            <p style={{ margin: '0.2rem 0' }}><strong>Contact 1:</strong> {salon.contactNumber1 || salon.contactNumber || 'N/A'}</p>
-                                                            <p style={{ margin: '0.2rem 0' }}><strong>Contact 2:</strong> {salon.contactNumber2 || 'N/A'}</p>
-                                                            <p style={{ margin: '0.2rem 0' }}><strong>Rep Name:</strong> {salon.repName || 'N/A'}</p>
-                                                            <p style={{ margin: '0.2rem 0' }}><strong>Remark:</strong> {salon.remark || 'N/A'}</p>
-                                                            <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                                                                <p style={{ margin: '0.2rem 0' }}><strong>Bank:</strong> {salon.accountDetails?.bankName || 'N/A'}</p>
-                                                                <p style={{ margin: '0.2rem 0' }}><strong>Branch:</strong> {salon.accountDetails?.branch || 'N/A'}</p>
-                                                                <p style={{ margin: '0.2rem 0' }}><strong>Account No:</strong> {salon.accountDetails?.accountNumber || 'N/A'}</p>
-                                                                <p style={{ margin: '0.2rem 0' }}><strong>Account Name:</strong> {salon.accountDetails?.accountName || 'N/A'}</p>
-                                                            </div>
-                                                            <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                                                                <p style={{ margin: '0.2rem 0' }}><strong>Visited Salon:</strong> <span style={{ color: salon.isVisited ? '#4ade80' : '#ef4444' }}>{salon.isVisited ? 'Yes' : 'No'}</span></p>
-                                                                {salon.isVisited && salon.visitedDate && (
-                                                                    <p style={{ margin: '0.2rem 0' }}><strong>Visited Date:</strong> {new Date(salon.visitedDate).toLocaleDateString()}</p>
-                                                                )}
-                                                                {salon.revisitedDates && salon.revisitedDates.length > 0 && (
-                                                                    <p style={{ margin: '0.2rem 0' }}><strong>Revisited Dates:</strong> {salon.revisitedDates.map(d => new Date(d).toLocaleDateString()).join(', ')}</p>
-                                                                )}
-                                                                <p style={{ margin: '0.2rem 0' }}><strong>Active Salon:</strong> <span style={{ color: salon.isActive ? '#4ade80' : '#ef4444' }}>{salon.isActive ? 'Yes' : 'No'}</span></p>
-                                                                <p style={{ margin: '0.2rem 0' }}><strong>POSM Active Salon:</strong> <span style={{ color: salon.posmActive ? '#4ade80' : '#ef4444' }}>{salon.posmActive ? 'Yes' : 'No'}</span></p>
-                                                            </div>
-                                                            <p style={{ margin: '0.2rem 0', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                                                                <strong>Last Edited By:</strong> {salon.editedBy || 'N/A'}
-                                                            </p>
-                                                        </div>
+                                        {expandedSalonId === salon._id && (
+                                            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', marginTop: '1rem', fontSize: '0.85rem' }}>
+                                                <p style={{ margin: '0.2rem 0' }}><strong>Contact 1:</strong> {salon.contactNumber1 || salon.contactNumber || 'N/A'}</p>
+                                                <p style={{ margin: '0.2rem 0' }}><strong>Contact 2:</strong> {salon.contactNumber2 || 'N/A'}</p>
+                                                <p style={{ margin: '0.2rem 0' }}><strong>Rep Name:</strong> {salon.repName || 'N/A'}</p>
+                                                <p style={{ margin: '0.2rem 0' }}><strong>Remark:</strong> {salon.remark || 'N/A'}</p>
+                                                <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                                                    <p style={{ margin: '0.2rem 0' }}><strong>Bank:</strong> {salon.accountDetails?.bankName || 'N/A'}</p>
+                                                    <p style={{ margin: '0.2rem 0' }}><strong>Branch:</strong> {salon.accountDetails?.branch || 'N/A'}</p>
+                                                    <p style={{ margin: '0.2rem 0' }}><strong>Account No:</strong> {salon.accountDetails?.accountNumber || 'N/A'}</p>
+                                                    <p style={{ margin: '0.2rem 0' }}><strong>Account Name:</strong> {salon.accountDetails?.accountName || 'N/A'}</p>
+                                                </div>
+                                                <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                                                    <p style={{ margin: '0.2rem 0' }}><strong>Visited Salon:</strong> <span style={{ color: salon.isVisited ? '#4ade80' : '#ef4444' }}>{salon.isVisited ? 'Yes' : 'No'}</span></p>
+                                                    {salon.isVisited && salon.visitedDate && (
+                                                        <p style={{ margin: '0.2rem 0' }}><strong>Visited Date:</strong> {new Date(salon.visitedDate).toLocaleDateString()}</p>
                                                     )}
-
-                                                    <div className="card-actions">
-                                                        <button
-                                                            onClick={() => setExpandedSalonId(expandedSalonId === salon._id ? null : salon._id)}
-                                                            className="icon-btn info"
-                                                            title="Toggle Details"
-                                                            style={{ border: '1px solid rgba(255,255,255,0.2)' }}
-                                                        >
-                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDownloadQR(salon)}
-                                                            className="icon-btn success"
-                                                            title="Download SVG"
-                                                        >
-                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDownloadJPG(salon)}
-                                                            className="icon-btn success"
-                                                            title="Download JPG"
-                                                            style={{ backgroundColor: '#eab308', color: '#000' }}
-                                                        >
-                                                            <span style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>JPG</span>
-                                                        </button>
-                                                        <a
-                                                            href={`/order/${salon.uniqueId}`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="icon-btn primary"
-                                                            title="Visit Shop"
-                                                            style={{ backgroundColor: '#10b981' }}
-                                                        >
-                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                                                        </a>
-                                                        <button
-                                                            onClick={() => handleEditClick(salon)}
-                                                            className="icon-btn primary"
-                                                            title="Edit Salon"
-                                                        >
-                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteSalon(salon._id)}
-                                                            className="icon-btn danger"
-                                                            title="Delete Salon"
-                                                        >
-                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                                        </button>
-                                                    </div>
+                                                    {salon.revisitedDates && salon.revisitedDates.length > 0 && (
+                                                        <p style={{ margin: '0.2rem 0' }}><strong>Revisited Dates:</strong> {salon.revisitedDates.map(d => new Date(d).toLocaleDateString()).join(', ')}</p>
+                                                    )}
+                                                    <p style={{ margin: '0.2rem 0' }}><strong>Active Salon:</strong> <span style={{ color: salon.isActive ? '#4ade80' : '#ef4444' }}>{salon.isActive ? 'Yes' : 'No'}</span></p>
+                                                    <p style={{ margin: '0.2rem 0' }}><strong>POSM Active Salon:</strong> <span style={{ color: salon.posmActive ? '#4ade80' : '#ef4444' }}>{salon.posmActive ? 'Yes' : 'No'}</span></p>
                                                 </div>
-                                            ))}
+                                                <p style={{ margin: '0.2rem 0', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                                                    <strong>Last Edited By:</strong> {salon.editedBy || 'N/A'}
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        <div className="card-actions">
+                                            <button
+                                                onClick={() => setExpandedSalonId(expandedSalonId === salon._id ? null : salon._id)}
+                                                className="icon-btn info"
+                                                title="Toggle Details"
+                                                style={{ border: '1px solid rgba(255,255,255,0.2)' }}
+                                            >
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                                            </button>
+                                            <button
+                                                onClick={() => handleDownloadQR(salon)}
+                                                className="icon-btn success"
+                                                title="Download SVG"
+                                            >
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                                            </button>
+                                            <button
+                                                onClick={() => handleDownloadJPG(salon)}
+                                                className="icon-btn success"
+                                                title="Download JPG"
+                                                style={{ backgroundColor: '#eab308', color: '#000' }}
+                                            >
+                                                <span style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>JPG</span>
+                                            </button>
+                                            <a
+                                                href={`/order/${salon.uniqueId}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="icon-btn primary"
+                                                title="Visit Shop"
+                                                style={{ backgroundColor: '#10b981' }}
+                                            >
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                                            </a>
+                                            <button
+                                                onClick={() => handleEditClick(salon)}
+                                                className="icon-btn primary"
+                                                title="Edit Salon"
+                                            >
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteSalon(salon._id)}
+                                                className="icon-btn danger"
+                                                title="Delete Salon"
+                                            >
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                            </button>
                                         </div>
-                                    </>
-                                );
-                            })()}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {visibleCount < filteredSalons.length && (
+                                <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+                                    <button
+                                        onClick={() => setVisibleCount(prev => prev + 50)}
+                                        className="btn-primary"
+                                        style={{ padding: '0.8rem 2rem' }}
+                                    >
+                                        Load More Salons ({filteredSalons.length - visibleCount} remaining)
+                                    </button>
+                                </div>
+                            )}
                         </section>
                     </div>
                 )
