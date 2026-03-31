@@ -439,6 +439,19 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleToggleMark = async (salon) => {
+        try {
+            const updatedMark = !salon.oneSalonMark;
+            const res = await axios.put(`${API_URL}/salons/${salon._id}/toggle-mark`, { oneSalonMark: updatedMark });
+            if (res.data.success) {
+                setSalons(prev => prev.map(s => s._id === salon._id ? { ...s, oneSalonMark: updatedMark } : s));
+            }
+        } catch (err) {
+            console.error('Error updating mark status', err);
+            alert('Failed to update mark status');
+        }
+    };
+
     const generateQRSVG = async (salon) => {
         const baseUrl = 'https://www.portal.fadnals.lk';
         const qrUrl = `${baseUrl}/order/${salon.uniqueId}`;
@@ -923,6 +936,7 @@ const AdminDashboard = () => {
                                             <th>Salon Name</th>
                                             <th>Phone Number</th>
                                             <th>Address</th>
+                                            <th style={{ textAlign: 'center' }}>Mark</th>
                                             <th style={{ textAlign: 'center' }}>Visited</th>
                                             <th style={{ textAlign: 'center' }}>Active</th>
                                             <th style={{ textAlign: 'center' }}>POSM</th>
@@ -931,10 +945,18 @@ const AdminDashboard = () => {
                                     </thead>
                                     <tbody>
                                         {detailedFilteredSalons.map((s, idx) => (
-                                            <tr key={idx}>
+                                            <tr key={idx} style={{ backgroundColor: s.oneSalonMark ? 'rgba(74, 222, 128, 0.2)' : 'transparent', transition: 'background-color 0.3s' }}>
                                                 <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>{s.name}</td>
                                                 <td>{s.contactNumber1}{s.contactNumber2 ? `, ${s.contactNumber2}` : ''}</td>
                                                 <td style={{ fontSize: '0.9rem', opacity: 0.8 }}>{s.location}</td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={s.oneSalonMark || false}
+                                                        onChange={() => handleToggleMark(s)}
+                                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                                    />
+                                                </td>
                                                 <td style={{ textAlign: 'center' }}>{s.isVisited ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
                                                 <td style={{ textAlign: 'center' }}>{s.isActive ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
                                                 <td style={{ textAlign: 'center' }}>{s.posmActive ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
@@ -960,7 +982,7 @@ const AdminDashboard = () => {
                                         ))}
                                         {detailedFilteredSalons.length === 0 && (
                                             <tr>
-                                                <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No salons found matching your criteria</td>
+                                                <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No salons found matching your criteria</td>
                                             </tr>
                                         )}
                                     </tbody>
