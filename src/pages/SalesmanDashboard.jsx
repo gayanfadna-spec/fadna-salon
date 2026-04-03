@@ -559,7 +559,7 @@ const SalesmanDashboard = () => {
                                 </div>
                             </div>
 
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                            <div style={{ display: 'flex', flexDirection: editingSalonId ? 'row' : 'column', justifyContent: 'flex-end', gap: '0.75rem' }}>
                                 {editingSalonId && (
                                     <button type="button" onClick={() => setEditingSalonId(null)} className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', padding: '0.6rem 1rem', fontSize: '0.9rem' }}>Cancel</button>
                                 )}
@@ -570,9 +570,19 @@ const SalesmanDashboard = () => {
                                     {isSubmitting ? (
                                         <span>Saving...</span>
                                     ) : (
-                                        editingSalonId ? <><ShieldCheck size={18} /> Save Changes</> : (formMode === 'assign' ? <><CheckCircle2 size={18} /> Assign setup</> : <><CheckCircle2 size={18} /> Register Salon</>)
+                                        editingSalonId ? <><ShieldCheck size={18} /> Save Changes</> : (formMode === 'assign' ? <><CheckCircle2 size={18} /> Assign setup</> : <><CheckCircle2 size={18} /> Add Draft Details</>)
                                     )}
                                 </button>
+                                {(!editingSalonId && formMode === 'draft') && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '' })}
+                                        className="btn-primary"
+                                        style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', padding: '0.6rem 1rem', fontSize: '0.9rem', width: '100%', display: 'flex', justifyContent: 'center' }}
+                                    >
+                                        Clear
+                                    </button>
+                                )}
                             </div>
                         </form>
                     </section>

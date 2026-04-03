@@ -950,8 +950,8 @@ const AdminDashboard = () => {
                                                 <td>{s.contactNumber1}{s.contactNumber2 ? `, ${s.contactNumber2}` : ''}</td>
                                                 <td style={{ fontSize: '0.9rem', opacity: 0.8 }}>{s.location}</td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    <input 
-                                                        type="checkbox" 
+                                                    <input
+                                                        type="checkbox"
                                                         checked={s.oneSalonMark || false}
                                                         onChange={() => handleToggleMark(s)}
                                                         style={{ width: '18px', height: '18px', cursor: 'pointer' }}
@@ -1280,7 +1280,7 @@ const AdminDashboard = () => {
                                         }} className="btn-primary" style={{ whiteSpace: 'nowrap' }}>+ Add Date</button>
                                     </div>
                                 </div>
-                                <button type="submit" className="btn-primary" style={{ width: '100%', marginBottom: editingSalonId ? '0.5rem' : '0' }}>
+                                <button type="submit" className="btn-primary" style={{ width: '100%', marginBottom: (editingSalonId || (!editingSalonId && formModeAdmin === 'draft')) ? '0.5rem' : '0' }}>
                                     {editingSalonId ? 'Update Salon' : (formModeAdmin === 'assign' ? 'Assign to QR Code' : (formModeAdmin === 'draft' ? 'Save Details Only' : 'Generate Registration & QR'))}
                                 </button>
                                 {editingSalonId && (
@@ -1291,6 +1291,16 @@ const AdminDashboard = () => {
                                         onClick={handleCancelEdit}
                                     >
                                         Cancel
+                                    </button>
+                                )}
+                                {(!editingSalonId && formModeAdmin === 'draft') && (
+                                    <button
+                                        type="button"
+                                        className="btn-primary outline"
+                                        style={{ width: '100%' }}
+                                        onClick={handleCancelEdit}
+                                    >
+                                        Clear
                                     </button>
                                 )}
                             </form>
