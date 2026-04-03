@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import ThemeToggle from '../components/ThemeToggle';
 import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -739,6 +740,7 @@ const AgentAdminDashboard = () => {
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <ThemeToggle />
                     <button className="btn-primary outline" style={{ padding: '0.5rem 1rem', opacity: 0.8 }} onClick={() => navigate('/admin')}>Salons Dashboard</button>
                     <button className="btn-primary outline" style={{ padding: '0.5rem 1rem', opacity: 0.8 }} onClick={() => navigate('/net-agent-admin')}>Net.Agents Dashboard</button>
                     <button className="btn-primary" style={{ padding: '0.5rem 1rem', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }} onClick={() => navigate('/qr-generator')}>🔲 Scan Dashboard</button>
@@ -779,15 +781,15 @@ const AgentAdminDashboard = () => {
                     )}
                     <select value={selectedRep} onChange={(e) => setSelectedRep(e.target.value)}
                         style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease' }}>
-                        <option value="" style={{ color: 'black' }}>All Reps</option>
-                        {reps.map(rep => <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>)}
-                        <option value="Unassigned" style={{ color: 'black' }}>Unassigned</option>
+                        <option value="" >All Reps</option>
+                        {reps.map(rep => <option key={rep._id} value={rep.name} >{rep.name}</option>)}
+                        <option value="Unassigned" >Unassigned</option>
                     </select>
 
                     <select value={selectedAgentId} onChange={(e) => setSelectedAgentId(e.target.value)}
                         style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease' }}>
-                        <option value="" style={{ color: 'black' }}>All Agents</option>
-                        {agents.map(agent => <option key={agent._id} value={agent._id} style={{ color: 'black' }}>{agent.name}</option>)}
+                        <option value="" >All Agents</option>
+                        {agents.map(agent => <option key={agent._id} value={agent._id} >{agent.name}</option>)}
                     </select>
                 </div>
             </div>
@@ -868,11 +870,11 @@ const AgentAdminDashboard = () => {
                                     onChange={(e) => setSelectedRep(e.target.value)}
                                     style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', minWidth: '200px' }}
                                 >
-                                    <option value="" style={{ color: 'black' }}>Select a Rep</option>
+                                    <option value="" >Select a Rep</option>
                                     {reps.map(rep => (
-                                        <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>
+                                        <option key={rep._id} value={rep.name} >{rep.name}</option>
                                     ))}
-                                    <option value="Unassigned" style={{ color: 'black' }}>Unassigned</option>
+                                    <option value="Unassigned" >Unassigned</option>
                                 </select>
                             </div>
                         </div>
@@ -1020,14 +1022,14 @@ const AgentAdminDashboard = () => {
                                                         textAlign: 'center'
                                                     }}
                                                 >
-                                                    <option style={{ color: 'black' }} value="Pending Payment">Pending</option>
-                                                    <option style={{ color: 'black' }} value="Paid">Paid</option>
-                                                    <option style={{ color: 'black' }} value="Processing">Processing</option>
-                                                    <option style={{ color: 'black' }} value="Shipped">Shipped</option>
-                                                    <option style={{ color: 'black' }} value="Completed">Completed</option>
-                                                    <option style={{ color: 'black' }} value="Returned">Returned</option>
-                                                    <option style={{ color: 'black' }} value="Cancelled">Cancelled</option>
-                                                    <option style={{ color: 'black' }} value="Payment Failed">Payment Failed</option>
+                                                    <option  value="Pending Payment">Pending</option>
+                                                    <option  value="Paid">Paid</option>
+                                                    <option  value="Processing">Processing</option>
+                                                    <option  value="Shipped">Shipped</option>
+                                                    <option  value="Completed">Completed</option>
+                                                    <option  value="Returned">Returned</option>
+                                                    <option  value="Cancelled">Cancelled</option>
+                                                    <option  value="Payment Failed">Payment Failed</option>
                                                 </select>
                                             </td>
                                         </tr>
@@ -1131,9 +1133,9 @@ const AgentAdminDashboard = () => {
                                     <div className="input-group">
                                         <label>Representative Name</label>
                                         <select value={newAgent.repName} onChange={(e) => setNewAgent({ ...newAgent, repName: e.target.value })}>
-                                            <option value="" style={{ color: 'black' }}>Select Rep Name</option>
+                                            <option value="" >Select Rep Name</option>
                                             {reps.map(rep => (
-                                                <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>
+                                                <option key={rep._id} value={rep.name} >{rep.name}</option>
                                             ))}
                                         </select>
                                     </div>
@@ -1335,9 +1337,9 @@ const AgentAdminDashboard = () => {
                                         }}
                                         required
                                     >
-                                        <option value="" style={{ color: 'black' }}>Select Rep (Required)</option>
+                                        <option value="" >Select Rep (Required)</option>
                                         {reps.map(rep => (
-                                            <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>
+                                            <option key={rep._id} value={rep.name} >{rep.name}</option>
                                         ))}
                                     </select>
 
@@ -1933,9 +1935,9 @@ const AgentAdminDashboard = () => {
                                         onChange={(e) => setNewAccount({ ...newAccount, role: e.target.value })}
                                         required
                                     >
-                                        <option value="salesman" style={{ color: 'black' }}>Salesman</option>
-                                        <option value="admin" style={{ color: 'black' }}>Admin</option>
-                                        <option value="superadmin" style={{ color: 'black' }}>Super Admin</option>
+                                        <option value="salesman" >Salesman</option>
+                                        <option value="admin" >Admin</option>
+                                        <option value="superadmin" >Super Admin</option>
                                     </select>
                                 </div>
                                 <div className="input-group">

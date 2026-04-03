@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import ThemeToggle from '../components/ThemeToggle';
 import { useNavigate } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onrender.com/api';
@@ -62,13 +63,16 @@ const AgentDashboard = () => {
                         <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9rem' }}>{agent.location}</p>
                     </div>
                 </div>
-                <button
-                    onClick={handleLogout}
-                    className="btn-primary outline"
-                    style={{ borderColor: '#ef4444', color: '#ef4444' }}
-                >
-                    Log Out
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <ThemeToggle />
+                    <button
+                        onClick={handleLogout}
+                        className="btn-primary outline"
+                        style={{ borderColor: '#ef4444', color: '#ef4444' }}
+                    >
+                        Log Out
+                    </button>
+                </div>
             </header>
 
             {/* Quick Stats */}

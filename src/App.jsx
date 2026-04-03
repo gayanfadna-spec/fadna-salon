@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import AdminDashboard from './pages/AdminDashboard';
 import OrderPage from './pages/OrderPage';
@@ -19,6 +19,10 @@ import QRGeneratorPage from './pages/QRGeneratorPage';
 import './index.css';
 
 function App() {
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') || 'default';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  }, []);
   return (
     <Router>
       <div className="app-container">

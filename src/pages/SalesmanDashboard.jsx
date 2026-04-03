@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { LogOut, Plus, X, Search, Store, MapPin, Phone, MessageSquare, Building, Map, Hash, User, ShieldCheck, Download, Edit3, Eye, EyeOff, CheckCircle2, CreditCard } from 'lucide-react';
+import ThemeToggle from '../components/ThemeToggle';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onrender.com/api';
 
@@ -213,32 +214,35 @@ const SalesmanDashboard = () => {
 
     return (
         <div className="container animate-fade-in" style={{ paddingBottom: '4rem' }}>
-            <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <img src="/Fadna New Logo.png" alt="Fadna Logo" className="site-logo" style={{ maxHeight: '45px', objectFit: 'contain' }} />
                     <h1 style={{ margin: 0, fontSize: '1.8rem', background: 'linear-gradient(to right, #ec4899, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                         Salon Register
                     </h1>
                 </div>
-                <button
-                    onClick={() => {
-                        localStorage.removeItem('salesmanUser');
-                        localStorage.removeItem('adminToken');
-                        localStorage.removeItem('adminRole');
-                        navigate('/login');
-                    }}
-                    className="btn-primary"
-                    style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}
-                >
-                    <LogOut size={16} /> Log Out
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                    <ThemeToggle />
+                    <button
+                        onClick={() => {
+                            localStorage.removeItem('salesmanUser');
+                            localStorage.removeItem('adminToken');
+                            localStorage.removeItem('adminRole');
+                            navigate('/login');
+                        }}
+                        className="btn-primary"
+                        style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}
+                    >
+                        <LogOut size={16} /> Log Out
+                    </button>
+                </div>
             </header>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                 {/* Search Bar Section - Made Prominent */}
                 <section className="glass-container" style={{ padding: '1rem 2rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{ position: 'relative', flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                        <div style={{ position: 'relative', flex: '1 1 250px', width: '100%' }}>
                             <Search size={20} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                             <input
                                 type="text"
@@ -272,7 +276,7 @@ const SalesmanDashboard = () => {
                                 Visited Only
                             </label>
                         </div>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                             <button
                                 onClick={() => {
                                     if (formMode === 'create') setFormMode(null); else setFormMode('create');
@@ -384,7 +388,7 @@ const SalesmanDashboard = () => {
                                 <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', background: 'none', WebkitTextFillColor: 'initial' }}>
                                     <Store size={18} /> Basic Information
                                 </h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
                                     <div>
                                         <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>Salon Name <span style={{ color: '#ef4444' }}>*</span></label>
                                         <div style={{ position: 'relative' }}>
@@ -393,10 +397,10 @@ const SalesmanDashboard = () => {
                                         </div>
                                     </div>
                                     <div>
-                                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>Location / City <span style={{ color: '#ef4444' }}>*</span></label>
+                                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>Location / City</label>
                                         <div style={{ position: 'relative' }}>
                                             <MapPin size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-                                            <input type="text" placeholder="e.g. Colombo 03" value={editingSalonId ? editFormData.location : newSalon.location} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, location: e.target.value }) : setNewSalon({ ...newSalon, location: e.target.value })} required style={{ padding: '0.6rem 0.6rem 0.6rem 2.25rem', margin: 0, fontSize: '0.9rem' }} />
+                                            <input type="text" placeholder="e.g. Colombo 03" value={editingSalonId ? editFormData.location : newSalon.location} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, location: e.target.value }) : setNewSalon({ ...newSalon, location: e.target.value })} style={{ padding: '0.6rem 0.6rem 0.6rem 2.25rem', margin: 0, fontSize: '0.9rem' }} />
                                         </div>
                                     </div>
                                     <div>
@@ -414,12 +418,13 @@ const SalesmanDashboard = () => {
                                         </div>
                                     </div>
                                     <div>
-                                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>Rep Name</label>
+                                        <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#cbd5e1' }}>Rep Name <span style={{ color: '#ef4444' }}>*</span></label>
                                         <div style={{ position: 'relative' }}>
                                             <User size={16} strokeWidth={2.5} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
                                             <select
                                                 value={editingSalonId ? editFormData.repName : newSalon.repName}
                                                 onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, repName: e.target.value }) : setNewSalon({ ...newSalon, repName: e.target.value })}
+                                                required
                                                 style={{
                                                     width: '100%',
                                                     padding: '0.6rem 0.6rem 0.6rem 2.25rem',
@@ -501,10 +506,10 @@ const SalesmanDashboard = () => {
                                 <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', background: 'none', WebkitTextFillColor: 'initial' }}>
                                     <Store size={18} /> Status & Marks
                                 </h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#cbd5e1' }}>
-                                            <input type="checkbox" checked={editingSalonId ? editFormData.isVisited : newSalon.isVisited} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, isVisited: e.target.checked }) : setNewSalon({ ...newSalon, isVisited: e.target.checked })} style={{ width: '18px', height: '18px' }} />
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500' }}>
+                                            <input type="checkbox" checked={editingSalonId ? editFormData.isVisited : newSalon.isVisited} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, isVisited: e.target.checked }) : setNewSalon({ ...newSalon, isVisited: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} />
                                             Visited Salon
                                         </label>
                                         {(editingSalonId ? editFormData.isVisited : newSalon.isVisited) && (
@@ -512,22 +517,18 @@ const SalesmanDashboard = () => {
                                                 type="date"
                                                 value={editingSalonId ? editFormData.visitedDate : newSalon.visitedDate}
                                                 onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, visitedDate: e.target.value }) : setNewSalon({ ...newSalon, visitedDate: e.target.value })}
-                                                style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                                                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white' }}
                                             />
                                         )}
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#cbd5e1' }}>
-                                            <input type="checkbox" checked={editingSalonId ? editFormData.isActive : newSalon.isActive} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, isActive: e.target.checked }) : setNewSalon({ ...newSalon, isActive: e.target.checked })} style={{ width: '18px', height: '18px' }} />
-                                            Active Salon
-                                        </label>
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#cbd5e1' }}>
-                                            <input type="checkbox" checked={editingSalonId ? editFormData.posmActive : newSalon.posmActive} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, posmActive: e.target.checked }) : setNewSalon({ ...newSalon, posmActive: e.target.checked })} style={{ width: '18px', height: '18px' }} />
-                                            POSM Active Salon
-                                        </label>
-                                    </div>
+                                    <label style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500' }}>
+                                        <input type="checkbox" checked={editingSalonId ? editFormData.isActive : newSalon.isActive} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, isActive: e.target.checked }) : setNewSalon({ ...newSalon, isActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} />
+                                        Active Salon
+                                    </label>
+                                    <label style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500' }}>
+                                        <input type="checkbox" checked={editingSalonId ? editFormData.posmActive : newSalon.posmActive} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, posmActive: e.target.checked }) : setNewSalon({ ...newSalon, posmActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} />
+                                        POSM Active Salon
+                                    </label>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
                                     <label style={{ color: '#cbd5e1', fontSize: '1rem', fontWeight: 'bold' }}>Revisited Dates (Mark old visits here)</label>
@@ -544,8 +545,8 @@ const SalesmanDashboard = () => {
                                             </div>
                                         ))}
                                     </div>
-                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                                        <input type="date" id={`revisit-date-${editingSalonId || 'new'}`} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+                                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                                        <input type="date" id={`revisit-date-${editingSalonId || 'new'}`} style={{ flex: '1 1 200px', padding: '0.6rem', margin: 0, borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white' }} />
                                         <button type="button" onClick={() => {
                                             const dateVal = document.getElementById(`revisit-date-${editingSalonId || 'new'}`).value;
                                             if (dateVal) {
@@ -554,31 +555,31 @@ const SalesmanDashboard = () => {
                                                 if (editingSalonId) setEditFormData({ ...editFormData, revisitedDates: newValue }); else setNewSalon({ ...newSalon, revisitedDates: newValue });
                                                 document.getElementById(`revisit-date-${editingSalonId || 'new'}`).value = '';
                                             }
-                                        }} className="btn-primary" style={{ padding: '0.5rem 1rem' }}>Add Date</button>
+                                        }} className="btn-primary" style={{ padding: '0.6rem 1.5rem', whiteSpace: 'nowrap', flex: '0 1 auto' }}>+ Add Date</button>
                                     </div>
                                 </div>
                             </div>
 
-                            <div style={{ display: 'flex', flexDirection: editingSalonId ? 'row' : 'column', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginTop: '1rem' }}>
                                 {editingSalonId && (
-                                    <button type="button" onClick={() => setEditingSalonId(null)} className="btn-primary" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', padding: '0.6rem 1rem', fontSize: '0.9rem' }}>Cancel</button>
+                                    <button type="button" onClick={() => setEditingSalonId(null)} className="btn-primary outline" style={{ flex: '1 1 120px', padding: '0.8rem 1rem', fontSize: '1rem' }}>Cancel</button>
                                 )}
                                 <button type="submit" className="btn-primary" disabled={isSubmitting} style={{
-                                    padding: '0.6rem 1.25rem', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem',
-                                    opacity: isSubmitting ? 0.7 : 1, width: editingSalonId ? 'auto' : '100%', justifyContent: 'center'
+                                    flex: '2 1 200px', padding: '0.8rem 1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                    opacity: isSubmitting ? 0.7 : 1, justifyContent: 'center'
                                 }}>
                                     {isSubmitting ? (
                                         <span>Saving...</span>
                                     ) : (
-                                        editingSalonId ? <><ShieldCheck size={18} /> Save Changes</> : (formMode === 'assign' ? <><CheckCircle2 size={18} /> Assign setup</> : <><CheckCircle2 size={18} /> Add Draft Details</>)
+                                        editingSalonId ? <><ShieldCheck size={20} /> Save Changes</> : (formMode === 'assign' ? <><CheckCircle2 size={20} /> Assign Setup</> : (formMode === 'draft' ? <><CheckCircle2 size={20} /> Add Draft Details</> : <><CheckCircle2 size={20} /> Register Salon</>))
                                     )}
                                 </button>
                                 {(!editingSalonId && formMode === 'draft') && (
                                     <button
                                         type="button"
                                         onClick={() => setNewSalon({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '' })}
-                                        className="btn-primary"
-                                        style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', padding: '0.6rem 1rem', fontSize: '0.9rem', width: '100%', display: 'flex', justifyContent: 'center' }}
+                                        className="btn-primary outline"
+                                        style={{ flex: '1 1 120px', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '0.8rem 1rem', fontSize: '1rem', display: 'flex', justifyContent: 'center' }}
                                     >
                                         Clear
                                     </button>
@@ -645,101 +646,7 @@ const SalesmanDashboard = () => {
                     </section>
                 )}
 
-                {/* Bulk Registration Section */}
-                <section className="glass-container">
-                    <h2>Bulk Registration</h2>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '1rem' }}>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'nowrap' }}>
-                            <select
-                                value={newSalon.repName}
-                                onChange={(e) => setNewSalon({ ...newSalon, repName: e.target.value })}
-                                style={{
-                                    padding: '0.8rem',
-                                    borderRadius: '8px',
-                                    border: '1px solid rgba(255,255,255,0.2)',
-                                    background: 'rgba(255,255,255,0.1)',
-                                    color: 'white',
-                                    minWidth: '200px'
-                                }}
-                                required
-                            >
-                                <option value="" style={{ color: 'black' }}>Select Rep (Required)</option>
-                                {reps.map(rep => (
-                                    <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>
-                                ))}
-                            </select>
-
-                            <label htmlFor="excel-upload" className="btn-primary" style={{ cursor: 'pointer', padding: '0.8rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#334155', color: 'white', border: '1px solid rgba(255,255,255,0.2)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                                {selectedExcelFile ? selectedExcelFile.name : 'Choose Excel / CSV'}
-                            </label>
-                            <input
-                                id="excel-upload"
-                                type="file"
-                                accept=".xlsx, .xls, .csv"
-                                onChange={(e) => {
-                                    if (e.target.files && e.target.files.length > 0) {
-                                        setSelectedExcelFile(e.target.files[0]);
-                                    }
-                                }}
-                                style={{ display: 'none' }}
-                            />
-                            <button
-                                onClick={handleExcelUpload}
-                                disabled={!selectedExcelFile}
-                                className="btn-primary"
-                                style={{ padding: '0.8rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', background: selectedExcelFile ? '#4ade80' : '#22c55e', opacity: selectedExcelFile ? 1 : 0.5, color: '#0f172a', border: 'none', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: selectedExcelFile ? 'pointer' : 'not-allowed' }}
-                            >
-                                Submit Upload
-                            </button>
-                        </div>
-                    </div>
-
-                    {newBulkSalons.length > 0 && (
-                        <div style={{ marginTop: '2rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                <h3 style={{ margin: 0 }}>Newly Registered Salons ({newBulkSalons.length})</h3>
-                                <div style={{ display: 'flex', gap: '1rem' }}>
-                                    <button
-                                        onClick={() => setNewBulkSalons([])}
-                                        className="btn-primary outline"
-                                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
-                                    >
-                                        Clear List
-                                    </button>
-                                </div>
-                            </div>
-                            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                                <table className="styled-table" style={{ fontSize: '0.9rem', width: '100%', borderCollapse: 'collapse', color: 'white', textAlign: 'left' }}>
-                                    <thead>
-                                        <tr style={{ background: 'rgba(255,255,255,0.1)' }}>
-                                            <th style={{ padding: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Name</th>
-                                            <th style={{ padding: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Location</th>
-                                            <th style={{ padding: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Code</th>
-                                            <th style={{ padding: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Username</th>
-                                            <th style={{ padding: '0.8rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Password</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {newBulkSalons.map((salon, i) => (
-                                            <tr key={salon._id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                <td style={{ padding: '0.8rem' }}>{salon.name}</td>
-                                                <td style={{ padding: '0.8rem' }}>{salon.location}</td>
-                                                <td style={{ padding: '0.8rem', fontWeight: 'bold', color: '#818cf8' }}>{salon.salonCode || 'N/A'}</td>
-                                                <td style={{ padding: '0.8rem' }}>{salon.username}</td>
-                                                <td style={{ padding: '0.8rem', fontFamily: 'monospace' }}>{salon.plainPassword}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                            <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#fbbf24' }}>
-                                ⚠ Please save these credentials now. Passwords may not be visible later.
-                            </p>
-                        </div>
-                    )}
-                </section>
 
                 {/* Salon List Section */}
                 <section className="glass-container">
@@ -747,7 +654,7 @@ const SalesmanDashboard = () => {
                         <Store size={24} /> Registered Salons ({salons.length})
                     </h2>
 
-                    <div className="salon-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
+                    <div className="salon-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
                         {salons
                             .filter(salon => {
                                 if (filterVisited && !salon.isVisited) return false;
@@ -759,45 +666,45 @@ const SalesmanDashboard = () => {
                                     (salon.location || '').toLowerCase().includes(term)
                                 );
                             })
-                            .slice(0, 30) // Show up to 30 matching for perf
+                            .slice(0, 12) // Show up to 12 matching for perf
                             .map(salon => (
-                                <div key={salon._id} className="salon-card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%)', border: '1px solid rgba(255,255,255,0.08)', position: 'relative', overflow: 'hidden' }}>
-                                    <div style={{ position: 'absolute', top: 0, right: 0, padding: '0.5rem 1rem', background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', fontWeight: 'bold', borderBottomLeftRadius: '12px', fontSize: '0.9rem', letterSpacing: '1px' }}>
+                                <div key={salon._id} className="salon-card" style={{ display: 'flex', flexDirection: 'column', padding: '1rem', background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%)', border: '1px solid rgba(255,255,255,0.08)', position: 'relative', overflow: 'hidden' }}>
+                                    <div style={{ position: 'absolute', top: 0, right: 0, padding: '0.3rem 0.6rem', background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', fontWeight: 'bold', borderBottomLeftRadius: '12px', fontSize: '0.8rem', letterSpacing: '1px' }}>
                                         {salon.salonCode || 'DRAFT'}
                                     </div>
 
-                                    <div style={{ paddingRight: '4rem', marginBottom: '1rem' }}>
-                                        <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem', color: '#f8fafc', WebkitTextFillColor: 'initial', background: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                    <div style={{ paddingRight: '3.5rem', marginBottom: '0.5rem' }}>
+                                        <h3 style={{ margin: '0 0 0.3rem 0', fontSize: '1.1rem', color: '#f8fafc', WebkitTextFillColor: 'initial', background: 'none', display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
                                             {salon.name}
-                                            {salon.isVisited && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: 'rgba(74,222,128,0.2)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>Visited</span>}
-                                            {salon.isActive && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: 'rgba(56,189,248,0.2)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}>Active</span>}
-                                            {salon.posmActive && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: 'rgba(192,132,252,0.2)', color: '#c084fc', border: '1px solid rgba(192,132,252,0.3)' }}>POSM</span>}
-                                            {!salon.salonCode && <span style={{ fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '12px', background: 'rgba(239,68,68,0.2)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>Draft (No QR)</span>}
+                                            {salon.isVisited && <span style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', borderRadius: '8px', background: 'rgba(74,222,128,0.2)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>Visited</span>}
+                                            {salon.isActive && <span style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', borderRadius: '8px', background: 'rgba(56,189,248,0.2)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}>Active</span>}
+                                            {salon.posmActive && <span style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', borderRadius: '8px', background: 'rgba(192,132,252,0.2)', color: '#c084fc', border: '1px solid rgba(192,132,252,0.3)' }}>POSM</span>}
+                                            {!salon.salonCode && <span style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', borderRadius: '8px', background: 'rgba(239,68,68,0.2)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>Draft (No QR)</span>}
                                         </h3>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#94a3b8', fontSize: '0.9rem' }}>
-                                            <MapPin size={14} /> {salon.location || 'Location Not Set'}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#94a3b8', fontSize: '0.85rem' }}>
+                                            <MapPin size={13} /> {salon.location || 'Location Not Set'}
                                         </div>
                                     </div>
 
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, marginBottom: '1.5rem' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#cbd5e1', fontSize: '0.9rem' }}>
-                                            <Phone size={14} color="#64748b" /> {salon.contactNumber1 || salon.contactNumber || 'No Contact Info'}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1, marginBottom: '0.75rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#cbd5e1', fontSize: '0.85rem' }}>
+                                            <Phone size={13} color="#64748b" /> {salon.contactNumber1 || salon.contactNumber || 'No Contact Info'}
                                         </div>
                                     </div>
 
-                                    <div className="credential-box" style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                        <div className="credential-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '0.3rem' }}>
+                                    <div className="credential-box" style={{ background: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: '6px', marginBottom: '0.75rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <div className="credential-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.2rem' }}>
                                             <span style={{ color: '#94a3b8' }}>User:</span>
                                             <span style={{ color: '#f8fafc', fontWeight: 'bold' }}>{salon.username || '-'}</span>
                                         </div>
-                                        <div className="credential-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                                        <div className="credential-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                                             <span style={{ color: '#94a3b8' }}>Pass:</span>
                                             <span style={{ color: salon.plainPassword ? '#4ade80' : '#f8fafc', fontWeight: 'bold' }}>{salon.plainPassword || '••••••'}</span>
                                         </div>
                                     </div>
 
                                     {/* Action Buttons Container */}
-                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem' }}>
+                                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: 'auto', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.75rem' }}>
                                         <button
                                             onClick={() => setExpandedSalonId(expandedSalonId === salon._id ? null : salon._id)}
                                             className="icon-btn"

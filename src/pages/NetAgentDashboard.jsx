@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import ThemeToggle from '../components/ThemeToggle';
 import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -431,6 +432,7 @@ const NetAgentDashboard = () => {
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <ThemeToggle />
                     <button className="btn-primary outline" style={{ padding: '0.5rem 1rem', opacity: 0.8 }} onClick={() => navigate('/admin')}>Salon Dashboard</button>
                     <button className="btn-primary outline" style={{ padding: '0.5rem 1rem', opacity: 0.8 }} onClick={() => navigate('/agent-admin')}>Agent Dashboard</button>
                     <button className="btn-primary" style={{ padding: '0.5rem 1rem', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }} onClick={() => navigate('/qr-generator')}>🔲 Scan Dashboard</button>
@@ -457,8 +459,8 @@ const NetAgentDashboard = () => {
                     )}
                     <select value={selectedAgentId} onChange={e => setSelectedAgentId(e.target.value)}
                         style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease' }}>
-                        <option value="" style={{ color: 'black' }}>All Agents</option>
-                        {agents.map(a => <option key={a._id} value={a._id} style={{ color: 'black' }}>{a.name}</option>)}
+                        <option value="" >All Agents</option>
+                        {agents.map(a => <option key={a._id} value={a._id} >{a.name}</option>)}
                     </select>
                 </div>
             </div>
@@ -504,7 +506,7 @@ const NetAgentDashboard = () => {
                                         <td>
                                             <select value={o.status} disabled={adminRole === 'admin'} onChange={e => updateStatus(o._id, e.target.value)}
                                                 style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', padding: '0.3rem', fontSize: '0.8rem' }}>
-                                                {['Processing', 'Shipped', 'Completed', 'Cancelled', 'Returned'].map(s => <option key={s} value={s} style={{ color: 'black' }}>{s}</option>)}
+                                                {['Processing', 'Shipped', 'Completed', 'Cancelled', 'Returned'].map(s => <option key={s} value={s} >{s}</option>)}
                                             </select>
                                         </td>
                                     </tr>
@@ -553,7 +555,7 @@ const NetAgentDashboard = () => {
                                         <td>
                                             <select value={o.status} disabled={adminRole === 'admin'} onChange={e => updateStatus(o._id, e.target.value)}
                                                 style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', padding: '0.3rem', fontSize: '0.8rem' }}>
-                                                {['Processing', 'Shipped', 'Completed', 'Cancelled', 'Returned'].map(s => <option key={s} value={s} style={{ color: 'black' }}>{s}</option>)}
+                                                {['Processing', 'Shipped', 'Completed', 'Cancelled', 'Returned'].map(s => <option key={s} value={s} >{s}</option>)}
                                             </select>
                                         </td>
                                     </tr>
@@ -614,8 +616,8 @@ const NetAgentDashboard = () => {
                                 <div className="input-group">
                                     <label>Representative Name</label>
                                     <select value={form.repName} onChange={e => setForm({ ...form, repName: e.target.value })}>
-                                        <option value="" style={{ color: 'black' }}>Select Rep</option>
-                                        {reps.map(r => <option key={r._id} value={r.name} style={{ color: 'black' }}>{r.name}</option>)}
+                                        <option value="" >Select Rep</option>
+                                        {reps.map(r => <option key={r._id} value={r.name} >{r.name}</option>)}
                                     </select>
                                 </div>
                                 <div className="input-group">

@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
+import ThemeToggle from '../components/ThemeToggle';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onrender.com/api';
 
@@ -784,6 +785,7 @@ const AdminDashboard = () => {
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <ThemeToggle />
                     <button className="btn-primary outline" style={{ padding: '0.5rem 1rem', opacity: 0.8 }} onClick={() => navigate('/agent-admin')}>Agents Dashboard</button>
                     <button className="btn-primary outline" style={{ padding: '0.5rem 1rem', opacity: 0.8 }} onClick={() => navigate('/net-agent-admin')}>Net.Agents Dashboard</button>
                     <button className="btn-primary" style={{ padding: '0.5rem 1rem', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }} onClick={() => navigate('/qr-generator')}>🔲 Scan Dashboard</button>
@@ -824,15 +826,15 @@ const AdminDashboard = () => {
                     )}
                     <select value={selectedRep} onChange={(e) => setSelectedRep(e.target.value)}
                         style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease' }}>
-                        <option value="" style={{ color: 'black' }}>All Reps</option>
-                        {reps.map(rep => <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>)}
-                        <option value="Unassigned" style={{ color: 'black' }}>Unassigned</option>
+                        <option value="" >All Reps</option>
+                        {reps.map(rep => <option key={rep._id} value={rep.name} >{rep.name}</option>)}
+                        <option value="Unassigned" >Unassigned</option>
                     </select>
 
                     <select value={selectedSalonId} onChange={(e) => setSelectedSalonId(e.target.value)}
                         style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease' }}>
-                        <option value="" style={{ color: 'black' }}>All Salons</option>
-                        {salons.map(salon => <option key={salon._id} value={salon._id} style={{ color: 'black' }}>{salon.name}</option>)}
+                        <option value="" >All Salons</option>
+                        {salons.map(salon => <option key={salon._id} value={salon._id} >{salon.name}</option>)}
                     </select>
                 </div>
             </div>
@@ -913,11 +915,11 @@ const AdminDashboard = () => {
                                     onChange={(e) => setSelectedRep(e.target.value)}
                                     style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', minWidth: '200px' }}
                                 >
-                                    <option value="" style={{ color: 'black' }}>Select a Rep</option>
+                                    <option value="" >Select a Rep</option>
                                     {reps.map(rep => (
-                                        <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>
+                                        <option key={rep._id} value={rep.name} >{rep.name}</option>
                                     ))}
-                                    <option value="Unassigned" style={{ color: 'black' }}>Unassigned</option>
+                                    <option value="Unassigned" >Unassigned</option>
                                 </select>
                             </div>
                         </div>
@@ -1074,14 +1076,14 @@ const AdminDashboard = () => {
                                                             textAlign: 'center'
                                                         }}
                                                     >
-                                                        <option style={{ color: 'black' }} value="Pending Payment">Pending</option>
-                                                        <option style={{ color: 'black' }} value="Paid">Paid</option>
-                                                        <option style={{ color: 'black' }} value="Processing">Processing</option>
-                                                        <option style={{ color: 'black' }} value="Shipped">Shipped</option>
-                                                        <option style={{ color: 'black' }} value="Completed">Completed</option>
-                                                        <option style={{ color: 'black' }} value="Returned">Returned</option>
-                                                        <option style={{ color: 'black' }} value="Cancelled">Cancelled</option>
-                                                        <option style={{ color: 'black' }} value="Payment Failed">Payment Failed</option>
+                                                        <option value="Pending Payment">Pending</option>
+                                                        <option value="Paid">Paid</option>
+                                                        <option value="Processing">Processing</option>
+                                                        <option value="Shipped">Shipped</option>
+                                                        <option value="Completed">Completed</option>
+                                                        <option value="Returned">Returned</option>
+                                                        <option value="Cancelled">Cancelled</option>
+                                                        <option value="Payment Failed">Payment Failed</option>
                                                     </select>
                                                 </td>
                                             </tr>
@@ -1183,11 +1185,11 @@ const AdminDashboard = () => {
                                         <input type="text" placeholder="Phone 2" value={newSalon.contactNumber2} onChange={(e) => setNewSalon({ ...newSalon, contactNumber2: e.target.value })} />
                                     </div>
                                     <div className="input-group">
-                                        <label>Representative Name</label>
-                                        <select value={newSalon.repName} onChange={(e) => setNewSalon({ ...newSalon, repName: e.target.value })}>
-                                            <option value="" style={{ color: 'black' }}>Select Rep Name</option>
+                                        <label>Representative Name *</label>
+                                        <select value={newSalon.repName} onChange={(e) => setNewSalon({ ...newSalon, repName: e.target.value })} required>
+                                            <option value="" >Select Rep Name</option>
                                             {reps.map(rep => (
-                                                <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>
+                                                <option key={rep._id} value={rep.name} >{rep.name}</option>
                                             ))}
                                         </select>
                                     </div>
@@ -1226,10 +1228,10 @@ const AdminDashboard = () => {
                                 </div>
 
                                 <h3 className="section-title">Status & Marks</h3>
-                                <div className="form-grid" style={{ marginBottom: '1.5rem', alignContent: 'start', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                                    <div className="input-group" style={{ justifyContent: 'center' }}>
-                                        <label style={{ cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
-                                            <input type="checkbox" checked={newSalon.isVisited} onChange={(e) => setNewSalon({ ...newSalon, isVisited: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500' }}>
+                                            <input type="checkbox" checked={newSalon.isVisited} onChange={(e) => setNewSalon({ ...newSalon, isVisited: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)', margin: 0 }} />
                                             Visited Salon
                                         </label>
                                         {newSalon.isVisited && (
@@ -1237,22 +1239,18 @@ const AdminDashboard = () => {
                                                 type="date"
                                                 value={newSalon.visitedDate}
                                                 onChange={(e) => setNewSalon({ ...newSalon, visitedDate: e.target.value })}
-                                                style={{ marginTop: '0.5rem' }}
+                                                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white', marginTop: 0 }}
                                             />
                                         )}
                                     </div>
-                                    <div className="input-group" style={{ justifyContent: 'center' }}>
-                                        <label style={{ cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
-                                            <input type="checkbox" checked={newSalon.isActive} onChange={(e) => setNewSalon({ ...newSalon, isActive: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
-                                            Active Salon
-                                        </label>
-                                    </div>
-                                    <div className="input-group" style={{ justifyContent: 'center' }}>
-                                        <label style={{ cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
-                                            <input type="checkbox" checked={newSalon.posmActive} onChange={(e) => setNewSalon({ ...newSalon, posmActive: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
-                                            POSM Active Salon
-                                        </label>
-                                    </div>
+                                    <label style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500' }}>
+                                        <input type="checkbox" checked={newSalon.isActive} onChange={(e) => setNewSalon({ ...newSalon, isActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)', margin: 0 }} />
+                                        Active Salon
+                                    </label>
+                                    <label style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500' }}>
+                                        <input type="checkbox" checked={newSalon.posmActive} onChange={(e) => setNewSalon({ ...newSalon, posmActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)', margin: 0 }} />
+                                        POSM Active Salon
+                                    </label>
                                 </div>
 
                                 <div className="input-group" style={{ marginBottom: '2rem' }}>
@@ -1269,40 +1267,37 @@ const AdminDashboard = () => {
                                             </div>
                                         ))}
                                     </div>
-                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                                        <input type="date" id={`revisit-date-${editingSalonId || 'new'}`} style={{ flex: 1, margin: 0 }} />
+                                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                                        <input type="date" id={`revisit-date-${editingSalonId || 'new'}`} style={{ flex: '1 1 200px', padding: '0.6rem', margin: 0, borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white' }} />
                                         <button type="button" onClick={() => {
                                             const dateVal = document.getElementById(`revisit-date-${editingSalonId || 'new'}`).value;
                                             if (dateVal) {
                                                 setNewSalon({ ...newSalon, revisitedDates: [...(newSalon.revisitedDates || []), dateVal] });
                                                 document.getElementById(`revisit-date-${editingSalonId || 'new'}`).value = '';
                                             }
-                                        }} className="btn-primary" style={{ whiteSpace: 'nowrap' }}>+ Add Date</button>
+                                        }} className="btn-primary" style={{ padding: '0.6rem 1.5rem', whiteSpace: 'nowrap', flex: '0 1 auto' }}>+ Add Date</button>
                                     </div>
                                 </div>
-                                <button type="submit" className="btn-primary" style={{ width: '100%', marginBottom: (editingSalonId || (!editingSalonId && formModeAdmin === 'draft')) ? '0.5rem' : '0' }}>
-                                    {editingSalonId ? 'Update Salon' : (formModeAdmin === 'assign' ? 'Assign to QR Code' : (formModeAdmin === 'draft' ? 'Save Details Only' : 'Generate Registration & QR'))}
-                                </button>
-                                {editingSalonId && (
-                                    <button
-                                        type="button"
-                                        className="btn-primary outline"
-                                        style={{ width: '100%' }}
-                                        onClick={handleCancelEdit}
-                                    >
-                                        Cancel
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginTop: '1rem' }}>
+                                    {editingSalonId && (
+                                        <button type="button" onClick={handleCancelEdit} className="btn-primary outline" style={{ flex: '1 1 120px', padding: '0.8rem 1rem', fontSize: '1rem' }}>Cancel</button>
+                                    )}
+                                    <button type="submit" className="btn-primary" style={{
+                                        flex: '2 1 200px', padding: '0.8rem 1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center'
+                                    }}>
+                                        {editingSalonId ? 'Update Salon' : (formModeAdmin === 'assign' ? 'Assign to QR Code' : (formModeAdmin === 'draft' ? 'Save Details Only' : 'Generate Registration & QR'))}
                                     </button>
-                                )}
-                                {(!editingSalonId && formModeAdmin === 'draft') && (
-                                    <button
-                                        type="button"
-                                        className="btn-primary outline"
-                                        style={{ width: '100%' }}
-                                        onClick={handleCancelEdit}
-                                    >
-                                        Clear
-                                    </button>
-                                )}
+                                    {(!editingSalonId && formModeAdmin === 'draft') && (
+                                        <button
+                                            type="button"
+                                            className="btn-primary outline"
+                                            onClick={handleCancelEdit}
+                                            style={{ flex: '1 1 120px', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '0.8rem 1rem', fontSize: '1rem', display: 'flex', justifyContent: 'center' }}
+                                        >
+                                            Clear
+                                        </button>
+                                    )}
+                                </div>
                             </form>
 
 
@@ -1399,9 +1394,9 @@ const AdminDashboard = () => {
                                         }}
                                         required
                                     >
-                                        <option value="" style={{ color: 'black' }}>Select Rep (Required)</option>
+                                        <option value="" >Select Rep (Required)</option>
                                         {reps.map(rep => (
-                                            <option key={rep._id} value={rep.name} style={{ color: 'black' }}>{rep.name}</option>
+                                            <option key={rep._id} value={rep.name} >{rep.name}</option>
                                         ))}
                                     </select>
 
@@ -1986,9 +1981,9 @@ const AdminDashboard = () => {
                                             onChange={(e) => setNewAccount({ ...newAccount, role: e.target.value })}
                                             required
                                         >
-                                            <option value="salesman" style={{ color: 'black' }}>Salesman</option>
-                                            <option value="admin" style={{ color: 'black' }}>Admin</option>
-                                            <option value="superadmin" style={{ color: 'black' }}>Super Admin</option>
+                                            <option value="salesman" >Salesman</option>
+                                            <option value="admin" >Admin</option>
+                                            <option value="superadmin" >Super Admin</option>
                                         </select>
                                     </div>
                                     <div className="input-group">
