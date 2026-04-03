@@ -5,6 +5,10 @@ import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
+import {
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+    LineChart, Line, AreaChart, Area
+} from 'recharts';
 import ThemeToggle from '../components/ThemeToggle';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onrender.com/api';
@@ -759,21 +763,68 @@ const AdminDashboard = () => {
         logReportHistory('Performance Summary', salonPerformance.length);
     };
 
-    const activeSalonsCount = salons.filter(s => s.isActive).length;
-    const posmSalonsCount = salons.filter(s => s.posmActive).length;
-    const visitedSalonsFromDb = salons.filter(s => s.isVisited).length;
+    const activeSalonsCount = salons.filter(s => {
+        const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+        return s.isActive && (!selectedRep || rep === selectedRep);
+    }).length;
+    const posmSalonsCount = salons.filter(s => {
+        const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+        return s.posmActive && (!selectedRep || rep === selectedRep);
+    }).length;
+    const visitedSalonsFromDb = salons.filter(s => {
+        const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+        return s.isVisited && (!selectedRep || rep === selectedRep);
+    }).length;
+    const revisitedCount = salons.filter(s => {
+        const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+        return (s.revisitedDates && s.revisitedDates.length > 0) && (!selectedRep || rep === selectedRep);
+    }).length;
+
+    const activeRate = visitedSalonsFromDb > 0 ? ((activeSalonsCount / visitedSalonsFromDb) * 100).toFixed(1) : 0;
+    const posmRate = visitedSalonsFromDb > 0 ? ((posmSalonsCount / visitedSalonsFromDb) * 100).toFixed(1) : 0;
+    const revisitedRate = visitedSalonsFromDb > 0 ? ((revisitedCount / visitedSalonsFromDb) * 100).toFixed(1) : 0;
 
     const repStats = {};
     salons.forEach(s => {
         const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
         if (!repStats[rep]) {
-            repStats[rep] = { name: rep, visited: 0, active: 0, posm: 0 };
+            repStats[rep] = { name: rep, visited: 0, active: 0, posm: 0, revisited: 0 };
         }
         if (s.isVisited) repStats[rep].visited += 1;
         if (s.isActive) repStats[rep].active += 1;
         if (s.posmActive) repStats[rep].posm += 1;
+        if (s.revisitedDates && s.revisitedDates.length > 0) repStats[rep].revisited += 1;
     });
-    const repChartData = Object.values(repStats).sort((a, b) => a.name.localeCompare(b.name));
+    const repChartData = (selectedRep === '' || selectedRep === 'Unassigned')
+        ? Object.values(repStats).sort((a, b) => a.name.localeCompare(b.name))
+        : Object.values(repStats).filter(r => r.name === selectedRep);
+
+    const monthPerformanceData = React.useMemo(() => {
+        const months = {};
+        salons.forEach(s => {
+            const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+            if (selectedRep && rep !== selectedRep) return;
+
+            const date = s.visitedDate || s.createdAt;
+            if (!date) return;
+            const d = new Date(date);
+            if (isNaN(d.getTime())) return;
+            const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (!months[mKey]) {
+                months[mKey] = {
+                    key: mKey,
+                    month: d.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+                    visited: 0,
+                    active: 0,
+                    posm: 0
+                };
+            }
+            if (s.isVisited) months[mKey].visited++;
+            if (s.isActive) months[mKey].active++;
+            if (s.posmActive) months[mKey].posm++;
+        });
+        return Object.values(months).sort((a, b) => a.key.localeCompare(b.key));
+    }, [salons, selectedRep]);
 
     return (
         <div className="admin-container animate-fade-in">
@@ -846,30 +897,97 @@ const AdminDashboard = () => {
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+                        <div style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
+                            <h3 style={{ color: '#4ade80', marginBottom: '0.5rem', fontSize: '1rem' }}>Total Visited</h3>
+                            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff' }}>{visitedSalonsFromDb}</div>
+                        </div>
                         <div style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
-                            <h3 style={{ color: '#38bdf8', marginBottom: '0.5rem', fontSize: '1.2rem' }}>Active Salons</h3>
-                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#fff' }}>{activeSalonsCount}</div>
+                            <h3 style={{ color: '#38bdf8', marginBottom: '0.5rem', fontSize: '1rem' }}>Active Salons</h3>
+                            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff' }}>{activeSalonsCount}</div>
+                        </div>
+                        <div style={{ background: 'rgba(244,114,182,0.1)', border: '1px solid rgba(244,114,182,0.3)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
+                            <h3 style={{ color: '#f472b6', marginBottom: '0.5rem', fontSize: '1rem' }}>Revisited</h3>
+                            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff' }}>{revisitedCount}</div>
                         </div>
                         <div style={{ background: 'rgba(192,132,252,0.1)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
-                            <h3 style={{ color: '#c084fc', marginBottom: '0.5rem', fontSize: '1.2rem' }}>POSM Active</h3>
-                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#fff' }}>{posmSalonsCount}</div>
+                            <h3 style={{ color: '#c084fc', marginBottom: '0.5rem', fontSize: '1rem' }}>POSM Active</h3>
+                            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff' }}>{posmSalonsCount}</div>
                         </div>
-                        <div style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
-                            <h3 style={{ color: '#4ade80', marginBottom: '0.5rem', fontSize: '1.2rem' }}>Visited Salons</h3>
-                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#fff' }}>{visitedSalonsFromDb}</div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+                        <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(0,0,0,0.2))', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(99,102,241,0.2)' }}>
+                            <div style={{ fontSize: '0.9rem', color: '#818cf8', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Market Active Rate</div>
+                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>{activeRate}%</div>
+                            <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>Active / Visited Salons</div>
+                        </div>
+                        <div style={{ background: 'linear-gradient(135deg, rgba(192,132,252,0.1), rgba(0,0,0,0.2))', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(192,132,252,0.2)' }}>
+                            <div style={{ fontSize: '0.9rem', color: '#c084fc', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>POSM Rate</div>
+                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>{posmRate}%</div>
+                            <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>POSM Active / Visited Salons</div>
+                        </div>
+                        <div style={{ background: 'linear-gradient(135deg, rgba(244,114,182,0.1), rgba(0,0,0,0.2))', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(244,114,182,0.2)' }}>
+                            <div style={{ fontSize: '0.9rem', color: '#f472b6', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Revisited Rate</div>
+                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>{revisitedRate}%</div>
+                            <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>Revisited / Visited Salons</div>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem', marginBottom: '2rem' }}>
+                        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <h3 style={{ marginBottom: '1.5rem', color: '#fff' }}>Visited vs Active vs POSM per Rep</h3>
+                            <div style={{ width: '100%', height: 300 }}>
+                                <ResponsiveContainer>
+                                    <BarChart data={repChartData}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                        <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" fontSize={12} />
+                                        <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} />
+                                        <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} />
+                                        <Legend />
+                                        <Bar dataKey="visited" name="Visited" fill="#4ade80" radius={[4, 4, 0, 0]} />
+                                        <Bar dataKey="active" name="Active" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                                        <Bar dataKey="posm" name="POSM" fill="#c084fc" radius={[4, 4, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <h3 style={{ marginBottom: '1.5rem', color: '#fff' }}>Month Wise Performance Trends</h3>
+                            <div style={{ width: '100%', height: 300 }}>
+                                <ResponsiveContainer>
+                                    <AreaChart data={monthPerformanceData}>
+                                        <defs>
+                                            <linearGradient id="colorVisited" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#4ade80" stopOpacity={0.3} />
+                                                <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                        <XAxis dataKey="month" stroke="rgba(255,255,255,0.5)" fontSize={12} />
+                                        <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} />
+                                        <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} />
+                                        <Legend />
+                                        <Area type="monotone" dataKey="visited" name="Visits" stroke="#4ade80" fillOpacity={1} fill="url(#colorVisited)" />
+                                        <Area type="monotone" dataKey="active" name="Active" stroke="#38bdf8" fillOpacity={0} />
+                                        <Area type="monotone" dataKey="posm" name="POSM" stroke="#c084fc" fillOpacity={0} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
                         </div>
                     </div>
 
                     <div style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        <h3 style={{ marginBottom: '1.5rem', color: '#fff' }}>Rep Wise Overview</h3>
+                        <h3 style={{ marginBottom: '1.5rem', color: '#fff' }}>Rep Wise Performance Summary</h3>
                         <div className="table-container">
                             <table className="styled-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr>
                                         <th style={{ textAlign: 'left', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Rep Name</th>
-                                        <th style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Active Salons</th>
-                                        <th style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>POSM Active</th>
-                                        <th style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Visited Salons</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Visited</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Market Active</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Revisited</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>POSM</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -877,14 +995,15 @@ const AdminDashboard = () => {
                                         repChartData.map((rep, index) => (
                                             <tr key={index} style={{ background: index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
                                                 <td style={{ fontWeight: 'bold', color: '#bae6fd', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.name}</td>
-                                                <td style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.active}</td>
-                                                <td style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.posm}</td>
                                                 <td style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.visited}</td>
+                                                <td style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.active}</td>
+                                                <td style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.revisited}</td>
+                                                <td style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.posm}</td>
                                             </tr>
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: 'gray' }}>No data available</td>
+                                            <td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: 'gray' }}>No data available</td>
                                         </tr>
                                     )}
                                 </tbody>
