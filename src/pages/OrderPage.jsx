@@ -307,7 +307,8 @@ const OrderPage = () => {
                             width="100%"
                             height="315"
                             //src="https://www.youtube.com/embed/dQw4w9WgXcQ" // Placeholder
-                            src="https://www.youtube.com/embed/pH4Sgy8ihQ4"
+                            src="https://youtu.be/GcLnsQGDFus"
+
                             title="Product Introduction"
                             frameBorder="0"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
