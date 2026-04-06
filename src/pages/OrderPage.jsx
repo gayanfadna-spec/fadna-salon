@@ -304,10 +304,10 @@ const OrderPage = () => {
                 <div className="animate-fade-in" style={{ textAlign: 'center' }}>
                     <div className="video-container" style={{ marginBottom: '1.5rem', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
                         <iframe
-                            width="100%"
-                            height="315"
+                            width="45%"
+                            height="480px"
                             //src="https://www.youtube.com/embed/dQw4w9WgXcQ" // Placeholder
-                            src="https://youtu.be/GcLnsQGDFus"
+                            src="https://www.youtube.com/embed/GcLnsQGDFus"
 
                             title="Product Introduction"
                             frameBorder="0"
@@ -320,7 +320,7 @@ const OrderPage = () => {
                         <p>හිසකෙස් වැටීම බොහෝ විට නොදැනිම ආරම්භ වෙයි. දුර්වල වූ කේෂ මූලයන් සහ හිස්තලයේ එන්සයිම් අසමතුලිතතාවය නිසා හිසකෙස් සිහින්වීම, වියළිවීම සහ දිප්ති අහිමි වීම සිදුවේ.
 
                             SATINY යනු විද්‍යාත්මකව සනාථ කළ හර්බල් විසඳුමක් වන අතර, හිසකෙස් වැටීමට ප්‍රධාන හේතුවක් වන alpha-reductase එන්සයිමය ස්වභාවිකව අවහිර කරමින් මුල් හේතුවටම ප්‍රතිකාර කරයි.</p>
-                        <p>කොළඹ විශ්වවිද්‍යාලයේ IBMBB ආයතනය සහ ආයුර්වේද දෙපාර්තමේන්තුව විසින් සංවර්ධනය කරන ලද SATINY, නවීන පර්යේෂණ හා පාරම්පරික වෛද්‍ය ඖෂධීය ශාක සාරයන් එකට එකතු කර නිර්මාණය කර ඇත. Eclipta prostrata සහ Cocos nucifera වැනි සම්ප්‍රදායික ශාක සාරයන් සමඟ එහි ක්‍රියාකාරී බොටැනිකල් සංයෝග හිසකෙස් වර්ධනය වැඩි කරමින්, හිසකෙස් වැටීම අඩු කර, ශක්තිය සහ දිප්තිය නැවත ලබාදේ.</p>
+                        <p>SATINY, නවීන පර්යේෂණ හා පාරම්පරික වෛද්‍ය ඖෂධීය ශාක සාරයන් එකට එකතු කර නිර්මාණය කර ඇත. Eclipta prostrata සහ Cocos nucifera වැනි සම්ප්‍රදායික ශාක සාරයන් සමඟ එහි ක්‍රියාකාරී බොටැනිකල් සංයෝග හිසකෙස් වර්ධනය වැඩි කරමින්, හිසකෙස් වැටීම අඩු කර, ශක්තිය සහ දිප්තිය නැවත ලබාදේ.</p>
 
                     </div>
                     <div style={{ display: 'flex', gap: '1rem' }}>
