@@ -304,8 +304,8 @@ const OrderPage = () => {
                 <div className="animate-fade-in" style={{ textAlign: 'center' }}>
                     <div className="video-container" style={{ marginBottom: '1.5rem', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
                         <iframe
-                            width="45%"
-                            height="480px"
+                            width="100%"
+                            height="900px"
                             //src="https://www.youtube.com/embed/dQw4w9WgXcQ" // Placeholder
                             src="https://www.youtube.com/embed/GcLnsQGDFus"
 
