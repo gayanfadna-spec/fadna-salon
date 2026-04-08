@@ -106,7 +106,7 @@ const NetAgentDashboardV1 = () => {
     };
 
     const statusColors = {
-        'Draft': '#6b7280', 'Processing': '#f59e0b', 'Shipped': '#3b82f6',
+        'Draft': '#6b7280', 'COD': '#f59e0b', 'Shipped': '#3b82f6',
         'Completed': '#4ade80', 'Cancelled': '#ef4444', 'Returned': '#f97316',
         'Pending Payment': '#a855f7', 'Paid': '#4ade80', 'Payment Failed': '#ef4444'
     };

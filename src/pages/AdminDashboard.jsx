@@ -35,7 +35,7 @@ const AdminDashboard = () => {
     const [salonPerformance, setSalonPerformance] = useState([]);
     const [itemPerformance, setItemPerformance] = useState([]);
     const [products, setProducts] = useState([]);
-    const [newProduct, setNewProduct] = useState({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both', commission: 0 });
+    const [newProduct, setNewProduct] = useState({ name: '', price: '', discountType: 'none', discountValue: 0, target: ['salon', 'agent'], commission: 0 });
     const [editingProductId, setEditingProductId] = useState(null);
     const [selectedSalonId, setSelectedSalonId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -221,7 +221,7 @@ const AdminDashboard = () => {
                 await axios.post(`${API_URL}/products`, newProduct);
                 alert('Product Created');
             }
-            setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both', commission: 0 });
+            setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: ['salon', 'agent'], commission: 0 });
             setEditingProductId(null);
             fetchProducts();
         } catch (err) {
@@ -229,13 +229,28 @@ const AdminDashboard = () => {
         }
     };
     //fuck rtrtr
+    const handleToggleTarget = (value) => {
+        setNewProduct(prev => {
+            const currentTargets = Array.isArray(prev.target) ? prev.target : (prev.target === 'both' ? ['salon', 'agent'] : [prev.target]);
+            const nextTargets = currentTargets.includes(value)
+                ? currentTargets.filter(t => t !== value)
+                : [...currentTargets, value];
+            return { ...prev, target: nextTargets };
+        });
+    };
+
     const handleEditProduct = (product) => {
+        let targetArr = product.target;
+        if (typeof targetArr === 'string') {
+            if (targetArr === 'both') targetArr = ['salon', 'agent'];
+            else targetArr = [targetArr];
+        }
         setNewProduct({
             name: product.name,
             price: product.price,
             discountType: product.discountType,
             discountValue: product.discountValue,
-            target: product.target || 'both',
+            target: targetArr || ['salon', 'agent'],
             commission: product.commission || 0
         });
         setEditingProductId(product._id);
@@ -711,7 +726,7 @@ const AdminDashboard = () => {
     };
 
     const handleExportOrders = async () => {
-        let filteredOrders = adminRole === 'admin' ? orders.filter(o => o.status === 'Processing' || o.status === 'Paid') : orders;
+        let filteredOrders = adminRole === 'admin' ? orders.filter(o => o.status === 'COD' || o.status === 'Paid') : orders;
         if (reportStartDate) filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) >= new Date(reportStartDate));
         if (reportEndDate) {
             const end = new Date(reportEndDate + 'T23:59:59.999Z');
@@ -1143,7 +1158,7 @@ const AdminDashboard = () => {
                                             const orderRep = (orderSalon && orderSalon.repName && orderSalon.repName.trim() !== '') ? orderSalon.repName : 'Unassigned';
 
                                             if (selectedRep && orderRep !== selectedRep) return false;
-                                            if (adminRole === 'admin' && order.status !== 'Processing' && order.status !== 'Paid') return false;
+                                            if (adminRole === 'admin' && order.status !== 'COD' && order.status !== 'Paid') return false;
                                             if (!searchTerm) return true;
                                             const term = searchTerm.toLowerCase();
                                             return (
@@ -1197,7 +1212,7 @@ const AdminDashboard = () => {
                                                     >
                                                         <option value="Pending Payment">Pending</option>
                                                         <option value="Paid">Paid</option>
-                                                        <option value="Processing">Processing</option>
+                                                        <option value="COD">COD</option>
                                                         <option value="Shipped">Shipped</option>
                                                         <option value="Completed">Completed</option>
                                                         <option value="Returned">Returned</option>
@@ -1871,16 +1886,18 @@ const AdminDashboard = () => {
                                         <option value="percentage">Percentage (%)</option>
                                         <option value="amount">Fixed Amount (LKR)</option>
                                     </select>
-                                    <select
-                                        value={newProduct.target}
-                                        onChange={(e) => setNewProduct({ ...newProduct, target: e.target.value })}
-                                        style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', flex: 1 }}
-                                    >
-                                        <option value="both">Both</option>
-                                        <option value="salon">Salon Only</option>
-                                        <option value="agent">Agent Only</option>
-                                        <option value="netagent">Netagent Only</option>
-                                    </select>
+                                    <div style={{ display: 'flex', gap: '1rem', background: 'rgba(255,255,255,0.05)', padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', flex: 2, justifyContent: 'space-around', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>Targets:</span>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                            <input type="checkbox" checked={newProduct.target.includes('salon')} onChange={() => handleToggleTarget('salon')} /> Salon
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                            <input type="checkbox" checked={newProduct.target.includes('agent')} onChange={() => handleToggleTarget('agent')} /> Agent
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                            <input type="checkbox" checked={newProduct.target.includes('netagent')} onChange={() => handleToggleTarget('netagent')} /> Netagent
+                                        </label>
+                                    </div>
                                     {newProduct.discountType !== 'none' && (
                                         <input
                                             type="number"
@@ -1910,7 +1927,7 @@ const AdminDashboard = () => {
                                             className="btn-primary outline"
                                             style={{ flex: 1 }}
                                             onClick={() => {
-                                                setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both', commission: 0 });
+                                                setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: ['salon', 'agent'], commission: 0 });
                                                 setEditingProductId(null);
                                             }}
                                         >
@@ -1939,8 +1956,8 @@ const AdminDashboard = () => {
                                                     ({p.discountType === 'percentage' ? `${p.discountValue}%` : `Rs.${p.discountValue}`} OFF)
                                                 </span>
                                             )}
-                                            <div style={{ marginTop: '0.2rem', color: '#38bdf8' }}>
-                                                For: {p.target === 'salon' ? 'Salon Only' : p.target === 'agent' ? 'Agent Only' : p.target === 'netagent' ? 'Netagent Only' : 'Both'}
+                                            <div style={{ marginTop: '0.2rem', color: '#38bdf8', textTransform: 'capitalize' }}>
+                                                For: {Array.isArray(p.target) ? p.target.join(', ') : (p.target === 'both' ? 'salon, agent' : p.target)}
                                             </div>
                                             <div style={{ marginTop: '0.2rem', color: '#4ade80', fontWeight: 'bold' }}>
                                                 Commission: Rs.{p.commission || 0}

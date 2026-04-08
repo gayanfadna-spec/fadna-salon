@@ -336,7 +336,7 @@ const NetAgentDashboard = () => {
     };
 
     const handleExportOrders = async () => {
-        const filteredOrders = adminRole === 'admin' ? orders.filter(o => o.status === 'Processing' || o.status === 'Paid') : orders;
+        const filteredOrders = adminRole === 'admin' ? orders.filter(o => o.status === 'COD' || o.status === 'Paid') : orders;
         if (!filteredOrders.length) return alert('No orders');
         const headers = ['Date', 'Order ID', 'Net Agent 1', 'Net Agent 2', 'Customer', 'Phone', 'Additional Phone', 'Address', 'City', 'Items', 'Total', 'Status', 'Payment'];
         const rows = filteredOrders.map(o => [
@@ -395,7 +395,7 @@ const NetAgentDashboard = () => {
     const activeCount = agents.filter(a => a.isActive).length;
     const visitedCount = agents.filter(a => a.isVisited).length;
     const codOrderCount = orders.filter(o => o.status !== 'Draft').length;
-    const totalRevenue = orders.filter(o => ['Processing', 'Shipped', 'Completed'].includes(o.status))
+    const totalRevenue = orders.filter(o => ['COD', 'Shipped', 'Completed'].includes(o.status))
         .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 
     const updateStatus = async (orderId, status) => {
@@ -406,7 +406,7 @@ const NetAgentDashboard = () => {
     };
 
     const statusColors = {
-        'Draft': '#6b7280', 'Processing': '#f59e0b', 'Shipped': '#3b82f6',
+        'Draft': '#6b7280', 'COD': '#f59e0b', 'Shipped': '#3b82f6',
         'Completed': '#4ade80', 'Cancelled': '#ef4444', 'Returned': '#f97316',
         'Pending Payment': '#a855f7', 'Paid': '#4ade80', 'Payment Failed': '#ef4444'
     };
@@ -496,7 +496,7 @@ const NetAgentDashboard = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {orders.filter(o => adminRole !== 'admin' || o.status === 'Processing' || o.status === 'Paid').slice(0, 10).map(o => (
+                                {orders.filter(o => adminRole !== 'admin' || o.status === 'COD' || o.status === 'Paid').slice(0, 10).map(o => (
                                     <tr key={o._id} style={{ backgroundColor: o.isDownloaded ? 'rgba(220, 38, 38, 0.15)' : 'transparent' }}>
                                         <td>{new Date(o.createdAt).toLocaleDateString()}</td>
                                         <td>{o.merchantOrderId || o._id.slice(-6).toUpperCase()}</td>
@@ -507,7 +507,7 @@ const NetAgentDashboard = () => {
                                         <td>
                                             <select value={o.status} disabled={adminRole === 'admin'} onChange={e => updateStatus(o._id, e.target.value)}
                                                 style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', padding: '0.3rem', fontSize: '0.8rem' }}>
-                                                {['Processing', 'Shipped', 'Completed', 'Cancelled', 'Returned'].map(s => <option key={s} value={s} >{s}</option>)}
+                                                {['COD', 'Shipped', 'Completed', 'Cancelled', 'Returned'].map(s => <option key={s} value={s} >{s}</option>)}
                                             </select>
                                         </td>
                                     </tr>
@@ -535,8 +535,8 @@ const NetAgentDashboard = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {orders.filter(o => {
-                                    if (adminRole === 'admin' && o.status !== 'Processing' && o.status !== 'Paid') return false;
+                                    {orders.filter(o => {
+                                        if (adminRole === 'admin' && o.status !== 'COD' && o.status !== 'Paid') return false;
                                     if (!searchTerm) return true;
                                     const t = searchTerm.toLowerCase();
                                     return (o.customerName || '').toLowerCase().includes(t) ||
@@ -556,7 +556,7 @@ const NetAgentDashboard = () => {
                                         <td>
                                             <select value={o.status} disabled={adminRole === 'admin'} onChange={e => updateStatus(o._id, e.target.value)}
                                                 style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', padding: '0.3rem', fontSize: '0.8rem' }}>
-                                                {['Processing', 'Shipped', 'Completed', 'Cancelled', 'Returned'].map(s => <option key={s} value={s} >{s}</option>)}
+                                                {['COD', 'Shipped', 'Completed', 'Cancelled', 'Returned'].map(s => <option key={s} value={s} >{s}</option>)}
                                             </select>
                                         </td>
                                     </tr>

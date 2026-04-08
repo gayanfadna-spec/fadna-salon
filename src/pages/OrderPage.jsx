@@ -47,7 +47,11 @@ const OrderPage = () => {
 
                 const productRes = await axios.get(`${API_URL}/products`);
                 if (productRes.data.success) {
-                    const filteredProducts = productRes.data.products.filter(p => !p.target || p.target === 'both' || p.target === 'salon');
+                    const filteredProducts = productRes.data.products.filter(p => {
+                        if (!p.target) return true;
+                        if (Array.isArray(p.target)) return p.target.includes('salon');
+                        return p.target === 'both' || p.target === 'salon';
+                    });
                     setProducts(filteredProducts);
                 }
             } catch (err) {

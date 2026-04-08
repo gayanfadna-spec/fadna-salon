@@ -971,7 +971,7 @@ const AgentAdminDashboard = () => {
                             <tbody>
                                 {orders
                                     .filter(order => {
-                                        if (adminRole === 'admin' && order.status !== 'Processing' && order.status !== 'Paid') return false;
+                                        if (adminRole === 'admin' && order.status !== 'COD' && order.status !== 'Paid') return false;
                                         if (!searchTerm) return true;
                                         const term = searchTerm.toLowerCase();
                                         return (
@@ -1024,7 +1024,7 @@ const AgentAdminDashboard = () => {
                                                 >
                                                     <option  value="Pending Payment">Pending</option>
                                                     <option  value="Paid">Paid</option>
-                                                    <option  value="Processing">Processing</option>
+                                                    <option  value="COD">COD</option>
                                                     <option  value="Shipped">Shipped</option>
                                                     <option  value="Completed">Completed</option>
                                                     <option  value="Returned">Returned</option>
