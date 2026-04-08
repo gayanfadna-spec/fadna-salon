@@ -14,6 +14,8 @@ import AgentDashboard from './pages/AgentDashboard';
 import AgentOrderPage from './pages/AgentOrderPage';
 
 import NetAgentDashboard from './pages/NetAgentDashboard';
+import NetAgentDashboardV1 from './pages/NetAgentDashboardV1';
+import NetAgentDashboardV2 from './pages/NetAgentDashboardV2';
 import NetAgentOrderPage from './pages/NetAgentOrderPage';
 import QRGeneratorPage from './pages/QRGeneratorPage';
 import './index.css';
@@ -43,6 +45,8 @@ function App() {
           <Route path="/agent-dashboard" element={<AgentDashboard />} />
           <Route path="/agent-order/:agentId" element={<AgentOrderPage />} />
           <Route path="/net-agent-admin" element={<NetAgentDashboard />} />
+          <Route path="/net-agent-dashboard-v1" element={<NetAgentDashboardV1 />} />
+          <Route path="/net-agent-dashboard-v2" element={<NetAgentDashboardV2 />} />
           <Route path="/net-agent-order/:agentId" element={<NetAgentOrderPage />} />
           <Route path="/qr-generator" element={<QRGeneratorPage />} />
           <Route path="/payment/success" element={<PaymentResult />} />

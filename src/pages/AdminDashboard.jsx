@@ -1879,6 +1879,7 @@ const AdminDashboard = () => {
                                         <option value="both">Both</option>
                                         <option value="salon">Salon Only</option>
                                         <option value="agent">Agent Only</option>
+                                        <option value="netagent">Netagent Only</option>
                                     </select>
                                     {newProduct.discountType !== 'none' && (
                                         <input
@@ -1939,7 +1940,7 @@ const AdminDashboard = () => {
                                                 </span>
                                             )}
                                             <div style={{ marginTop: '0.2rem', color: '#38bdf8' }}>
-                                                For: {p.target === 'salon' ? 'Salon Only' : p.target === 'agent' ? 'Agent Only' : 'Both'}
+                                                For: {p.target === 'salon' ? 'Salon Only' : p.target === 'agent' ? 'Agent Only' : p.target === 'netagent' ? 'Netagent Only' : 'Both'}
                                             </div>
                                             <div style={{ marginTop: '0.2rem', color: '#4ade80', fontWeight: 'bold' }}>
                                                 Commission: Rs.{p.commission || 0}

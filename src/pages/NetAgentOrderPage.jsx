@@ -39,7 +39,7 @@ const NetAgentOrderPage = () => {
                 if (productRes.data.success) {
                     // Show Satiny (salon) products only
                     const filtered = productRes.data.products.filter(
-                        p => !p.target || p.target === 'both' || p.target === 'salon'
+                        p => !p.target || p.target === 'both' || p.target === 'netagent'
                     );
                     setProducts(filtered);
                 }

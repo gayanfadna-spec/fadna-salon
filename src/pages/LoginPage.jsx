@@ -33,6 +33,16 @@ const LoginPage = () => {
                     localStorage.setItem('agentUser', JSON.stringify(res.data.agent));
                     navigate('/agent-dashboard');
                 }
+            } else if (loginType === 'net-agent') {
+                const res = await axios.post(`${API_URL}/net-agents/login`, formData);
+                if (res.data.success) {
+                    localStorage.setItem('netAgentUser', JSON.stringify(res.data.agent));
+                    if (res.data.agent.level === 2) {
+                        navigate('/net-agent-dashboard-v2');
+                    } else {
+                        navigate('/net-agent-dashboard-v1');
+                    }
+                }
             } else {
                 const res = await axios.post(`${API_URL}/auth/login`, formData);
                 if (res.data.success) {
@@ -101,6 +111,22 @@ const LoginPage = () => {
                         Agent
                     </button>
                     <button
+                        onClick={() => { setLoginType('net-agent'); setError(''); setFormData({ username: '', password: '' }); }}
+                        style={{
+                            background: loginType === 'net-agent' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            padding: '0.5rem 1.2rem',
+                            borderRadius: '20px',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontWeight: loginType === 'net-agent' ? 'bold' : 'normal',
+                            transition: 'all 0.3s ease',
+                            fontSize: '0.9rem'
+                        }}
+                    >
+                        Net Agent
+                    </button>
+                    <button
                         onClick={() => { setLoginType('salesman'); setError(''); setFormData({ username: '', password: '' }); }}
                         style={{
                             background: loginType === 'salesman' ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
@@ -135,7 +161,7 @@ const LoginPage = () => {
                 </div>
 
                 <h1 style={{ textAlign: 'center', marginBottom: '2rem', fontSize: '1.8rem' }}>
-                    {loginType === 'salon' ? 'Salon Portal' : loginType === 'agent' ? 'Agent Portal' : loginType === 'salesman' ? 'Manager Portal' : 'Admin Portal'}
+                    {loginType === 'salon' ? 'Salon Portal' : loginType === 'agent' ? 'Agent Portal' : loginType === 'net-agent' ? 'Net Agent Portal' : loginType === 'salesman' ? 'Manager Portal' : 'Admin Portal'}
                 </h1>
 
                 {error && (

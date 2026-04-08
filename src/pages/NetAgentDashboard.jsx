@@ -338,11 +338,12 @@ const NetAgentDashboard = () => {
     const handleExportOrders = async () => {
         const filteredOrders = adminRole === 'admin' ? orders.filter(o => o.status === 'Processing' || o.status === 'Paid') : orders;
         if (!filteredOrders.length) return alert('No orders');
-        const headers = ['Date', 'Order ID', 'Agent', 'Customer', 'Phone', 'Additional Phone', 'Address', 'City', 'Items', 'Total', 'Status', 'Payment'];
+        const headers = ['Date', 'Order ID', 'Net Agent 1', 'Net Agent 2', 'Customer', 'Phone', 'Additional Phone', 'Address', 'City', 'Items', 'Total', 'Status', 'Payment'];
         const rows = filteredOrders.map(o => [
             new Date(o.createdAt).toLocaleString(),
             o.merchantOrderId || o._id.slice(-6).toUpperCase(),
-            `"${(o.agentName || '').replace(/"/g, '""')}"`,
+            `"${agents.find(a => a._id === o.netAgent1Id)?.name || o.agentName || ''}"`,
+            `"${agents.find(a => a._id === o.netAgent2Id)?.name || ''}"`,
             `"${(o.customerName || '').replace(/"/g, '""')}"`,
             o.customerPhone || '',
             o.additionalPhone || '',
@@ -460,7 +461,7 @@ const NetAgentDashboard = () => {
                     <select value={selectedAgentId} onChange={e => setSelectedAgentId(e.target.value)}
                         style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease' }}>
                         <option value="" >All Agents</option>
-                        {agents.map(a => <option key={a._id} value={a._id} >{a.name}</option>)}
+                        {agents.map(a => <option key={a._id} value={a._id} >{a.level === 2 ? `[L2] ${a.name}` : a.name}</option>)}
                     </select>
                 </div>
             </div>
@@ -723,7 +724,7 @@ const NetAgentDashboard = () => {
                                         <th><input type="checkbox"
                                             checked={selectedAgents.length === filteredAgents.length && filteredAgents.length > 0}
                                             onChange={() => setSelectedAgents(selectedAgents.length === filteredAgents.length ? [] : filteredAgents.map(a => a._id))} /></th>
-                                        <th>Code</th><th>Name</th><th>Credentials</th><th>Location</th><th>Rep</th>
+                                        <th>Code</th><th>Name</th><th>Level</th><th>Parent</th><th>Credentials</th><th>Location</th><th>Rep</th>
                                         <th>Visited</th><th>Active</th><th>QR Link</th><th>Actions</th>
                                     </tr>
                                 </thead>
@@ -734,6 +735,8 @@ const NetAgentDashboard = () => {
                                                 onChange={() => setSelectedAgents(prev => prev.includes(a._id) ? prev.filter(id => id !== a._id) : [...prev, a._id])} /></td>
                                             <td><span style={{ fontFamily: 'monospace', background: 'rgba(245,158,11,0.2)', padding: '2px 8px', borderRadius: '4px', color: '#f59e0b' }}>{a.agentCode || 'Draft'}</span></td>
                                             <td><div style={{ fontWeight: 'bold' }}>{a.name}</div></td>
+                                            <td><span style={{ fontSize: '0.85rem', background: a.level === 2 ? 'rgba(168,85,247,0.2)' : 'rgba(56,189,248,0.2)', padding: '2px 8px', borderRadius: '4px', color: a.level === 2 ? '#a855f7' : '#38bdf8' }}>L{a.level || 1}</span></td>
+                                            <td><div style={{ fontSize: '0.85rem', opacity: 0.7 }}>{agents.find(p => p._id === a.parentNetAgentId)?.name || '—'}</div></td>
                                             <td>
                                                 <div style={{ fontSize: '0.85rem', color: '#38bdf8' }}>{a.username}</div>
                                                 <div style={{ fontSize: '0.85rem', fontFamily: 'monospace', color: '#4ade80' }}>{a.plainPassword || '••••••'}</div>
