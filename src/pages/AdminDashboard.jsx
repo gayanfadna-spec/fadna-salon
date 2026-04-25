@@ -35,7 +35,7 @@ const AdminDashboard = () => {
     const [salonPerformance, setSalonPerformance] = useState([]);
     const [itemPerformance, setItemPerformance] = useState([]);
     const [products, setProducts] = useState([]);
-    const [newProduct, setNewProduct] = useState({ name: '', price: '', discountType: 'none', discountValue: 0, target: ['salon', 'agent'], commission: 0 });
+    const [newProduct, setNewProduct] = useState({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both', commission: 0 });
     const [editingProductId, setEditingProductId] = useState(null);
     const [selectedSalonId, setSelectedSalonId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -53,6 +53,14 @@ const AdminDashboard = () => {
     const [filterDetailedActive, setFilterDetailedActive] = useState(false);
     const [filterDetailedPOSM, setFilterDetailedPOSM] = useState(false);
     const [visibleCount, setVisibleCount] = useState(50);
+    const [repActivityData, setRepActivityData] = useState([]);
+    const [totalRepActivityData, setTotalRepActivityData] = useState([]);
+    const [orderSummaryData, setOrderSummaryData] = useState([]);
+    const [loadingOrderSummary, setLoadingOrderSummary] = useState(false);
+
+    const [detailedFilterRep, setDetailedFilterRep] = useState('');
+    const [detailedFilterStartDate, setDetailedFilterStartDate] = useState('');
+    const [detailedFilterEndDate, setDetailedFilterEndDate] = useState('');
 
     const filteredSalons = React.useMemo(() => {
         return salons.filter(salon => {
@@ -73,13 +81,44 @@ const AdminDashboard = () => {
     }, [salons, selectedRep, searchTerm, selectedSalonId]);
 
     const detailedFilteredSalons = React.useMemo(() => {
-        if (!selectedRep) return [];
+        const filterRep = detailedFilterRep || selectedRep;
+        // If no rep is selected and no dates are provided, we could show all or nothing.
+        // But usually, detailed list is for a specific rep.
+        
         return salons.filter(s => {
             const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
-            if (rep !== selectedRep) return false;
+            
+            // 1. Rep Filter
+            if (filterRep && rep !== filterRep) return false;
+
+            // 2. Status Filters
             if (filterDetailedVisited && !s.isVisited) return false;
             if (filterDetailedActive && !s.isActive) return false;
             if (filterDetailedPOSM && !s.posmActive) return false;
+
+            // 3. Date Range Filter (Activity Based)
+            if (detailedFilterStartDate || detailedFilterEndDate) {
+                const start = detailedFilterStartDate ? new Date(detailedFilterStartDate) : null;
+                const end = detailedFilterEndDate ? new Date(detailedFilterEndDate) : null;
+                if (end) end.setHours(23, 59, 59, 999);
+
+                const checkDateInRange = (date) => {
+                    if (!date) return false;
+                    const d = new Date(date);
+                    if (start && d < start) return false;
+                    if (end && d > end) return false;
+                    return true;
+                };
+
+                const hasVisitedInRange = checkDateInRange(s.visitedDate);
+                const hasActiveInRange = checkDateInRange(s.activeDate);
+                const hasPOSMInRange = checkDateInRange(s.posmDate);
+                const hasRevisitInRange = (s.revisitedDates || []).some(d => checkDateInRange(d));
+
+                if (!(hasVisitedInRange || hasActiveInRange || hasPOSMInRange || hasRevisitInRange)) return false;
+            }
+
+            // 4. Search Filter
             if (searchTerm) {
                 const term = searchTerm.toLowerCase();
                 return (
@@ -90,7 +129,7 @@ const AdminDashboard = () => {
             }
             return true;
         });
-    }, [salons, selectedRep, searchTerm, filterDetailedVisited, filterDetailedActive, filterDetailedPOSM]);
+    }, [salons, selectedRep, detailedFilterRep, searchTerm, filterDetailedVisited, filterDetailedActive, filterDetailedPOSM, detailedFilterStartDate, detailedFilterEndDate]);
 
     const detailedFilteredSalonsCount = detailedFilteredSalons.length;
 
@@ -124,6 +163,14 @@ const AdminDashboard = () => {
 
             const itemRes = await axios.get(`${API_URL}/analytics/item-performance`, { params });
             if (itemRes.data.success) setItemPerformance(itemRes.data.stats);
+
+            // Fetch Rep Activity (Periodic/Filtered)
+            const repRes = await axios.get(`${API_URL}/analytics/rep-activity`, { params });
+            if (repRes.data.success) setRepActivityData(repRes.data.stats || []);
+
+            // Fetch Total Rep Activity (No date filter)
+            const totalRepRes = await axios.get(`${API_URL}/analytics/rep-activity`);
+            if (totalRepRes.data.success) setTotalRepActivityData(totalRepRes.data.stats || []);
 
         } catch (err) {
             console.error(err);
@@ -180,6 +227,54 @@ const AdminDashboard = () => {
         }
     }, []);
 
+    const fetchOrderSummary = React.useCallback(async () => {
+        setLoadingOrderSummary(true);
+        try {
+            const res = await axios.get(`${API_URL}/analytics/rep-order-summary`, {
+                params: {
+                    startDate: reportStartDate,
+                    endDate: reportEndDate
+                }
+            });
+            if (res.data.success) {
+                setOrderSummaryData(res.data.stats);
+            }
+        } catch (error) {
+            console.error('Error fetching order summary:', error);
+        } finally {
+            setLoadingOrderSummary(false);
+        }
+    }, [reportStartDate, reportEndDate]);
+
+    useEffect(() => {
+        if (activeTab === 'order-analytics') {
+            fetchOrderSummary();
+        }
+    }, [activeTab, fetchOrderSummary]);
+
+    const handleExportOrderSummaryExcel = () => {
+        if (!orderSummaryData.length) return alert('No data to export');
+        
+        const exportData = [];
+        orderSummaryData.forEach(item => {
+            item.products.forEach(p => {
+                exportData.push({
+                    'Month': item.monthName,
+                    'Representative': item._id.repName,
+                    'Product': p.name,
+                    'Quantity Sold': p.quantity,
+                    'Total Rep Items': item.totalItems,
+                    'Total Rep Orders': item.uniqueOrders
+                });
+            });
+        });
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "QR Order Summary");
+        XLSX.writeFile(wb, `QR_Order_Summary_${new Date().toLocaleDateString()}.xlsx`);
+    };
+
     const logReportHistory = async (reportType, recordCount) => {
         try {
             const adminUser = JSON.parse(localStorage.getItem('adminUser'));
@@ -221,7 +316,7 @@ const AdminDashboard = () => {
                 await axios.post(`${API_URL}/products`, newProduct);
                 alert('Product Created');
             }
-            setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: ['salon', 'agent'], commission: 0 });
+            setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both', commission: 0 });
             setEditingProductId(null);
             fetchProducts();
         } catch (err) {
@@ -229,28 +324,13 @@ const AdminDashboard = () => {
         }
     };
     //fuck rtrtr
-    const handleToggleTarget = (value) => {
-        setNewProduct(prev => {
-            const currentTargets = Array.isArray(prev.target) ? prev.target : (prev.target === 'both' ? ['salon', 'agent'] : [prev.target]);
-            const nextTargets = currentTargets.includes(value)
-                ? currentTargets.filter(t => t !== value)
-                : [...currentTargets, value];
-            return { ...prev, target: nextTargets };
-        });
-    };
-
     const handleEditProduct = (product) => {
-        let targetArr = product.target;
-        if (typeof targetArr === 'string') {
-            if (targetArr === 'both') targetArr = ['salon', 'agent'];
-            else targetArr = [targetArr];
-        }
         setNewProduct({
             name: product.name,
             price: product.price,
             discountType: product.discountType,
             discountValue: product.discountValue,
-            target: targetArr || ['salon', 'agent'],
+            target: product.target || 'both',
             commission: product.commission || 0
         });
         setEditingProductId(product._id);
@@ -469,6 +549,22 @@ const AdminDashboard = () => {
         } catch (err) {
             console.error('Error updating mark status', err);
             alert('Failed to update mark status');
+        }
+    };
+
+    const handleToggleStatus = async (salon, field) => {
+        try {
+            const newValue = !salon[field];
+            const payload = { ...salon, [field]: newValue };
+            // backend/routes/salonRoutes.js PUT /:id handles the logic for dates and revisits
+            const res = await axios.put(`${API_URL}/salons/${salon._id}`, payload);
+            if (res.data.success) {
+                fetchSalons(); // Refresh to get updated dates/revisited array from backend
+                fetchAnalytics(); // Refresh summary tables
+            }
+        } catch (err) {
+            console.error(`Error toggling ${field}`, err);
+            alert(`Failed to update ${field}`);
         }
     };
 
@@ -726,7 +822,7 @@ const AdminDashboard = () => {
     };
 
     const handleExportOrders = async () => {
-        let filteredOrders = adminRole === 'admin' ? orders.filter(o => o.status === 'COD' || o.status === 'Paid') : orders;
+        let filteredOrders = adminRole === 'admin' ? orders.filter(o => o.status === 'Processing' || o.status === 'Paid') : orders;
         if (reportStartDate) filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) >= new Date(reportStartDate));
         if (reportEndDate) {
             const end = new Date(reportEndDate + 'T23:59:59.999Z');
@@ -777,42 +873,306 @@ const AdminDashboard = () => {
         saveAs(blob, 'performance_report.csv');
         logReportHistory('Performance Summary', salonPerformance.length);
     };
+    const handleExportCombinedExcel = () => {
+        if (!repActivityData.length) return alert('No performance data to export');
 
-    const activeSalonsCount = salons.filter(s => {
-        const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
-        return s.isActive && (!selectedRep || rep === selectedRep);
-    }).length;
-    const posmSalonsCount = salons.filter(s => {
-        const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
-        return s.posmActive && (!selectedRep || rep === selectedRep);
-    }).length;
-    const visitedSalonsFromDb = salons.filter(s => {
-        const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
-        return s.isVisited && (!selectedRep || rep === selectedRep);
-    }).length;
-    const revisitedCount = salons.filter(s => {
-        const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
-        return (s.revisitedDates && s.revisitedDates.length > 0) && (!selectedRep || rep === selectedRep);
-    }).length;
+        // Table 1: Salon Visit (Periodic)
+        const periodicData = [
+            { 'NAME': 'Date Range:', 'NEW VISITED': reportStartDate || 'All Time', 'RE.Visit': reportEndDate || '', 'ACTIVE': '', 'ACTIVE %': '', 'QR': '' },
+            { 'NAME': '', 'NEW VISITED': '', 'RE.Visit': '', 'ACTIVE': '', 'ACTIVE %': '', 'QR': '' } // Empty spacer row
+        ];
 
-    const activeRate = visitedSalonsFromDb > 0 ? ((activeSalonsCount / visitedSalonsFromDb) * 100).toFixed(1) : 0;
-    const posmRate = visitedSalonsFromDb > 0 ? ((posmSalonsCount / visitedSalonsFromDb) * 100).toFixed(1) : 0;
-    const revisitedRate = visitedSalonsFromDb > 0 ? ((revisitedCount / visitedSalonsFromDb) * 100).toFixed(1) : 0;
+        repActivityData.forEach(rep => {
+            const activePercent = calculatePeriodicActivePercentage(rep.active, rep.visited, rep.revisited);
+            periodicData.push({
+                'NAME': rep.repName,
+                'NEW VISITED': rep.visited,
+                'RE.Visit': rep.revisited,
+                'ACTIVE': rep.active,
+                'ACTIVE %': `${Math.round(activePercent)}%`,
+                'QR': rep.posm
+            });
+        });
 
-    const repStats = {};
-    salons.forEach(s => {
-        const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
-        if (!repStats[rep]) {
-            repStats[rep] = { name: rep, visited: 0, active: 0, posm: 0, revisited: 0 };
-        }
-        if (s.isVisited) repStats[rep].visited += 1;
-        if (s.isActive) repStats[rep].active += 1;
-        if (s.posmActive) repStats[rep].posm += 1;
-        if (s.revisitedDates && s.revisitedDates.length > 0) repStats[rep].revisited += 1;
-    });
-    const repChartData = (selectedRep === '' || selectedRep === 'Unassigned')
-        ? Object.values(repStats).sort((a, b) => a.name.localeCompare(b.name))
-        : Object.values(repStats).filter(r => r.name === selectedRep);
+        // Calculate Periodic Totals
+        const pTotalVisited = repActivityData.reduce((acc, curr) => acc + curr.visited, 0);
+        const pTotalActive = repActivityData.reduce((acc, curr) => acc + curr.active, 0);
+        const pTotalRevisited = repActivityData.reduce((acc, curr) => acc + curr.revisited, 0);
+        const pTotalPOSM = repActivityData.reduce((acc, curr) => acc + curr.posm, 0);
+        const pTotalActivePercent = calculatePeriodicActivePercentage(pTotalActive, pTotalVisited, pTotalRevisited);
+
+        periodicData.push({
+            'NAME': 'Total',
+            'NEW VISITED': pTotalVisited,
+            'RE.Visit': pTotalRevisited,
+            'ACTIVE': pTotalActive,
+            'ACTIVE %': `${Math.round(pTotalActivePercent)}%`,
+            'QR': pTotalPOSM
+        });
+
+        // Table 2: Total Salon Visit (All Time)
+        const totalData = totalRepActivityData.map(rep => {
+            const activePercent = calculateTotalActivePercentage(rep.active, rep.visited);
+
+            return {
+                'NAME': rep.repName,
+                'NEW VISITED': rep.visited,
+                'RE.Visit': rep.revisited,
+                'ACTIVE': rep.active,
+                'ACTIVE %': `${Math.round(activePercent)}%`,
+                'QR': rep.posm
+            };
+        });
+
+        // Calculate Total Totals
+        const tTotalVisited = totalRepActivityData.reduce((acc, curr) => acc + curr.visited, 0);
+        const tTotalActive = totalRepActivityData.reduce((acc, curr) => acc + curr.active, 0);
+        const tTotalRevisited = totalRepActivityData.reduce((acc, curr) => acc + curr.revisited, 0);
+        const tTotalPOSM = totalRepActivityData.reduce((acc, curr) => acc + curr.posm, 0);
+        const tTotalActivePercent = calculateTotalActivePercentage(tTotalActive, tTotalVisited);
+
+        totalData.push({
+            'NAME': 'Total',
+            'NEW VISITED': tTotalVisited,
+            'RE.Visit': tTotalRevisited,
+            'ACTIVE': tTotalActive,
+            'ACTIVE %': `${Math.round(tTotalActivePercent)}%`,
+            'QR': tTotalPOSM
+        });
+
+        const workbook = XLSX.utils.book_new();
+
+        // Sheet 1: Periodic
+        const wsPeriodic = XLSX.utils.json_to_sheet([]);
+        XLSX.utils.sheet_add_aoa(wsPeriodic, [["Salon Visit"]], { origin: "A1" });
+        XLSX.utils.sheet_add_aoa(wsPeriodic, [[`${reportStartDate || 'Start'} To ${reportEndDate || 'End'}`]], { origin: "A3" });
+        XLSX.utils.sheet_add_json(wsPeriodic, periodicData, { origin: "A5", skipHeader: false });
+        XLSX.utils.book_append_sheet(workbook, wsPeriodic, "Periodic Activity");
+
+        // Sheet 2: Total
+        const wsTotal = XLSX.utils.json_to_sheet([]);
+        XLSX.utils.sheet_add_aoa(wsTotal, [["Total Salon Visit"]], { origin: "A1" });
+        XLSX.utils.sheet_add_json(wsTotal, totalData, { origin: "A3", skipHeader: false });
+        XLSX.utils.book_append_sheet(workbook, wsTotal, "Total Activity");
+
+        const fileName = `Performance_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+        XLSX.writeFile(workbook, fileName);
+        logReportHistory('Combined Performance Excel', repActivityData.length);
+    };
+
+    const activeSalonsCount = React.useMemo(() => {
+        const start = reportStartDate ? new Date(reportStartDate) : null;
+        const end = reportEndDate ? new Date(reportEndDate + 'T23:59:59.999Z') : null;
+
+        return salons.filter(s => {
+            const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+            if (selectedRep && rep !== selectedRep) return false;
+            if (!s.isActive) return false;
+            
+            if (start || end) {
+                // Check if visited in range
+                const hasVisitedInRange = s.visitedDate && new Date(s.visitedDate) >= start && (!end || new Date(s.visitedDate) <= end);
+                // Check if any revisit in range
+                const hasRevisitInRange = (s.revisitedDates || []).some(d => {
+                    const date = new Date(d);
+                    return date >= start && (!end || date <= end);
+                });
+                return hasVisitedInRange || hasRevisitInRange;
+            }
+            return true;
+        }).length;
+    }, [salons, selectedRep, reportStartDate, reportEndDate]);
+
+    const posmSalonsCount = React.useMemo(() => {
+        const start = reportStartDate ? new Date(reportStartDate) : null;
+        const end = reportEndDate ? new Date(reportEndDate + 'T23:59:59.999Z') : null;
+
+        return salons.filter(s => {
+            const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+            if (selectedRep && rep !== selectedRep) return false;
+            if (!s.posmActive) return false;
+            
+            if (start || end) {
+                const hasVisitedInRange = s.visitedDate && new Date(s.visitedDate) >= start && (!end || new Date(s.visitedDate) <= end);
+                const hasRevisitInRange = (s.revisitedDates || []).some(d => {
+                    const date = new Date(d);
+                    return date >= start && (!end || date <= end);
+                });
+                return hasVisitedInRange || hasRevisitInRange;
+            }
+            return true;
+        }).length;
+    }, [salons, selectedRep, reportStartDate, reportEndDate]);
+
+    const visitedSalonsFromDb = React.useMemo(() => {
+        const start = reportStartDate ? new Date(reportStartDate) : null;
+        const end = reportEndDate ? new Date(reportEndDate + 'T23:59:59.999Z') : null;
+
+        return salons.filter(s => {
+            const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+            if (selectedRep && rep !== selectedRep) return false;
+            if (!s.isVisited) return false;
+            if (start || end) {
+                if (!s.visitedDate) return false;
+                const d = new Date(s.visitedDate);
+                if (start && d < start) return false;
+                if (end && d > end) return false;
+            }
+            return true;
+        }).length;
+    }, [salons, selectedRep, reportStartDate, reportEndDate]);
+
+    const revisitedCount = React.useMemo(() => {
+        const start = reportStartDate ? new Date(reportStartDate) : null;
+        const end = reportEndDate ? new Date(reportEndDate + 'T23:59:59.999Z') : null;
+
+        return salons.reduce((acc, s) => {
+            const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+            if (selectedRep && rep !== selectedRep) return acc;
+            
+            const eventsInRange = (s.revisitedDates || []).filter(d => {
+                const date = new Date(d);
+                if (start && date < start) return false;
+                if (end && date > end) return false;
+                return true;
+            });
+            return acc + eventsInRange.length;
+        }, 0);
+    }, [salons, selectedRep, reportStartDate, reportEndDate]);
+
+    const activeRate = React.useMemo(() => {
+        const totalVisits = (reportStartDate || reportEndDate) 
+            ? (visitedSalonsFromDb + revisitedCount) 
+            : visitedSalonsFromDb;
+        
+        if (totalVisits === 0) return "0.0";
+        return ((activeSalonsCount / totalVisits) * 100).toFixed(1);
+    }, [activeSalonsCount, visitedSalonsFromDb, revisitedCount, reportStartDate, reportEndDate]);
+
+    const calculatePeriodicActivePercentage = (active, visited, revisited) => {
+        const totalVisits = (visited || 0) + (revisited || 0);
+        if (totalVisits === 0) return "0.0";
+        return ((active / totalVisits) * 100).toFixed(1);
+    };
+
+    const calculateTotalActivePercentage = (active, visited) => {
+        if (!visited || visited === 0) return "0.0";
+        return ((active / visited) * 100).toFixed(1);
+    };
+
+    // Periodic Table Totals
+    const pTotalVisited = React.useMemo(() => repActivityData.reduce((acc, curr) => acc + curr.visited, 0), [repActivityData]);
+    const pTotalActive = React.useMemo(() => repActivityData.reduce((acc, curr) => acc + curr.active, 0), [repActivityData]);
+    const pTotalRevisited = React.useMemo(() => repActivityData.reduce((acc, curr) => acc + curr.revisited, 0), [repActivityData]);
+    const pTotalPOSM = React.useMemo(() => repActivityData.reduce((acc, curr) => acc + curr.posm, 0), [repActivityData]);
+    const pTotalActivePercent = React.useMemo(() => calculatePeriodicActivePercentage(pTotalActive, pTotalVisited, pTotalRevisited), [pTotalActive, pTotalVisited, pTotalRevisited]);
+
+    // Total Table Totals
+    const tTotalVisited = React.useMemo(() => totalRepActivityData.reduce((acc, curr) => acc + curr.visited, 0), [totalRepActivityData]);
+    const tTotalActive = React.useMemo(() => totalRepActivityData.reduce((acc, curr) => acc + curr.active, 0), [totalRepActivityData]);
+    const tTotalRevisited = React.useMemo(() => totalRepActivityData.reduce((acc, curr) => acc + curr.revisited, 0), [totalRepActivityData]);
+    const tTotalPOSM = React.useMemo(() => totalRepActivityData.reduce((acc, curr) => acc + curr.posm, 0), [totalRepActivityData]);
+    const tTotalActivePercent = React.useMemo(() => calculateTotalActivePercentage(tTotalActive, tTotalVisited), [tTotalActive, tTotalVisited]);
+
+    const repChartData = React.useMemo(() => {
+        const stats = {};
+        const start = reportStartDate ? new Date(reportStartDate) : null;
+        const end = reportEndDate ? new Date(reportEndDate + 'T23:59:59.999Z') : null;
+
+        salons.forEach(s => {
+            const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+            if (selectedRep && rep !== selectedRep) return;
+
+            if (!stats[rep]) {
+                stats[rep] = { name: rep, visited: 0, active: 0, posm: 0, revisited: 0 };
+            }
+
+            const checkRange = (date) => {
+                if (!date) return false;
+                const d = new Date(date);
+                if (start && d < start) return false;
+                if (end && d > end) return false;
+                return true;
+            };
+
+            const hasVisitInRange = checkRange(s.visitedDate);
+            const revisitInRange = (s.revisitedDates || []).filter(checkRange);
+
+            if (s.isVisited && hasVisitInRange) stats[rep].visited += 1;
+            stats[rep].revisited += revisitInRange.length;
+
+            // NEW LOGIC: Active/POSM are counted if the salon is active AND had activity in range
+            if (s.isActive && (hasVisitInRange || revisitInRange.length > 0)) {
+                stats[rep].active += 1;
+            }
+            if (s.posmActive && (hasVisitInRange || revisitInRange.length > 0)) {
+                stats[rep].posm += 1;
+            }
+        });
+
+        const sorted = Object.values(stats).sort((a, b) => a.name.localeCompare(b.name));
+        return sorted;
+    }, [salons, selectedRep, reportStartDate, reportEndDate]);
+
+    const repActiveTrendData = React.useMemo(() => {
+        const monthMap = {};
+        const repsSet = new Set();
+        
+        salons.forEach(s => {
+            if (!s.isActive) return;
+            const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+            repsSet.add(rep);
+            
+            const date = s.activeDate || s.visitedDate || s.createdAt;
+            if (!date) return;
+            const d = new Date(date);
+            if (isNaN(d.getTime())) return;
+            const mKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            
+            if (!monthMap[mKey]) monthMap[mKey] = {};
+            if (!monthMap[mKey][rep]) monthMap[mKey][rep] = 0;
+            monthMap[mKey][rep]++;
+        });
+
+        const sortedMonths = Object.keys(monthMap).sort();
+        const data = [];
+        const cumulative = {};
+        const activeReps = Array.from(repsSet).filter(r => {
+            // Only show reps who have at least 1 active salon to keep chart clean
+            return salons.some(s => s.repName === r && s.isActive);
+        });
+
+        activeReps.forEach(r => cumulative[r] = 0);
+
+        sortedMonths.forEach(mKey => {
+            const d = new Date(mKey + '-01');
+            const point = {
+                month: d.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+                key: mKey
+            };
+            activeReps.forEach(r => {
+                point[r] = (monthMap[mKey][r] || 0);
+            });
+            data.push(point);
+        });
+
+        // Limit to top 10 reps based on total activations in the displayed months
+        const topReps = activeReps
+            .map(r => ({ 
+                name: r, 
+                total: data.reduce((sum, p) => sum + (p[r] || 0), 0) 
+            }))
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 10)
+            .map(r => r.name);
+
+        const colors = [
+            '#38bdf8', '#4ade80', '#f472b6', '#c084fc', '#fbbf24', 
+            '#f87171', '#2dd4bf', '#818cf8', '#a78bfa', '#fb923c'
+        ];
+
+        return { data, reps: topReps, colors };
+    }, [salons]);
 
     const monthPerformanceData = React.useMemo(() => {
         const months = {};
@@ -830,13 +1190,11 @@ const AdminDashboard = () => {
                     key: mKey,
                     month: d.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
                     visited: 0,
-                    active: 0,
-                    posm: 0
+                    active: 0
                 };
             }
             if (s.isVisited) months[mKey].visited++;
             if (s.isActive) months[mKey].active++;
-            if (s.posmActive) months[mKey].posm++;
         });
         return Object.values(months).sort((a, b) => a.key.localeCompare(b.key));
     }, [salons, selectedRep]);
@@ -876,6 +1234,9 @@ const AdminDashboard = () => {
                         </>
                     )}
                     {(adminRole === 'admin' || adminRole === 'superadmin') && (
+                        <button className={`btn-primary nav-btn ${activeTab === 'order-analytics' ? '' : 'outline'}`} style={{ opacity: activeTab === 'order-analytics' ? 1 : 0.7 }} onClick={() => setActiveTab('order-analytics')}>Order Analytics</button>
+                    )}
+                    {(adminRole === 'admin' || adminRole === 'superadmin') && (
                         <button className={`btn-primary nav-btn ${activeTab === 'reports' ? '' : 'outline'}`} style={{ opacity: activeTab === 'reports' ? 1 : 0.7 }} onClick={() => setActiveTab('reports')}>Reports</button>
                     )}
                 </div>
@@ -905,11 +1266,87 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
+            {activeTab === 'order-analytics' && (
+                <section className="glass-container animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                        <div>
+                            <h2 style={{ margin: 0 }}>QR Order Analytics</h2>
+                            <p style={{ opacity: 0.6, fontSize: '0.9rem', margin: '0.5rem 0 0 0' }}>Product-wise performance breakdown by Representative and Month</p>
+                        </div>
+                        <button onClick={handleExportOrderSummaryExcel} className="btn-primary" style={{ padding: '0.8rem 1.5rem', background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', border: 'none' }}>
+                            📊 Export QR Order Summary
+                        </button>
+                    </div>
+
+                    {loadingOrderSummary ? (
+                        <div style={{ padding: '4rem', textAlign: 'center', color: '#6366f1' }}>
+                            <div className="loader" style={{ marginBottom: '1rem' }}></div>
+                            Loading Analytics...
+                        </div>
+                    ) : orderSummaryData.length > 0 ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '2rem' }}>
+                            {orderSummaryData.map((item, idx) => (
+                                <div key={idx} className="glass-card" style={{ padding: '1.5rem', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.8rem' }}>
+                                        <div>
+                                            <h4 style={{ margin: 0, color: '#bae6fd', fontSize: '1.1rem' }}>{item._id.repName}</h4>
+                                            <span style={{ fontSize: '0.8rem', color: '#38bdf8', fontWeight: 'bold', textTransform: 'uppercase' }}>{item.monthName}</span>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{item.uniqueOrders}</div>
+                                            <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>ORDERS</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                        {item.products.map((p, pIdx) => (
+                                            <div key={pIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem' }}>
+                                                <span style={{ opacity: 0.8 }}>{p.name}</span>
+                                                <span style={{ fontWeight: 'bold', background: 'rgba(56,189,248,0.2)', padding: '2px 8px', borderRadius: '4px', color: '#38bdf8' }}>{p.quantity}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    
+                                    <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                                        <span style={{ opacity: 0.6 }}>Total Items Sold:</span>
+                                        <span style={{ fontWeight: 'bold', color: '#4ade80' }}>{item.totalItems}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div style={{ padding: '4rem', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '1rem' }}>
+                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📊</div>
+                            <h3>No Order Data Found</h3>
+                            <p style={{ opacity: 0.6 }}>Try adjusting your date filters or representative selection.</p>
+                        </div>
+                    )}
+                </section>
+            )}
+
             {activeTab === 'overview' && (
                 <section className="glass-container animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                         <h2>Dashboard Overview</h2>
+                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                            <button onClick={handleExportCombinedExcel} className="btn-primary" style={{ padding: '0.8rem 1.5rem', background: 'linear-gradient(135deg, #4ade80, #22c55e)', border: 'none', boxShadow: '0 4px 12px rgba(74,222,128,0.2)' }}>
+                                📥 Download Performance Report
+                            </button>
+                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '0.8rem 1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <label style={{ fontSize: '0.8rem', opacity: 0.7 }}>From:</label>
+                                <input type="date" value={reportStartDate} onChange={e => setReportStartDate(e.target.value)}
+                                    style={{ padding: '0.4rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', colorScheme: 'dark', fontSize: '0.9rem' }} />
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <label style={{ fontSize: '0.8rem', opacity: 0.7 }}>To:</label>
+                                <input type="date" value={reportEndDate} onChange={e => setReportEndDate(e.target.value)}
+                                    style={{ padding: '0.4rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', colorScheme: 'dark', fontSize: '0.9rem' }} />
+                            </div>
+                            <button onClick={fetchAnalytics} className="btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.9rem' }}>Apply Filters</button>
+                        </div>
                     </div>
+                </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
                         <div style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
@@ -930,27 +1367,49 @@ const AdminDashboard = () => {
                         </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
                         <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(0,0,0,0.2))', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(99,102,241,0.2)' }}>
                             <div style={{ fontSize: '0.9rem', color: '#818cf8', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Market Active Rate</div>
                             <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>{activeRate}%</div>
                             <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>Active / Visited Salons</div>
                         </div>
-                        <div style={{ background: 'linear-gradient(135deg, rgba(192,132,252,0.1), rgba(0,0,0,0.2))', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(192,132,252,0.2)' }}>
-                            <div style={{ fontSize: '0.9rem', color: '#c084fc', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>POSM Rate</div>
-                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>{posmRate}%</div>
-                            <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>POSM Active / Visited Salons</div>
-                        </div>
-                        <div style={{ background: 'linear-gradient(135deg, rgba(244,114,182,0.1), rgba(0,0,0,0.2))', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(244,114,182,0.2)' }}>
-                            <div style={{ fontSize: '0.9rem', color: '#f472b6', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Revisited Rate</div>
-                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>{revisitedRate}%</div>
-                            <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>Revisited / Visited Salons</div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem', marginBottom: '2rem' }}>
+                        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                <h3 style={{ margin: 0, color: '#fff' }}>Rep-wise Active Salon Trend</h3>
+                                <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>Monthly Active Salon Counts (Top 10 Reps)</div>
+                            </div>
+                            <div style={{ width: '100%', height: 400 }}>
+                                <ResponsiveContainer>
+                                    <LineChart data={repActiveTrendData.data}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                        <XAxis dataKey="month" stroke="rgba(255,255,255,0.5)" fontSize={12} />
+                                        <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} />
+                                        <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} />
+                                        <Legend />
+                                        {repActiveTrendData.reps.map((rep, idx) => (
+                                            <Line 
+                                                key={rep} 
+                                                type="monotone" 
+                                                dataKey={rep} 
+                                                name={rep} 
+                                                stroke={repActiveTrendData.colors[idx % repActiveTrendData.colors.length]} 
+                                                strokeWidth={2}
+                                                dot={{ r: 4 }}
+                                                activeDot={{ r: 6 }}
+                                            />
+                                        ))}
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
                         </div>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem', marginBottom: '2rem' }}>
                         <div style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-                            <h3 style={{ marginBottom: '1.5rem', color: '#fff' }}>Visited vs Active vs POSM per Rep</h3>
+                            <h3 style={{ marginBottom: '1.5rem', color: '#fff' }}>Visited vs QR vs Active per Rep</h3>
                             <div style={{ width: '100%', height: 300 }}>
                                 <ResponsiveContainer>
                                     <BarChart data={repChartData}>
@@ -961,110 +1420,237 @@ const AdminDashboard = () => {
                                         <Legend />
                                         <Bar dataKey="visited" name="Visited" fill="#4ade80" radius={[4, 4, 0, 0]} />
                                         <Bar dataKey="active" name="Active" fill="#38bdf8" radius={[4, 4, 0, 0]} />
-                                        <Bar dataKey="posm" name="POSM" fill="#c084fc" radius={[4, 4, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
 
-                        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-                            <h3 style={{ marginBottom: '1.5rem', color: '#fff' }}>Month Wise Performance Trends</h3>
-                            <div style={{ width: '100%', height: 300 }}>
-                                <ResponsiveContainer>
-                                    <AreaChart data={monthPerformanceData}>
-                                        <defs>
-                                            <linearGradient id="colorVisited" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#4ade80" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                                        <XAxis dataKey="month" stroke="rgba(255,255,255,0.5)" fontSize={12} />
-                                        <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} />
-                                        <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }} />
-                                        <Legend />
-                                        <Area type="monotone" dataKey="visited" name="Visits" stroke="#4ade80" fillOpacity={1} fill="url(#colorVisited)" />
-                                        <Area type="monotone" dataKey="active" name="Active" stroke="#38bdf8" fillOpacity={0} />
-                                        <Area type="monotone" dataKey="posm" name="POSM" stroke="#c084fc" fillOpacity={0} />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
                     </div>
 
                     <div style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        <h3 style={{ marginBottom: '1.5rem', color: '#fff' }}>Rep Wise Performance Summary</h3>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                            <h3 style={{ margin: 0, color: '#fff' }}>Salon Visit (Periodic Summary)</h3>
+                            <div style={{ fontSize: '0.85rem', opacity: 0.7, color: '#bae6fd' }}>
+                                {reportStartDate || reportEndDate ? `${reportStartDate || 'Start'} to ${reportEndDate || 'End'}` : 'All Time'}
+                            </div>
+                        </div>
                         <div className="table-container">
                             <table className="styled-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr>
-                                        <th style={{ textAlign: 'left', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Rep Name</th>
-                                        <th style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Visited</th>
-                                        <th style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Market Active</th>
-                                        <th style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Revisited</th>
-                                        <th style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>POSM</th>
+                                        <th style={{ textAlign: 'left', padding: '1rem' }}>NAME</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem' }}>NEW VISITED</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem' }}>RE.Visit</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem' }}>ACTIVE</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem', color: '#38bdf8' }}>ACTIVE %</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem' }}>QR</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {repChartData.length > 0 ? (
-                                        repChartData.map((rep, index) => (
-                                            <tr key={index} style={{ background: index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                                                <td style={{ fontWeight: 'bold', color: '#bae6fd', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.name}</td>
-                                                <td style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.visited}</td>
-                                                <td style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.active}</td>
-                                                <td style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.revisited}</td>
-                                                <td style={{ textAlign: 'center', padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{rep.posm}</td>
+                                    {repActivityData.length > 0 ? (
+                                        repActivityData.map((rep, index) => (
+                                            <tr key={index}>
+                                                <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>{rep.repName}</td>
+                                                <td style={{ textAlign: 'center' }}>{rep.visited}</td>
+                                                <td style={{ textAlign: 'center' }}>{rep.revisited}</td>
+                                                <td style={{ textAlign: 'center', color: '#4ade80' }}>{rep.active}</td>
+                                                <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#38bdf8' }}>
+                                                    {Math.round(calculatePeriodicActivePercentage(rep.active, rep.visited, rep.revisited))}%
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>{rep.posm}</td>
                                             </tr>
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: 'gray' }}>No data available</td>
+                                            <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'gray' }}>No activity data found for selected range</td>
                                         </tr>
                                     )}
                                 </tbody>
+                                {repActivityData.length > 0 && (
+                                    <tfoot>
+                                        <tr style={{ background: 'rgba(56,189,248,0.1)', fontWeight: 'bold' }}>
+                                            <td>Total</td>
+                                            <td style={{ textAlign: 'center' }}>{pTotalVisited}</td>
+                                            <td style={{ textAlign: 'center' }}>{pTotalRevisited}</td>
+                                            <td style={{ textAlign: 'center' }}>{pTotalActive}</td>
+                                            <td style={{ textAlign: 'center', color: '#38bdf8' }}>
+                                                {Math.round(pTotalActivePercent)}%
+                                            </td>
+                                            <td style={{ textAlign: 'center' }}>{pTotalPOSM}</td>
+                                        </tr>
+                                    </tfoot>
+                                )}
                             </table>
                         </div>
                     </div>
 
                     <div style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-                            <h3 style={{ margin: 0, color: '#fff' }}>Detailed Rep Salon List</h3>
-                            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', cursor: 'pointer', opacity: filterDetailedVisited ? 1 : 0.6 }}>
-                                        <input type="checkbox" checked={filterDetailedVisited} onChange={(e) => setFilterDetailedVisited(e.target.checked)} style={{ width: '16px', height: '16px', margin: 0 }} />
-                                        Visited
-                                    </label>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', cursor: 'pointer', opacity: filterDetailedActive ? 1 : 0.6 }}>
-                                        <input type="checkbox" checked={filterDetailedActive} onChange={(e) => setFilterDetailedActive(e.target.checked)} style={{ width: '16px', height: '16px', margin: 0 }} />
-                                        Active
-                                    </label>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', cursor: 'pointer', opacity: filterDetailedPOSM ? 1 : 0.6 }}>
-                                        <input type="checkbox" checked={filterDetailedPOSM} onChange={(e) => setFilterDetailedPOSM(e.target.checked)} style={{ width: '16px', height: '16px', margin: 0 }} />
-                                        POSM
-                                    </label>
+                            <h3 style={{ margin: 0, color: '#fff' }}>Total Salon Visit (All Time)</h3>
+                        </div>
+                        <div className="table-container">
+                            <table className="styled-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr>
+                                        <th style={{ textAlign: 'left', padding: '1rem' }}>NAME</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem' }}>NEW VISITED</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem' }}>RE.Visit</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem' }}>ACTIVE</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem', color: '#38bdf8' }}>ACTIVE %</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem' }}>QR</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {totalRepActivityData.length > 0 ? (
+                                        totalRepActivityData.map((rep, index) => (
+                                            <tr key={index}>
+                                                <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>{rep.repName}</td>
+                                                <td style={{ textAlign: 'center' }}>{rep.visited}</td>
+                                                <td style={{ textAlign: 'center' }}>{rep.revisited}</td>
+                                                <td style={{ textAlign: 'center', color: '#4ade80' }}>{rep.active}</td>
+                                                <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#38bdf8' }}>
+                                                    {Math.round(calculateTotalActivePercentage(rep.active, rep.visited))}%
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>{rep.posm}</td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'gray' }}>No data found</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                                {totalRepActivityData.length > 0 && (
+                                    <tfoot>
+                                        <tr style={{ background: 'rgba(56,189,248,0.1)', fontWeight: 'bold' }}>
+                                            <td>Total</td>
+                                            <td style={{ textAlign: 'center' }}>{tTotalVisited}</td>
+                                            <td style={{ textAlign: 'center' }}>{tTotalRevisited}</td>
+                                            <td style={{ textAlign: 'center' }}>{tTotalActive}</td>
+                                            <td style={{ textAlign: 'center', color: '#38bdf8' }}>
+                                                {Math.round(tTotalActivePercent)}%
+                                            </td>
+                                            <td style={{ textAlign: 'center' }}>{tTotalPOSM}</td>
+                                        </tr>
+                                    </tfoot>
+                                )}
+                            </table>
+                        </div>
+                    </div>
+
+                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                                <h3 style={{ margin: 0, color: '#fff' }}>Detailed Rep Salon Activity List</h3>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button
+                                        onClick={() => {
+                                            setDetailedFilterRep('');
+                                            setDetailedFilterStartDate('');
+                                            setDetailedFilterEndDate('');
+                                            setFilterDetailedVisited(false);
+                                            setFilterDetailedActive(false);
+                                            setFilterDetailedPOSM(false);
+                                            setSearchTerm('');
+                                        }}
+                                        className="btn-primary outline"
+                                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                                    >
+                                        Reset Filters
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (!detailedFilteredSalons.length) return alert('No data to export');
+                                            const data = detailedFilteredSalons.map(s => ({
+                                                'Salon Name': s.name,
+                                                'Salon Code': s.salonCode || 'N/A',
+                                                'Rep Name': s.repName || 'Unassigned',
+                                                'Location': s.location,
+                                                'Contact': s.contactNumber1 || s.contactNumber || 'N/A',
+                                                'Visited': s.isVisited ? 'Yes' : 'No',
+                                                'Visited Date': s.visitedDate ? new Date(s.visitedDate).toLocaleDateString() : 'N/A',
+                                                'Active': s.isActive ? 'Yes' : 'No',
+                                                'Active Date': s.activeDate ? new Date(s.activeDate).toLocaleDateString() : 'N/A',
+                                                'POSM': s.posmActive ? 'Yes' : 'No',
+                                                'POSM Date': s.posmDate ? new Date(s.posmDate).toLocaleDateString() : 'N/A',
+                                                'Revisits': (s.revisitedDates || []).length
+                                            }));
+                                            const worksheet = XLSX.utils.json_to_sheet(data);
+                                            const workbook = XLSX.utils.book_new();
+                                            XLSX.utils.book_append_sheet(workbook, worksheet, "Filtered Salons");
+                                            XLSX.writeFile(workbook, `Filtered_Salons_Activity_${new Date().toISOString().split('T')[0]}.xlsx`);
+                                        }}
+                                        className="btn-primary"
+                                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', background: '#10b981', border: 'none' }}
+                                    >
+                                        Export Filtered List
+                                    </button>
                                 </div>
-                                <select
-                                    value={selectedRep}
-                                    onChange={(e) => setSelectedRep(e.target.value)}
-                                    style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', minWidth: '200px' }}
-                                >
-                                    <option value="" >Select a Rep</option>
-                                    {reps.map(rep => (
-                                        <option key={rep._id} value={rep.name} >{rep.name}</option>
-                                    ))}
-                                    <option value="Unassigned" >Unassigned</option>
-                                </select>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', background: 'rgba(255,255,255,0.05)', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                <div className="input-group">
+                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>Select Representative</label>
+                                    <select
+                                        value={detailedFilterRep || selectedRep}
+                                        onChange={(e) => setDetailedFilterRep(e.target.value)}
+                                        style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white' }}
+                                    >
+                                        <option value="" >All Representatives</option>
+                                        {reps.map(rep => (
+                                            <option key={rep._id} value={rep.name} >{rep.name}</option>
+                                        ))}
+                                        <option value="Unassigned" >Unassigned</option>
+                                    </select>
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>Activity Start Date</label>
+                                    <input
+                                        type="date"
+                                        value={detailedFilterStartDate}
+                                        onChange={(e) => setDetailedFilterStartDate(e.target.value)}
+                                        style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', colorScheme: 'dark' }}
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>Activity End Date</label>
+                                    <input
+                                        type="date"
+                                        value={detailedFilterEndDate}
+                                        onChange={(e) => setDetailedFilterEndDate(e.target.value)}
+                                        style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', colorScheme: 'dark' }}
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>Status Filters</label>
+                                    <div style={{ display: 'flex', gap: '0.8rem', height: '100%', alignItems: 'center' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer', opacity: filterDetailedVisited ? 1 : 0.6 }}>
+                                            <input type="checkbox" checked={filterDetailedVisited} onChange={(e) => setFilterDetailedVisited(e.target.checked)} />
+                                            Visited
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer', opacity: filterDetailedActive ? 1 : 0.6 }}>
+                                            <input type="checkbox" checked={filterDetailedActive} onChange={(e) => setFilterDetailedActive(e.target.checked)} />
+                                            Active
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer', opacity: filterDetailedPOSM ? 1 : 0.6 }}>
+                                            <input type="checkbox" checked={filterDetailedPOSM} onChange={(e) => setFilterDetailedPOSM(e.target.checked)} />
+                                            POSM
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        {selectedRep && (
-                            <div style={{ marginBottom: '1rem', opacity: 0.8, fontSize: '0.9rem' }}>
-                                Showing {detailedFilteredSalonsCount} salons for {selectedRep}
-                            </div>
-                        )}
+                        <div style={{ marginBottom: '1rem', opacity: 0.8, fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>Showing {detailedFilteredSalonsCount} salons meeting activity criteria</span>
+                            {(detailedFilterRep || detailedFilterStartDate || detailedFilterEndDate) && (
+                                <span style={{ color: '#38bdf8', fontSize: '0.8rem' }}>
+                                    Filters Active: {detailedFilterRep && `Rep: ${detailedFilterRep}`} {detailedFilterStartDate && `From: ${detailedFilterStartDate}`} {detailedFilterEndDate && `To: ${detailedFilterEndDate}`}
+                                </span>
+                            )}
+                        </div>
 
-                        {selectedRep && (
+                        {detailedFilteredSalons.length > 0 ? (
                             <div className="table-container">
                                 <table className="styled-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                                     <thead>
@@ -1093,9 +1679,39 @@ const AdminDashboard = () => {
                                                         style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                                                     />
                                                 </td>
-                                                <td style={{ textAlign: 'center' }}>{s.isVisited ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
-                                                <td style={{ textAlign: 'center' }}>{s.isActive ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
-                                                <td style={{ textAlign: 'center' }}>{s.posmActive ? <span style={{ color: '#4ade80' }}>✓</span> : <span style={{ color: '#ef4444' }}>✗</span>}</td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <span
+                                                        onClick={() => handleToggleStatus(s, 'isVisited')}
+                                                        style={{ cursor: 'pointer', fontSize: '1.2rem', color: s.isVisited ? '#4ade80' : '#ef4444', transition: 'transform 0.2s' }}
+                                                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                                        title="Click to toggle Visited status"
+                                                    >
+                                                        {s.isVisited ? '✓' : '✗'}
+                                                    </span>
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <span
+                                                        onClick={() => handleToggleStatus(s, 'isActive')}
+                                                        style={{ cursor: 'pointer', fontSize: '1.2rem', color: s.isActive ? '#4ade80' : '#ef4444', transition: 'transform 0.2s' }}
+                                                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                                        title="Click to toggle Active status"
+                                                    >
+                                                        {s.isActive ? '✓' : '✗'}
+                                                    </span>
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <span
+                                                        onClick={() => handleToggleStatus(s, 'posmActive')}
+                                                        style={{ cursor: 'pointer', fontSize: '1.2rem', color: s.posmActive ? '#4ade80' : '#ef4444', transition: 'transform 0.2s' }}
+                                                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                                                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                                        title="Click to toggle POSM status"
+                                                    >
+                                                        {s.posmActive ? '✓' : '✗'}
+                                                    </span>
+                                                </td>
                                                 <td style={{ textAlign: 'center' }}>
                                                     <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
                                                         <button
@@ -1124,12 +1740,7 @@ const AdminDashboard = () => {
                                     </tbody>
                                 </table>
                             </div>
-                        )}
-                        {!selectedRep && (
-                            <div style={{ textAlign: 'center', padding: '3rem', opacity: 0.5 }}>
-                                Please select a representative to view their salon details.
-                            </div>
-                        )}
+                        ) : null}
                     </div>
                 </section >
             )}
@@ -1158,7 +1769,7 @@ const AdminDashboard = () => {
                                             const orderRep = (orderSalon && orderSalon.repName && orderSalon.repName.trim() !== '') ? orderSalon.repName : 'Unassigned';
 
                                             if (selectedRep && orderRep !== selectedRep) return false;
-                                            if (adminRole === 'admin' && order.status !== 'COD' && order.status !== 'Paid') return false;
+                                            if (adminRole === 'admin' && order.status !== 'Processing' && order.status !== 'Paid') return false;
                                             if (!searchTerm) return true;
                                             const term = searchTerm.toLowerCase();
                                             return (
@@ -1212,7 +1823,7 @@ const AdminDashboard = () => {
                                                     >
                                                         <option value="Pending Payment">Pending</option>
                                                         <option value="Paid">Paid</option>
-                                                        <option value="COD">COD</option>
+                                                        <option value="Processing">Processing</option>
                                                         <option value="Shipped">Shipped</option>
                                                         <option value="Completed">Completed</option>
                                                         <option value="Returned">Returned</option>
@@ -1886,18 +2497,15 @@ const AdminDashboard = () => {
                                         <option value="percentage">Percentage (%)</option>
                                         <option value="amount">Fixed Amount (LKR)</option>
                                     </select>
-                                    <div style={{ display: 'flex', gap: '1rem', background: 'rgba(255,255,255,0.05)', padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', flex: 2, justifyContent: 'space-around', alignItems: 'center' }}>
-                                        <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>Targets:</span>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', fontSize: '0.9rem' }}>
-                                            <input type="checkbox" checked={newProduct.target.includes('salon')} onChange={() => handleToggleTarget('salon')} /> Salon
-                                        </label>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', fontSize: '0.9rem' }}>
-                                            <input type="checkbox" checked={newProduct.target.includes('agent')} onChange={() => handleToggleTarget('agent')} /> Agent
-                                        </label>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', fontSize: '0.9rem' }}>
-                                            <input type="checkbox" checked={newProduct.target.includes('netagent')} onChange={() => handleToggleTarget('netagent')} /> Netagent
-                                        </label>
-                                    </div>
+                                    <select
+                                        value={newProduct.target}
+                                        onChange={(e) => setNewProduct({ ...newProduct, target: e.target.value })}
+                                        style={{ padding: '0.8rem', borderRadius: '8px', border: '1px solid #ccc', flex: 1 }}
+                                    >
+                                        <option value="both">Both</option>
+                                        <option value="salon">Salon Only</option>
+                                        <option value="agent">Agent Only</option>
+                                    </select>
                                     {newProduct.discountType !== 'none' && (
                                         <input
                                             type="number"
@@ -1927,7 +2535,7 @@ const AdminDashboard = () => {
                                             className="btn-primary outline"
                                             style={{ flex: 1 }}
                                             onClick={() => {
-                                                setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: ['salon', 'agent'], commission: 0 });
+                                                setNewProduct({ name: '', price: '', discountType: 'none', discountValue: 0, target: 'both', commission: 0 });
                                                 setEditingProductId(null);
                                             }}
                                         >
@@ -1956,8 +2564,8 @@ const AdminDashboard = () => {
                                                     ({p.discountType === 'percentage' ? `${p.discountValue}%` : `Rs.${p.discountValue}`} OFF)
                                                 </span>
                                             )}
-                                            <div style={{ marginTop: '0.2rem', color: '#38bdf8', textTransform: 'capitalize' }}>
-                                                For: {Array.isArray(p.target) ? p.target.join(', ') : (p.target === 'both' ? 'salon, agent' : p.target)}
+                                            <div style={{ marginTop: '0.2rem', color: '#38bdf8' }}>
+                                                For: {p.target === 'salon' ? 'Salon Only' : p.target === 'agent' ? 'Agent Only' : 'Both'}
                                             </div>
                                             <div style={{ marginTop: '0.2rem', color: '#4ade80', fontWeight: 'bold' }}>
                                                 Commission: Rs.{p.commission || 0}
@@ -2292,6 +2900,15 @@ const AdminDashboard = () => {
                                 <button onClick={handleExportPerformance} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                                     Download Performance CSV
+                                </button>
+                            </div>
+
+                            <div style={{ background: 'rgba(56,189,248,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(56,189,248,0.2)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
+                                <h3 style={{ margin: 0, color: '#38bdf8' }}>Combined Performance Excel</h3>
+                                <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9rem', flex: 1 }}>Export a detailed Excel report with New Visited, Active, Re-visit, and POSM metrics including total summary and date ranges.</p>
+                                <button onClick={handleExportCombinedExcel} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, #0d9488, #0f766e)', border: 'none' }}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                    Export Performance Excel
                                 </button>
                             </div>
                         </div>
