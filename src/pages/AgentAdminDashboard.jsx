@@ -662,7 +662,7 @@ const AgentAdminDashboard = () => {
     };
 
     const handleExportOrders = async () => {
-        let filteredOrders = adminRole === 'admin' ? orders.filter(o => o.status === 'Processing' || o.status === 'Paid') : orders;
+        let filteredOrders = adminRole === 'admin' ? orders.filter(o => o.status === 'COD' || o.status === 'Paid') : orders;
         if (reportStartDate) filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) >= new Date(reportStartDate));
         if (reportEndDate) {
             const end = new Date(reportEndDate + 'T23:59:59.999Z');

@@ -822,7 +822,7 @@ const AdminDashboard = () => {
     };
 
     const handleExportOrders = async () => {
-        let filteredOrders = adminRole === 'admin' ? orders.filter(o => o.status === 'Processing' || o.status === 'Paid') : orders;
+        let filteredOrders = adminRole === 'admin' ? orders.filter(o => o.status === 'COD' || o.status === 'Paid') : orders;
         if (reportStartDate) filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) >= new Date(reportStartDate));
         if (reportEndDate) {
             const end = new Date(reportEndDate + 'T23:59:59.999Z');
@@ -1443,7 +1443,7 @@ const AdminDashboard = () => {
                                         <th style={{ textAlign: 'center', padding: '1rem' }}>RE.Visit</th>
                                         <th style={{ textAlign: 'center', padding: '1rem' }}>ACTIVE</th>
                                         <th style={{ textAlign: 'center', padding: '1rem', color: '#38bdf8' }}>ACTIVE %</th>
-                                        <th style={{ textAlign: 'center', padding: '1rem' }}>QR</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem' }}>POSM</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1497,7 +1497,7 @@ const AdminDashboard = () => {
                                         <th style={{ textAlign: 'center', padding: '1rem' }}>RE.Visit</th>
                                         <th style={{ textAlign: 'center', padding: '1rem' }}>ACTIVE</th>
                                         <th style={{ textAlign: 'center', padding: '1rem', color: '#38bdf8' }}>ACTIVE %</th>
-                                        <th style={{ textAlign: 'center', padding: '1rem' }}>QR</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem' }}>POSM</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1769,7 +1769,7 @@ const AdminDashboard = () => {
                                             const orderRep = (orderSalon && orderSalon.repName && orderSalon.repName.trim() !== '') ? orderSalon.repName : 'Unassigned';
 
                                             if (selectedRep && orderRep !== selectedRep) return false;
-                                            if (adminRole === 'admin' && order.status !== 'Processing' && order.status !== 'Paid') return false;
+                                            if (adminRole === 'admin' && order.status !== 'COD' && order.status !== 'Paid') return false;
                                             if (!searchTerm) return true;
                                             const term = searchTerm.toLowerCase();
                                             return (
@@ -1823,7 +1823,7 @@ const AdminDashboard = () => {
                                                     >
                                                         <option value="Pending Payment">Pending</option>
                                                         <option value="Paid">Paid</option>
-                                                        <option value="Processing">Processing</option>
+                                                        <option value="COD">COD</option>
                                                         <option value="Shipped">Shipped</option>
                                                         <option value="Completed">Completed</option>
                                                         <option value="Returned">Returned</option>
