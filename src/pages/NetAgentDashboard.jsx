@@ -36,7 +36,7 @@ const NetAgentDashboard = () => {
         remark: '', repName: '',
         username: '', password: '',
         accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' },
-        isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false,
+        isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, activeDate: '', posmActive: false, posmDate: '',
         assignToCode: '', isDraft: false
     };
     const [form, setForm] = useState(emptyForm);
@@ -169,7 +169,10 @@ const NetAgentDashboard = () => {
             isVisited: agent.isVisited || false,
             visitedDate: agent.visitedDate ? agent.visitedDate.split('T')[0] : '',
             revisitedDates: agent.revisitedDates || [],
-            isActive: agent.isActive || false, posmActive: agent.posmActive || false,
+            isActive: agent.isActive || false,
+            activeDate: agent.activeDate ? agent.activeDate.split('T')[0] : '',
+            posmActive: agent.posmActive || false,
+            posmDate: agent.posmDate ? agent.posmDate.split('T')[0] : '',
             assignToCode: '', isDraft: !agent.agentCode
         });
         setEditingAgentId(agent._id);
@@ -369,14 +372,18 @@ const NetAgentDashboard = () => {
 
     const handleExportAgents = () => {
         if (!agents.length) return alert('No agents');
-        const headers = ['Name', 'Code', 'Username', 'Password', 'Location', 'Phone 1', 'Phone 2', 'Rep', 'Active', 'Visited', 'Visited Date'];
+        const headers = ['Name', 'Code', 'Username', 'Password', 'Location', 'Phone 1', 'Phone 2', 'Rep', 'Visited', 'Visited Date', 'Active', 'Active Date', 'POSM Active', 'POSM Date'];
         const rows = agents.map(a => [
             `"${a.name}"`, a.agentCode || '', a.username || '',
             `"${a.plainPassword || ''}"`, `"${a.location || ''}"`,
             a.contactNumber1 || '', a.contactNumber2 || '',
-            `"${a.repName || ''}"`, a.isActive ? 'Yes' : 'No',
+            `"${a.repName || ''}"`, 
             a.isVisited ? 'Yes' : 'No',
-            a.visitedDate ? new Date(a.visitedDate).toLocaleDateString() : ''
+            a.visitedDate ? new Date(a.visitedDate).toLocaleDateString() : '',
+            a.isActive ? 'Yes' : 'No',
+            a.activeDate ? new Date(a.activeDate).toLocaleDateString() : '',
+            a.posmActive ? 'Yes' : 'No',
+            a.posmDate ? new Date(a.posmDate).toLocaleDateString() : ''
         ]);
         const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         saveAs(new Blob([csv], { type: 'text/csv' }), 'net_agents_list.csv');
@@ -636,23 +643,35 @@ const NetAgentDashboard = () => {
                             </div>
 
                             <h3 className="section-title">Status</h3>
-                            <div className="form-grid" style={{ marginBottom: '1.5rem', alignContent: 'start', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
-                                {[['isVisited', 'Visited'], ['isActive', 'Active'], ['posmActive', 'POSM Active']].map(([key, lbl]) => (
-                                    <div key={key} className="input-group" style={{ justifyContent: 'center' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'white', fontSize: '1rem' }}>
-                                            <input type="checkbox" checked={form[key]} onChange={e => setForm({ ...form, [key]: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
-                                            {lbl}
-                                        </label>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {form.isVisited && (
-                                <div className="input-group" style={{ marginBottom: '1.5rem' }}>
-                                    <label>Visited Date</label>
-                                    <input type="date" value={form.visitedDate} onChange={e => setForm({ ...form, visitedDate: e.target.value })} style={{ width: '100%', margin: 0 }} />
-                                </div>
-                            )}
+                             <div className="form-grid" style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                 <div className="input-group" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'white', fontSize: '1rem', minWidth: '150px' }}>
+                                         <input type="checkbox" checked={form.isVisited} onChange={e => setForm({ ...form, isVisited: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
+                                         Visited
+                                     </label>
+                                     {form.isVisited && (
+                                         <input type="date" value={form.visitedDate} onChange={e => setForm({ ...form, visitedDate: e.target.value })} style={{ flex: '1 1 200px', marginTop: 0 }} />
+                                     )}
+                                 </div>
+                                 <div className="input-group" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'white', fontSize: '1rem', minWidth: '150px' }}>
+                                         <input type="checkbox" checked={form.isActive} onChange={e => setForm({ ...form, isActive: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
+                                         Active
+                                     </label>
+                                     {form.isActive && (
+                                         <input type="date" value={form.activeDate} onChange={e => setForm({ ...form, activeDate: e.target.value })} style={{ flex: '1 1 200px', marginTop: 0 }} />
+                                     )}
+                                 </div>
+                                 <div className="input-group" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'white', fontSize: '1rem', minWidth: '150px' }}>
+                                         <input type="checkbox" checked={form.posmActive} onChange={e => setForm({ ...form, posmActive: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
+                                         POSM Active
+                                     </label>
+                                     {form.posmActive && (
+                                         <input type="date" value={form.posmDate} onChange={e => setForm({ ...form, posmDate: e.target.value })} style={{ flex: '1 1 200px', marginTop: 0 }} />
+                                     )}
+                                 </div>
+                             </div>
 
                             <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
                                 <button type="submit" className="btn-primary" style={{ flex: 1 }}>

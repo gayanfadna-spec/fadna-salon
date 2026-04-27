@@ -16,7 +16,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onre
 const AdminDashboard = () => {
     const [salons, setSalons] = useState([]);
     const [orders, setOrders] = useState([]);
-    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, activeDate: '', posmActive: false, posmDate: '', assignToCode: '', isDraft: false });
     const [qrCode, setQrCode] = useState(null);
     const [newCredentials, setNewCredentials] = useState(null);
     const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'orders', 'salons', 'monitor'
@@ -422,7 +422,9 @@ const AdminDashboard = () => {
             visitedDate: salon.visitedDate ? salon.visitedDate.split('T')[0] : '',
             revisitedDates: salon.revisitedDates || [],
             isActive: salon.isActive || false,
+            activeDate: salon.activeDate ? salon.activeDate.split('T')[0] : '',
             posmActive: salon.posmActive || false,
+            posmDate: salon.posmDate ? salon.posmDate.split('T')[0] : '',
             isDraft: !salon.salonCode,
             assignToCode: ''
         });
@@ -789,7 +791,7 @@ const AdminDashboard = () => {
             itemsToExport = itemsToExport.filter(s => new Date(s.createdAt) <= end);
         }
         if (!itemsToExport.length) return alert('No salons to export for this date range');
-        const headers = ['Salon ID', 'Name', 'Location', 'Code', 'Username', 'Password', 'Bank Name', 'Branch', 'Account Number', 'Account Name', 'Contact 1', 'Contact 2', 'Rep Name', 'Remark', 'Registered Date', 'Visited', 'Visited Date', 'Revisited Dates', 'Active', 'POSM Active'];
+        const headers = ['Salon ID', 'Name', 'Location', 'Code', 'Username', 'Password', 'Bank Name', 'Branch', 'Account Number', 'Account Name', 'Contact 1', 'Contact 2', 'Rep Name', 'Remark', 'Registered Date', 'Visited', 'Visited Date', 'Revisited Dates', 'Active', 'Active Date', 'POSM Active', 'POSM Date'];
         const rows = itemsToExport.map(s => {
             const acc = s.accountDetails || {};
             return [
@@ -812,7 +814,9 @@ const AdminDashboard = () => {
                 s.visitedDate ? new Date(s.visitedDate).toLocaleDateString() : '',
                 (s.revisitedDates || []).map(d => new Date(d).toLocaleDateString()).join('; '),
                 s.isActive ? 'Yes' : 'No',
-                s.posmActive ? 'Yes' : 'No'
+                s.activeDate ? new Date(s.activeDate).toLocaleDateString() : '',
+                s.posmActive ? 'Yes' : 'No',
+                s.posmDate ? new Date(s.posmDate).toLocaleDateString() : ''
             ];
         });
         const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -1973,9 +1977,9 @@ const AdminDashboard = () => {
                                 </div>
 
                                 <h3 className="section-title">Status & Marks</h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500', minWidth: '150px' }}>
                                             <input type="checkbox" checked={newSalon.isVisited} onChange={(e) => setNewSalon({ ...newSalon, isVisited: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)', margin: 0 }} />
                                             Visited Salon
                                         </label>
@@ -1984,18 +1988,38 @@ const AdminDashboard = () => {
                                                 type="date"
                                                 value={newSalon.visitedDate}
                                                 onChange={(e) => setNewSalon({ ...newSalon, visitedDate: e.target.value })}
-                                                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white', marginTop: 0 }}
+                                                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white', flex: '1 1 200px', marginTop: 0 }}
                                             />
                                         )}
                                     </div>
-                                    <label style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500' }}>
-                                        <input type="checkbox" checked={newSalon.isActive} onChange={(e) => setNewSalon({ ...newSalon, isActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)', margin: 0 }} />
-                                        Active Salon
-                                    </label>
-                                    <label style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500' }}>
-                                        <input type="checkbox" checked={newSalon.posmActive} onChange={(e) => setNewSalon({ ...newSalon, posmActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)', margin: 0 }} />
-                                        POSM Active Salon
-                                    </label>
+                                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500', minWidth: '150px' }}>
+                                            <input type="checkbox" checked={newSalon.isActive} onChange={(e) => setNewSalon({ ...newSalon, isActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)', margin: 0 }} />
+                                            Active Salon
+                                        </label>
+                                        {newSalon.isActive && (
+                                            <input
+                                                type="date"
+                                                value={newSalon.activeDate}
+                                                onChange={(e) => setNewSalon({ ...newSalon, activeDate: e.target.value })}
+                                                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white', flex: '1 1 200px', marginTop: 0 }}
+                                            />
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500', minWidth: '150px' }}>
+                                            <input type="checkbox" checked={newSalon.posmActive} onChange={(e) => setNewSalon({ ...newSalon, posmActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)', margin: 0 }} />
+                                            POSM Active Salon
+                                        </label>
+                                        {newSalon.posmActive && (
+                                            <input
+                                                type="date"
+                                                value={newSalon.posmDate}
+                                                onChange={(e) => setNewSalon({ ...newSalon, posmDate: e.target.value })}
+                                                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white', flex: '1 1 200px', marginTop: 0 }}
+                                            />
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className="input-group" style={{ marginBottom: '2rem' }}>

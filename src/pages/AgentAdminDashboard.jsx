@@ -11,7 +11,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onre
 const AgentAdminDashboard = () => {
     const [agents, setAgents] = useState([]);
     const [orders, setOrders] = useState([]);
-    const [newAgent, setNewAgent] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+    const [newAgent, setNewAgent] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, activeDate: '', posmActive: false, posmDate: '', assignToCode: '', isDraft: false });
     const [qrCode, setQrCode] = useState(null);
     const [newCredentials, setNewCredentials] = useState(null);
     const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'orders', 'agents', 'monitor'
@@ -221,7 +221,7 @@ const AgentAdminDashboard = () => {
                 const res = await axios.put(`${API_URL}/agents/assign`, payload);
                 if (res.data.success) {
                     alert(`Successfully assigned details to Agent Code: ${newAgent.assignToCode}`);
-                    setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], nextVisitedDate: '', isActive: false, posmActive: false, assignToCode: '' });
+                    setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, activeDate: '', posmActive: false, posmDate: '', assignToCode: '' });
                     fetchAgents();
                 }
             } else {
@@ -229,11 +229,11 @@ const AgentAdminDashboard = () => {
                 if (res.data.success) {
                     if (formModeAdmin === 'draft') {
                         alert('Draft agent created successfully!');
-                        setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+                        setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, activeDate: '', posmActive: false, posmDate: '', assignToCode: '', isDraft: false });
                         fetchAgents();
                     } else {
                         setQrCode(res.data.qrCode);
-                        setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+                        setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, activeDate: '', posmActive: false, posmDate: '', assignToCode: '', isDraft: false });
                         fetchAgents();
 
                         // Set Credentials for display
@@ -277,7 +277,9 @@ const AgentAdminDashboard = () => {
             visitedDate: agent.visitedDate ? agent.visitedDate.split('T')[0] : '',
             revisitedDates: agent.revisitedDates || [],
             isActive: agent.isActive || false,
+            activeDate: agent.activeDate ? agent.activeDate.split('T')[0] : '',
             posmActive: agent.posmActive || false,
+            posmDate: agent.posmDate ? agent.posmDate.split('T')[0] : '',
             isDraft: !agent.agentCode,
             assignToCode: ''
         });
@@ -306,7 +308,7 @@ const AgentAdminDashboard = () => {
             }
 
             if (res.data.success) {
-                setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+                setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, activeDate: '', posmActive: false, posmDate: '', assignToCode: '', isDraft: false });
                 setEditingAgentId(null);
                 fetchAgents();
                 alert('Agent Updated Successfully!');
@@ -318,7 +320,7 @@ const AgentAdminDashboard = () => {
     };
 
     const handleCancelEdit = () => {
-        setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+        setNewAgent({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', username: '', password: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, activeDate: '', posmActive: false, posmDate: '', assignToCode: '', isDraft: false });
         setEditingAgentId(null);
     };
 
@@ -629,7 +631,7 @@ const AgentAdminDashboard = () => {
             itemsToExport = itemsToExport.filter(s => new Date(s.createdAt) <= end);
         }
         if (!itemsToExport.length) return alert('No agents to export for this date range');
-        const headers = ['Agent ID', 'Name', 'Location', 'Code', 'Username', 'Password', 'Bank Name', 'Branch', 'Account Number', 'Account Name', 'Contact 1', 'Contact 2', 'Rep Name', 'Remark', 'Registered Date', 'Visited', 'Visited Date', 'Revisited Dates', 'Active', 'POSM Active'];
+        const headers = ['Agent ID', 'Name', 'Location', 'Code', 'Username', 'Password', 'Bank Name', 'Branch', 'Account Number', 'Account Name', 'Contact 1', 'Contact 2', 'Rep Name', 'Remark', 'Registered Date', 'Visited', 'Visited Date', 'Revisited Dates', 'Active', 'Active Date', 'POSM Active', 'POSM Date'];
         const rows = itemsToExport.map(s => {
             const acc = s.accountDetails || {};
             return [
@@ -652,7 +654,9 @@ const AgentAdminDashboard = () => {
                 s.visitedDate ? new Date(s.visitedDate).toLocaleDateString() : '',
                 (s.revisitedDates || []).map(d => new Date(d).toLocaleDateString()).join('; '),
                 s.isActive ? 'Yes' : 'No',
-                s.posmActive ? 'Yes' : 'No'
+                s.activeDate ? new Date(s.activeDate).toLocaleDateString() : '',
+                s.posmActive ? 'Yes' : 'No',
+                s.posmDate ? new Date(s.posmDate).toLocaleDateString() : ''
             ];
         });
         const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -1174,9 +1178,9 @@ const AgentAdminDashboard = () => {
                                 </div>
 
                                 <h3 className="section-title">Status & Marks</h3>
-                                <div className="form-grid" style={{ marginBottom: '1.5rem', alignContent: 'start', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                                    <div className="input-group" style={{ justifyContent: 'center' }}>
-                                        <label style={{ cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
+                                <div className="form-grid" style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                    <div className="input-group" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                        <label style={{ cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem', minWidth: '150px' }}>
                                             <input type="checkbox" checked={newAgent.isVisited} onChange={(e) => setNewAgent({ ...newAgent, isVisited: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
                                             Visited Agent
                                         </label>
@@ -1185,21 +1189,37 @@ const AgentAdminDashboard = () => {
                                                 type="date"
                                                 value={newAgent.visitedDate}
                                                 onChange={(e) => setNewAgent({ ...newAgent, visitedDate: e.target.value })}
-                                                style={{ marginTop: '0.5rem' }}
+                                                style={{ marginTop: 0, flex: '1 1 200px' }}
                                             />
                                         )}
                                     </div>
-                                    <div className="input-group" style={{ justifyContent: 'center' }}>
-                                        <label style={{ cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
+                                    <div className="input-group" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                        <label style={{ cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem', minWidth: '150px' }}>
                                             <input type="checkbox" checked={newAgent.isActive} onChange={(e) => setNewAgent({ ...newAgent, isActive: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
                                             Active Agent
                                         </label>
+                                        {newAgent.isActive && (
+                                            <input
+                                                type="date"
+                                                value={newAgent.activeDate}
+                                                onChange={(e) => setNewAgent({ ...newAgent, activeDate: e.target.value })}
+                                                style={{ marginTop: 0, flex: '1 1 200px' }}
+                                            />
+                                        )}
                                     </div>
-                                    <div className="input-group" style={{ justifyContent: 'center' }}>
-                                        <label style={{ cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem' }}>
+                                    <div className="input-group" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                        <label style={{ cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1rem', minWidth: '150px' }}>
                                             <input type="checkbox" checked={newAgent.posmActive} onChange={(e) => setNewAgent({ ...newAgent, posmActive: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
                                             POSM Active Agent
                                         </label>
+                                        {newAgent.posmActive && (
+                                            <input
+                                                type="date"
+                                                value={newAgent.posmDate}
+                                                onChange={(e) => setNewAgent({ ...newAgent, posmDate: e.target.value })}
+                                                style={{ marginTop: 0, flex: '1 1 200px' }}
+                                            />
+                                        )}
                                     </div>
                                 </div>
 

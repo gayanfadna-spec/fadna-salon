@@ -7,8 +7,9 @@ import ThemeToggle from '../components/ThemeToggle';
 const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onrender.com/api';
 
 const SalesmanDashboard = () => {
+    const loggedInUsername = localStorage.getItem('loggedInUsername');
     const [salons, setSalons] = useState([]);
-    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '' });
+    const [newSalon, setNewSalon] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: loggedInUsername || '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, activeDate: '', posmActive: false, posmDate: '', assignToCode: '' });
     const [qrCode, setQrCode] = useState(null);
     const [newCredentials, setNewCredentials] = useState(null);
     const [createdSalon, setCreatedSalon] = useState(null);
@@ -16,13 +17,20 @@ const SalesmanDashboard = () => {
     const [editingSalonId, setEditingSalonId] = useState(null);
     const [expandedSalonId, setExpandedSalonId] = useState(null);
     const [formMode, setFormMode] = useState(null); // 'create' | 'assign' | 'draft' | null
-    const [editFormData, setEditFormData] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, posmActive: false, assignToCode: '', isDraft: false });
+    const [editFormData, setEditFormData] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, activeDate: '', posmActive: false, posmDate: '', assignToCode: '', isDraft: false });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [reps, setReps] = useState([]);
     const [selectedExcelFile, setSelectedExcelFile] = useState(null);
     const [newBulkSalons, setNewBulkSalons] = useState([]);
     const [filterVisited, setFilterVisited] = useState(false);
     const navigate = useNavigate();
+
+    const isToday = (date) => {
+        if (!date) return false;
+        const d = new Date(date);
+        const today = new Date();
+        return d.toDateString() === today.toDateString();
+    };
 
     useEffect(() => {
         const storedSalesman = localStorage.getItem('salesmanUser');
@@ -108,7 +116,7 @@ const SalesmanDashboard = () => {
                     setFormMode(null);
                 }
             } else {
-                const res = await axios.post(`${API_URL}/salons`, { ...newSalon, isDraft: formMode === 'draft' });
+                const res = await axios.post(`${API_URL}/salons`, { ...newSalon, isDraft: formMode === 'draft', editedBy: loggedInUsername });
                 if (res.data.success) {
                     if (formMode === 'draft') {
                         alert('Draft details saved successfully!');
@@ -198,7 +206,9 @@ const SalesmanDashboard = () => {
             visitedDate: salon.visitedDate ? salon.visitedDate.split('T')[0] : '',
             revisitedDates: salon.revisitedDates || [],
             isActive: salon.isActive || false,
+            activeDate: salon.activeDate ? salon.activeDate.split('T')[0] : '',
             posmActive: salon.posmActive || false,
+            posmDate: salon.posmDate ? salon.posmDate.split('T')[0] : '',
             isDraft: !salon.salonCode,
             assignToCode: ''
         });
@@ -265,30 +275,9 @@ const SalesmanDashboard = () => {
                                 onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
                             />
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#cbd5e1', fontSize: '0.9rem' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={filterVisited}
-                                    onChange={(e) => setFilterVisited(e.target.checked)}
-                                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                                />
-                                Visited Only
-                            </label>
-                        </div>
+                        {/* Removed Visited Only Filter per request */}
                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                            <button
-                                onClick={() => {
-                                    if (formMode === 'create') setFormMode(null); else setFormMode('create');
-                                    setEditingSalonId(null);
-                                    if (qrCode) resetSuccessState();
-                                }}
-                                className="btn-primary"
-                                style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap', borderRadius: '8px', fontSize: '0.9rem' }}
-                            >
-                                {formMode === 'create' ? <X size={18} /> : <Plus size={18} />}
-                                {formMode === 'create' ? 'Close Form' : 'Register New Salon'}
-                            </button>
+                            {/* Removed Register New Salon per request */}
                             <button
                                 onClick={() => {
                                     if (formMode === 'assign') setFormMode(null); else setFormMode('assign');
@@ -299,7 +288,7 @@ const SalesmanDashboard = () => {
                                 style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', whiteSpace: 'nowrap', borderRadius: '8px', fontSize: '0.9rem', border: '1px solid var(--primary-color)', color: 'var(--primary-color)' }}
                             >
                                 {formMode === 'assign' ? <X size={18} /> : <Hash size={18} />}
-                                {formMode === 'assign' ? 'Close Form' : 'Assign Setup'}
+                                {formMode === 'assign' ? 'Close Form' : 'Enter QR'}
                             </button>
                             <button
                                 onClick={() => {
@@ -324,7 +313,7 @@ const SalesmanDashboard = () => {
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                             <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'white', background: 'none', WebkitTextFillColor: 'initial' }}>
-                                {editingSalonId ? <><Edit3 size={24} color="var(--accent-color)" /> Update Salon</> : (formMode === 'assign' ? <><Hash size={24} color="var(--primary-color)" /> Assign to QR Code</> : (formMode === 'draft' ? <><Edit3 size={24} color="#eab308" /> Add Draft Details</> : <><Store size={24} color="var(--primary-color)" /> Register Salon</>))}
+                                {editingSalonId ? <><Edit3 size={24} color="var(--accent-color)" /> Update Salon</> : (formMode === 'assign' ? <><Hash size={24} color="var(--primary-color)" /> Enter QR Code</> : (formMode === 'draft' ? <><Edit3 size={24} color="#eab308" /> Add Draft Details</> : <><Store size={24} color="var(--primary-color)" /> Enter QR</>))}
                             </h2>
                             {editingSalonId && (
                                 <button onClick={() => setEditingSalonId(null)} className="icon-btn danger" style={{ background: 'rgba(239,68,68,0.1)', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -338,7 +327,7 @@ const SalesmanDashboard = () => {
                             {formMode === 'assign' && !editingSalonId && (
                                 <div style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', padding: '1.5rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
                                     <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#38bdf8', background: 'none', WebkitTextFillColor: 'initial' }}>
-                                        <Hash size={18} /> Enter Pre-Registered QR Code
+                                        <Hash size={18} /> Enter QR Code Details
                                     </h3>
                                     <p style={{ fontSize: '0.85rem', color: '#bae6fd', marginBottom: '1rem', opacity: 0.8 }}>
                                         Enter the 6-character Salon Code from the pre-printed QR card to assign these details to it.
@@ -363,7 +352,7 @@ const SalesmanDashboard = () => {
                             {editingSalonId && editFormData.isDraft && (
                                 <div style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', padding: '1.5rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
                                     <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#38bdf8', background: 'none', WebkitTextFillColor: 'initial' }}>
-                                        <Hash size={18} /> Assign to Pre-Registered QR Code (Optional)
+                                        <Hash size={18} /> Enter QR Code (Optional)
                                     </h3>
                                     <p style={{ fontSize: '0.85rem', color: '#bae6fd', marginBottom: '1rem', opacity: 0.8 }}>
                                         You can turn this Draft into a real Salon Record by entering a pre-registered 6-character Salon Code.
@@ -506,9 +495,9 @@ const SalesmanDashboard = () => {
                                 <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', background: 'none', WebkitTextFillColor: 'initial' }}>
                                     <Store size={18} /> Status & Marks
                                 </h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500', minWidth: '150px' }}>
                                             <input type="checkbox" checked={editingSalonId ? editFormData.isVisited : newSalon.isVisited} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, isVisited: e.target.checked }) : setNewSalon({ ...newSalon, isVisited: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} />
                                             Visited Salon
                                         </label>
@@ -517,18 +506,38 @@ const SalesmanDashboard = () => {
                                                 type="date"
                                                 value={editingSalonId ? editFormData.visitedDate : newSalon.visitedDate}
                                                 onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, visitedDate: e.target.value }) : setNewSalon({ ...newSalon, visitedDate: e.target.value })}
-                                                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white' }}
+                                                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white', flex: '1 1 200px' }}
                                             />
                                         )}
                                     </div>
-                                    <label style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500' }}>
-                                        <input type="checkbox" checked={editingSalonId ? editFormData.isActive : newSalon.isActive} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, isActive: e.target.checked }) : setNewSalon({ ...newSalon, isActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} />
-                                        Active Salon
-                                    </label>
-                                    <label style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500' }}>
-                                        <input type="checkbox" checked={editingSalonId ? editFormData.posmActive : newSalon.posmActive} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, posmActive: e.target.checked }) : setNewSalon({ ...newSalon, posmActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} />
-                                        POSM Active Salon
-                                    </label>
+                                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500', minWidth: '150px' }}>
+                                            <input type="checkbox" checked={editingSalonId ? editFormData.isActive : newSalon.isActive} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, isActive: e.target.checked }) : setNewSalon({ ...newSalon, isActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} />
+                                            Active Salon
+                                        </label>
+                                        {(editingSalonId ? editFormData.isActive : newSalon.isActive) && (
+                                            <input
+                                                type="date"
+                                                value={editingSalonId ? editFormData.activeDate : newSalon.activeDate}
+                                                onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, activeDate: e.target.value }) : setNewSalon({ ...newSalon, activeDate: e.target.value })}
+                                                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white', flex: '1 1 200px' }}
+                                            />
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500', minWidth: '150px' }}>
+                                            <input type="checkbox" checked={editingSalonId ? editFormData.posmActive : newSalon.posmActive} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, posmActive: e.target.checked }) : setNewSalon({ ...newSalon, posmActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} />
+                                            POSM Active Salon
+                                        </label>
+                                        {(editingSalonId ? editFormData.posmActive : newSalon.posmActive) && (
+                                            <input
+                                                type="date"
+                                                value={editingSalonId ? editFormData.posmDate : newSalon.posmDate}
+                                                onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, posmDate: e.target.value }) : setNewSalon({ ...newSalon, posmDate: e.target.value })}
+                                                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white', flex: '1 1 200px' }}
+                                            />
+                                        )}
+                                    </div>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
                                     <label style={{ color: '#cbd5e1', fontSize: '1rem', fontWeight: 'bold' }}>Revisited Dates (Mark old visits here)</label>
@@ -561,8 +570,8 @@ const SalesmanDashboard = () => {
                             </div>
 
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginTop: '1rem' }}>
-                                {editingSalonId && (
-                                    <button type="button" onClick={() => setEditingSalonId(null)} className="btn-primary outline" style={{ flex: '1 1 120px', padding: '0.8rem 1rem', fontSize: '1rem' }}>Cancel</button>
+                                {(editingSalonId || formMode) && (
+                                    <button type="button" onClick={() => { setEditingSalonId(null); setFormMode(null); }} className="btn-primary outline" style={{ flex: '1 1 120px', padding: '0.8rem 1rem', fontSize: '1rem' }}>Cancel</button>
                                 )}
                                 <button type="submit" className="btn-primary" disabled={isSubmitting} style={{
                                     flex: '2 1 200px', padding: '0.8rem 1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem',
@@ -571,7 +580,7 @@ const SalesmanDashboard = () => {
                                     {isSubmitting ? (
                                         <span>Saving...</span>
                                     ) : (
-                                        editingSalonId ? <><ShieldCheck size={20} /> Save Changes</> : (formMode === 'assign' ? <><CheckCircle2 size={20} /> Assign Setup</> : (formMode === 'draft' ? <><CheckCircle2 size={20} /> Add Draft Details</> : <><CheckCircle2 size={20} /> Register Salon</>))
+                                        editingSalonId ? <> <ShieldCheck size={20} /> Save Changes</> : (formMode === 'assign' ? <> <CheckCircle2 size={20} /> Enter QR</> : (formMode === 'draft' ? <> <CheckCircle2 size={20} /> Add Draft Details</> : <> <CheckCircle2 size={20} /> Enter QR</>))
                                     )}
                                 </button>
                                 {(!editingSalonId && formMode === 'draft') && (
@@ -648,139 +657,221 @@ const SalesmanDashboard = () => {
 
 
 
-                {/* Salon List Section */}
-                <section className="glass-container">
-                    <h2 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.5rem' }}>
-                        <Store size={24} /> Registered Salons ({salons.length})
-                    </h2>
+                {/* Global Search Section - Visible only when searching */}
+                {searchTerm && (
+                    <section className="glass-container animate-fade-in" style={{ marginBottom: '2.5rem', border: '1px solid rgba(129, 140, 248, 0.2)', background: 'linear-gradient(145deg, rgba(129, 140, 248, 0.05) 0%, var(--glass-bg) 100%)' }}>
+                        <h2 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.5rem', color: '#818cf8' }}>
+                            <Search size={24} /> Search Results 
+                            <span style={{ fontSize: '1rem', opacity: 0.6, marginLeft: '0.5rem' }}>({
+                                salons.filter(s => {
+                                    const term = searchTerm.toLowerCase();
+                                    return (s.name || '').toLowerCase().includes(term) || (s.salonCode || '').toLowerCase().includes(term) || (s.location || '').toLowerCase().includes(term);
+                                }).length
+                            })</span>
+                        </h2>
 
-                    <div className="salon-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
-                        {salons
-                            .filter(salon => {
-                                if (filterVisited && !salon.isVisited) return false;
-                                if (!searchTerm) return true;
-                                const term = searchTerm.toLowerCase();
-                                return (
-                                    (salon.name || '').toLowerCase().includes(term) ||
-                                    (salon.salonCode || '').toLowerCase().includes(term) ||
-                                    (salon.location || '').toLowerCase().includes(term)
-                                );
-                            })
-                            .slice(0, 12) // Show up to 12 matching for perf
-                            .map(salon => (
-                                <div key={salon._id} className="salon-card" style={{ display: 'flex', flexDirection: 'column', padding: '1rem', background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%)', border: '1px solid rgba(255,255,255,0.08)', position: 'relative', overflow: 'hidden' }}>
-                                    <div style={{ position: 'absolute', top: 0, right: 0, padding: '0.3rem 0.6rem', background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', fontWeight: 'bold', borderBottomLeftRadius: '12px', fontSize: '0.8rem', letterSpacing: '1px' }}>
-                                        {salon.salonCode || 'DRAFT'}
-                                    </div>
-
-                                    <div style={{ paddingRight: '3.5rem', marginBottom: '0.5rem' }}>
-                                        <h3 style={{ margin: '0 0 0.3rem 0', fontSize: '1.1rem', color: '#f8fafc', WebkitTextFillColor: 'initial', background: 'none', display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
-                                            {salon.name}
-                                            {salon.isVisited && <span style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', borderRadius: '8px', background: 'rgba(74,222,128,0.2)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>Visited</span>}
-                                            {salon.isActive && <span style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', borderRadius: '8px', background: 'rgba(56,189,248,0.2)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}>Active</span>}
-                                            {salon.posmActive && <span style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', borderRadius: '8px', background: 'rgba(192,132,252,0.2)', color: '#c084fc', border: '1px solid rgba(192,132,252,0.3)' }}>POSM</span>}
-                                            {!salon.salonCode && <span style={{ fontSize: '0.6rem', padding: '0.1rem 0.4rem', borderRadius: '8px', background: 'rgba(239,68,68,0.2)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>Draft (No QR)</span>}
-                                        </h3>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#94a3b8', fontSize: '0.85rem' }}>
-                                            <MapPin size={13} /> {salon.location || 'Location Not Set'}
+                        <div className="salon-grid animate-fade-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                            {salons
+                                .filter(s => {
+                                    const term = searchTerm.toLowerCase();
+                                    return (s.name || '').toLowerCase().includes(term) || (s.salonCode || '').toLowerCase().includes(term) || (s.location || '').toLowerCase().includes(term);
+                                })
+                                .map((salon) => (
+                                    <div key={`search-${salon._id}`} className="salon-card glass" style={{ 
+                                        position: 'relative', 
+                                        padding: '1.5rem', 
+                                        border: salon.editedBy === loggedInUsername ? '2px solid rgba(99, 102, 241, 0.4)' : '1px solid rgba(255,255,255,0.1)',
+                                        background: salon.editedBy === loggedInUsername ? 'rgba(99, 102, 241, 0.05)' : 'rgba(0,0,0,0.2)',
+                                        borderRadius: '16px',
+                                        transition: 'transform 0.2s, border-color 0.2s',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '1rem'
+                                    }}>
+                                        <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem' }}>
+                                            <button onClick={() => startEditing(salon)} className="icon-btn primary" title="Edit/Update"><Edit3 size={16} /></button>
+                                            <button onClick={() => setExpandedSalonId(expandedSalonId === `search-${salon._id}` ? null : `search-${salon._id}`)} className="icon-btn" title="View Details">
+                                                {expandedSalonId === `search-${salon._id}` ? <EyeOff size={16} /> : <Eye size={16} />}
+                                            </button>
                                         </div>
-                                    </div>
 
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1, marginBottom: '0.75rem' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#cbd5e1', fontSize: '0.85rem' }}>
-                                            <Phone size={13} color="#64748b" /> {salon.contactNumber1 || salon.contactNumber || 'No Contact Info'}
-                                        </div>
-                                    </div>
-
-                                    <div className="credential-box" style={{ background: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: '6px', marginBottom: '0.75rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                        <div className="credential-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.2rem' }}>
-                                            <span style={{ color: '#94a3b8' }}>User:</span>
-                                            <span style={{ color: '#f8fafc', fontWeight: 'bold' }}>{salon.username || '-'}</span>
-                                        </div>
-                                        <div className="credential-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                                            <span style={{ color: '#94a3b8' }}>Pass:</span>
-                                            <span style={{ color: salon.plainPassword ? '#4ade80' : '#f8fafc', fontWeight: 'bold' }}>{salon.plainPassword || '••••••'}</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Action Buttons Container */}
-                                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: 'auto', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.75rem' }}>
-                                        <button
-                                            onClick={() => setExpandedSalonId(expandedSalonId === salon._id ? null : salon._id)}
-                                            className="icon-btn"
-                                            style={{ flex: 1, padding: '0.6rem', background: expandedSalonId === salon._id ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)', color: '#e2e8f0', borderRadius: '8px', fontSize: '0.9rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', transition: 'all 0.2s' }}
-                                        >
-                                            {expandedSalonId === salon._id ? <><EyeOff size={16} /> Hide</> : <><Eye size={16} /> Details</>}
-                                        </button>
-                                        <button
-                                            onClick={() => startEditing(salon)}
-                                            className="icon-btn primary"
-                                            style={{ flex: 1, padding: '0.6rem', background: 'rgba(99, 102, 241, 0.1)', color: '#818cf8', border: '1px solid rgba(99, 102, 241, 0.2)', borderRadius: '8px', fontSize: '0.9rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', transition: 'all 0.2s' }}
-                                        >
-                                            <Edit3 size={16} /> Edit
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteSalon(salon._id)}
-                                            className="icon-btn danger"
-                                            style={{ padding: '0.6rem', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '8px', fontSize: '0.9rem', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}
-                                            title="Delete Salon"
-                                        >
-                                            <X size={16} />
-                                        </button>
-                                    </div>
-
-                                    {/* Expanded Details Panel */}
-                                    {expandedSalonId === salon._id && (
-                                        <div className="animate-fade-in" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', fontSize: '0.9rem' }}>
-                                                {/* More Contact & Info */}
-                                                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px' }}>
-                                                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Additional Info</h4>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Contact 2:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.contactNumber2 || '-'}</span></div>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Rep Name:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.repName || '-'}</span></div>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Remark:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.remark || '-'}</span></div>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Registered:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{new Date(salon.createdAt).toLocaleDateString()}</span></div>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Visited Salon:</span> <span style={{ color: salon.isVisited ? '#4ade80' : '#ef4444', textAlign: 'right', fontWeight: 'bold' }}>{salon.isVisited ? 'Yes' : 'No'}</span></div>
-                                                        {salon.isVisited && salon.visitedDate && (
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Visited Date:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{new Date(salon.visitedDate).toLocaleDateString()}</span></div>
-                                                        )}
-                                                        {salon.revisitedDates && salon.revisitedDates.length > 0 && (
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Revisited Dates:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.revisitedDates.map(d => new Date(d).toLocaleDateString()).join(', ')}</span></div>
-                                                        )}
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Active Salon:</span> <span style={{ color: salon.isActive ? '#4ade80' : '#ef4444', textAlign: 'right', fontWeight: 'bold' }}>{salon.isActive ? 'Yes' : 'No'}</span></div>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>POSM Active Salon:</span> <span style={{ color: salon.posmActive ? '#4ade80' : '#ef4444', textAlign: 'right', fontWeight: 'bold' }}>{salon.posmActive ? 'Yes' : 'No'}</span></div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Account Details View */}
-                                                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px' }}>
-                                                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#94a3b8', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Account Details</h4>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Bank:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.accountDetails?.bankName || '-'}</span></div>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Branch:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.accountDetails?.branch || '-'}</span></div>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>A/C No:</span> <span style={{ color: '#e2e8f0', textAlign: 'right', fontFamily: 'monospace' }}>{salon.accountDetails?.accountNumber || '-'}</span></div>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>A/C Name:</span> <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{salon.accountDetails?.accountName || '-'}</span></div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Edit Info */}
-                                                {salon.editedBy && (
-                                                    <div style={{ fontSize: '0.8rem', color: '#64748b', textAlign: 'center', marginTop: '0.5rem' }}>
-                                                        Last edited by: {salon.editedBy}
-                                                    </div>
-                                                )}
+                                        <div>
+                                            <h3 style={{ margin: '0 0 0.5rem 0', color: '#f8fafc', fontSize: '1.2rem', paddingRight: '2rem' }}>{salon.name}</h3>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#818cf8', fontFamily: 'monospace', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                                                <Hash size={14} /> {salon.salonCode || 'DRAFT'}
                                             </div>
                                         </div>
-                                    )}
-                                </div>
-                            ))}
 
-                        {salons.length === 0 && (
-                            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <MapPin size={14} color="#94a3b8" /> {salon.location || 'N/A'}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <Phone size={14} color="#94a3b8" /> {salon.contactNumber1 || 'N/A'}
+                                            </div>
+                                        </div>
+
+                                        {expandedSalonId === `search-${salon._id}` && (
+                                            <div className="animate-fade-in" style={{ marginTop: '0.5rem', padding: '1rem', background: 'rgba(0,0,0,0.3)', borderRadius: '12px', fontSize: '0.85rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                    <div><span style={{ color: '#94a3b8' }}>Contact 2:</span> {salon.contactNumber2 || '-'}</div>
+                                                    <div><span style={{ color: '#94a3b8' }}>Rep Name:</span> {salon.repName || '-'}</div>
+                                                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', pt: '0.5rem' }}>
+                                                        <span style={{ color: '#94a3b8' }}>Bank:</span> {salon.accountDetails?.bankName || '-'}
+                                                    </div>
+                                                    {salon.remark && <div style={{ fontStyle: 'italic', color: '#64748b' }}>"{salon.remark}"</div>}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                            <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                                {salon.isVisited && <span className="status-badge completed" style={{ fontSize: '0.7rem' }}>Visited</span>}
+                                                {salon.isActive && <span className="status-badge processing" style={{ fontSize: '0.7rem' }}>Active</span>}
+                                            </div>
+                                            {salon.editedBy === loggedInUsername && <span style={{ fontSize: '0.75rem', color: '#818cf8', fontWeight: '500' }}>Your Salon</span>}
+                                        </div>
+                                    </div>
+                                ))}
+                            
+                            {salons.filter(s => {
+                                const term = searchTerm.toLowerCase();
+                                return (s.name || '').toLowerCase().includes(term) || (s.salonCode || '').toLowerCase().includes(term) || (s.location || '').toLowerCase().includes(term);
+                            }).length === 0 && (
+                                <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b', gridColumn: '1 / -1' }}>No salons found matching "{searchTerm}"</div>
+                            )}
+                        </div>
+                    </section>
+                )}
+
+                {/* My Daily Updates Section - Always visible */}
+                <section className="glass-container">
+                    <h2 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.5rem', color: '#4ade80' }}>
+                        <Store size={24} /> My Daily Updates
+                        <span style={{ fontSize: '1rem', opacity: 0.6, marginLeft: '0.5rem' }}>({
+                            salons.filter(salon => {
+                                if (salon.editedBy !== loggedInUsername) return false;
+                                if (filterVisited && !salon.isVisited) return false;
+                                return isToday(salon.createdAt) || isToday(salon.visitedDate) || isToday(salon.activeDate) || isToday(salon.posmDate) || (salon.revisitedDates && salon.revisitedDates.some(isToday));
+                            }).length
+                        })</span>
+                    </h2>
+
+                    <div className="table-container animate-fade-in" style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', overflow: 'hidden' }}>
+                        <table className="styled-table">
+                            <thead>
+                                <tr>
+                                    <th style={{ width: '40px' }}>#</th>
+                                    <th>Salon Name</th>
+                                    <th>Code</th>
+                                    <th>Location</th>
+                                    <th>Contact</th>
+                                    <th>Status</th>
+                                    <th style={{ textAlign: 'right' }}>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {salons
+                                    .filter(salon => {
+                                        if (salon.editedBy !== loggedInUsername) return false;
+                                        if (filterVisited && !salon.isVisited) return false;
+                                        return isToday(salon.createdAt) || 
+                                               isToday(salon.visitedDate) || 
+                                               isToday(salon.activeDate) || 
+                                               isToday(salon.posmDate) || 
+                                               (salon.revisitedDates && salon.revisitedDates.some(isToday));
+                                    })
+                                    .map((salon, index) => (
+                                        <React.Fragment key={`daily-${salon._id}`}>
+                                            <tr>
+                                                <td style={{ opacity: 0.5, fontSize: '0.8rem' }}>{index + 1}</td>
+                                                <td>
+                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                        <span style={{ fontWeight: '600', color: '#f8fafc' }}>{salon.name}</span>
+                                                        {salon.username && <small style={{ opacity: 0.4, fontSize: '0.75rem' }}>@{salon.username}</small>}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span style={{ 
+                                                        fontFamily: 'monospace', 
+                                                        background: salon.salonCode ? 'rgba(129, 140, 248, 0.1)' : 'rgba(239, 68, 68, 0.1)', 
+                                                        color: salon.salonCode ? '#818cf8' : '#f87171',
+                                                        padding: '0.2rem 0.5rem', 
+                                                        borderRadius: '4px',
+                                                        fontSize: '0.85rem',
+                                                        fontWeight: 'bold',
+                                                        border: `1px solid ${salon.salonCode ? 'rgba(129, 140, 248, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+                                                    }}>
+                                                        {salon.salonCode || 'DRAFT'}
+                                                    </span>
+                                                </td>
+                                                <td style={{ fontSize: '0.9rem', color: '#cbd5e1' }}>{salon.location || 'N/A'}</td>
+                                                <td style={{ fontSize: '0.9rem', color: '#cbd5e1' }}>{salon.contactNumber1 || salon.contactNumber || '-'}</td>
+                                                <td>
+                                                    <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                                                        {salon.isVisited && <span className="status-badge completed" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>Visited</span>}
+                                                        {salon.isActive && <span className="status-badge processing" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>Active</span>}
+                                                        {salon.posmActive && <span className="status-badge shipped" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>POSM</span>}
+                                                    </div>
+                                                </td>
+                                                <td style={{ textAlign: 'right' }}>
+                                                    <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                                                        <button onClick={() => startEditing(salon)} className="icon-btn primary" title="Edit" style={{ padding: '0.4rem' }}><Edit3 size={14} /></button>
+                                                        <button onClick={() => setExpandedSalonId(expandedSalonId === `daily-${salon._id}` ? null : `daily-${salon._id}`)} className="icon-btn" title="View Details" style={{ padding: '0.4rem' }}>{expandedSalonId === `daily-${salon._id}` ? <EyeOff size={14} /> : <Eye size={14} />}</button>
+                                                        <button onClick={() => handleDeleteSalon(salon._id)} className="icon-btn danger" title="Delete" style={{ padding: '0.4rem' }}><X size={14} /></button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {expandedSalonId === `daily-${salon._id}` && (
+                                                <tr>
+                                                    <td colSpan="7" style={{ padding: '0', borderBottom: '1px solid var(--glass-border)' }}>
+                                                        <div className="animate-fade-in" style={{ padding: '1.5rem', background: 'rgba(0,0,0,0.3)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem' }}>
+                                                                <div>
+                                                                    <h4 style={{ margin: '0 0 0.75rem 0', color: '#818cf8', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Full Contact Details</h4>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.9rem' }}>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Phone 1:</span> <span>{salon.contactNumber1 || salon.contactNumber || '-'}</span></div>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Phone 2:</span> <span>{salon.contactNumber2 || '-'}</span></div>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Rep Name:</span> <span>{salon.repName || '-'}</span></div>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Registered:</span> <span>{new Date(salon.createdAt).toLocaleDateString()}</span></div>
+                                                                    </div>
+                                                                </div>
+                                                                <div>
+                                                                    <h4 style={{ margin: '0 0 0.75rem 0', color: '#4ade80', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Account Information</h4>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.9rem' }}>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Bank:</span> <span>{salon.accountDetails?.bankName || '-'}</span></div>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Branch:</span> <span>{salon.accountDetails?.branch || '-'}</span></div>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>A/C No:</span> <span style={{ fontFamily: 'monospace' }}>{salon.accountDetails?.accountNumber || '-'}</span></div>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>A/C Name:</span> <span>{salon.accountDetails?.accountName || '-'}</span></div>
+                                                                    </div>
+                                                                </div>
+                                                                <div>
+                                                                    <h4 style={{ margin: '0 0 0.75rem 0', color: '#f472b6', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Login Credentials</h4>
+                                                                    <div className="credential-box" style={{ marginTop: '0.5rem' }}>
+                                                                        <div className="credential-row" style={{ display: 'flex', justifyContent: 'space-between' }}><span>User:</span> <span style={{ fontWeight: 'bold' }}>{salon.username || '-'}</span></div>
+                                                                        <div className="credential-row" style={{ display: 'flex', justifyContent: 'space-between' }}><span>Pass:</span> <span style={{ color: '#4ade80' }}>{salon.plainPassword || '••••••'}</span></div>
+                                                                    </div>
+                                                                    {salon.remark && <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#94a3b8' }}><strong>Remark:</strong> {salon.remark}</div>}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
+                                    ))}
+                            </tbody>
+                        </table>
+
+                        {salons.filter(salon => {
+                            if (salon.editedBy !== loggedInUsername) return false;
+                            if (filterVisited && !salon.isVisited) return false;
+                            return isToday(salon.createdAt) || isToday(salon.visitedDate) || isToday(salon.activeDate) || isToday(salon.posmDate) || (salon.revisitedDates && salon.revisitedDates.some(isToday));
+                        }).length === 0 && (
+                            <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
                                 <Store size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                                <h3>No Salons Found</h3>
-                                <p>No salons match your search or you haven't registered any yet.</p>
+                                <h3>No Activity Today</h3>
+                                <p>You haven't updated any salons today. Use the search bar above to find and update existing salons.</p>
                             </div>
                         )}
                     </div>
