@@ -222,6 +222,19 @@ const SalesmanDashboard = () => {
         setFormMode(null);
     };
 
+    const dailyUpdates = salons.filter(salon => {
+        if (salon.editedBy !== loggedInUsername) return false;
+        if (filterVisited && !salon.isVisited) return false;
+        return !salon.salonCode || 
+               isToday(salon.createdAt) || 
+               isToday(salon.visitedDate) || 
+               isToday(salon.activeDate) || 
+               isToday(salon.posmDate) || 
+               (salon.revisitedDates && salon.revisitedDates.some(isToday));
+    });
+
+    const draftUpdatesCount = dailyUpdates.filter(s => !s.salonCode).length;
+
     return (
         <div className="container animate-fade-in" style={{ paddingBottom: '4rem' }}>
             <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
@@ -748,13 +761,22 @@ const SalesmanDashboard = () => {
                 <section className="glass-container">
                     <h2 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.5rem', color: '#4ade80' }}>
                         <Store size={24} /> My Daily Updates
-                        <span style={{ fontSize: '1rem', opacity: 0.6, marginLeft: '0.5rem' }}>({
-                            salons.filter(salon => {
-                                if (salon.editedBy !== loggedInUsername) return false;
-                                if (filterVisited && !salon.isVisited) return false;
-                                return isToday(salon.createdAt) || isToday(salon.visitedDate) || isToday(salon.activeDate) || isToday(salon.posmDate) || (salon.revisitedDates && salon.revisitedDates.some(isToday));
-                            }).length
-                        })</span>
+                        <span style={{ fontSize: '1rem', opacity: 0.6, marginLeft: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <span>({dailyUpdates.length})</span>
+                            {draftUpdatesCount > 0 && (
+                                <span style={{ 
+                                    fontSize: '0.85rem', 
+                                    color: '#eab308', 
+                                    background: 'rgba(234, 179, 8, 0.1)', 
+                                    padding: '0.2rem 0.6rem', 
+                                    borderRadius: '12px',
+                                    border: '1px solid rgba(234, 179, 8, 0.2)',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    {draftUpdatesCount} Add Details Only Salons
+                                </span>
+                            )}
+                        </span>
                     </h2>
 
                     <div className="table-container animate-fade-in" style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', overflow: 'hidden' }}>
@@ -771,16 +793,7 @@ const SalesmanDashboard = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {salons
-                                    .filter(salon => {
-                                        if (salon.editedBy !== loggedInUsername) return false;
-                                        if (filterVisited && !salon.isVisited) return false;
-                                        return isToday(salon.createdAt) || 
-                                               isToday(salon.visitedDate) || 
-                                               isToday(salon.activeDate) || 
-                                               isToday(salon.posmDate) || 
-                                               (salon.revisitedDates && salon.revisitedDates.some(isToday));
-                                    })
+                                {dailyUpdates
                                     .map((salon, index) => (
                                         <React.Fragment key={`daily-${salon._id}`}>
                                             <tr>
@@ -863,11 +876,7 @@ const SalesmanDashboard = () => {
                             </tbody>
                         </table>
 
-                        {salons.filter(salon => {
-                            if (salon.editedBy !== loggedInUsername) return false;
-                            if (filterVisited && !salon.isVisited) return false;
-                            return isToday(salon.createdAt) || isToday(salon.visitedDate) || isToday(salon.activeDate) || isToday(salon.posmDate) || (salon.revisitedDates && salon.revisitedDates.some(isToday));
-                        }).length === 0 && (
+                        {dailyUpdates.length === 0 && (
                             <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
                                 <Store size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
                                 <h3>No Activity Today</h3>

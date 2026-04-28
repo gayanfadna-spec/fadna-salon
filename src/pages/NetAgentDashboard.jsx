@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import ThemeToggle from '../components/ThemeToggle';
+import { Users, Store, Edit, Trash2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -11,6 +12,14 @@ const BASE_URL = 'https://www.portal.fadnals.lk';
 
 const NetAgentDashboard = () => {
     const navigate = useNavigate();
+    const loggedInUsername = localStorage.getItem('loggedInUsername');
+
+    const isToday = (date) => {
+        if (!date) return false;
+        const d = new Date(date);
+        const today = new Date();
+        return d.toDateString() === today.toDateString();
+    };
     const [agents, setAgents] = useState([]);
     const [orders, setOrders] = useState([]);
     const adminRole = localStorage.getItem('adminRole');
@@ -123,7 +132,8 @@ const NetAgentDashboard = () => {
                     setForm(emptyForm); fetchAgents();
                 }
             } else {
-                const res = await axios.post(`${API_URL}/net-agents`, { ...form, isDraft: formMode === 'draft' });
+                const username = loggedInUsername || 'admin';
+                const res = await axios.post(`${API_URL}/net-agents`, { ...form, isDraft: formMode === 'draft', editedBy: username });
                 if (res.data.success) {
                     if (formMode === 'draft') {
                         alert('Draft Net.Agent created!');
@@ -138,6 +148,18 @@ const NetAgentDashboard = () => {
             }
         } catch (err) { alert(err.response?.data?.message || 'Error creating agent'); }
     };
+
+    const dailyUpdates = agents.filter(agent => {
+        if (agent.editedBy !== loggedInUsername) return false;
+        return !agent.agentCode || 
+               isToday(agent.createdAt) || 
+               isToday(agent.visitedDate) || 
+               isToday(agent.activeDate) || 
+               isToday(agent.posmDate) || 
+               (agent.revisitedDates && agent.revisitedDates.some(isToday));
+    });
+
+    const draftUpdatesCount = dailyUpdates.filter(a => !a.agentCode).length;
 
     const handleUpdate = async (e) => {
         e.preventDefault();
@@ -522,6 +544,88 @@ const NetAgentDashboard = () => {
                                 {!orders.length && <tr><td colSpan="7" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No COD orders yet</td></tr>}
                             </tbody>
                         </table>
+                    </div>
+
+                    {/* My Daily Updates Section */}
+                    <div style={{ marginTop: '3rem' }}>
+                        <h2 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#4ade80' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <Users size={24} /> My Daily Updates
+                            </div>
+                            <span style={{ fontSize: '1.1rem', opacity: 0.6 }}>({dailyUpdates.length})</span>
+                            {draftUpdatesCount > 0 && (
+                                <span style={{ 
+                                    fontSize: '0.85rem', 
+                                    color: '#eab308', 
+                                    background: 'rgba(234, 179, 8, 0.1)', 
+                                    padding: '0.2rem 0.6rem', 
+                                    borderRadius: '12px',
+                                    border: '1px solid rgba(234, 179, 8, 0.2)',
+                                    whiteSpace: 'nowrap',
+                                    fontWeight: 'normal'
+                                }}>
+                                    {draftUpdatesCount} Add Details Only Agents
+                                </span>
+                            )}
+                        </h2>
+
+                        <div className="table-container" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
+                            <table className="styled-table">
+                                <thead>
+                                    <tr>
+                                        <th>Agent Name</th>
+                                        <th>Code</th>
+                                        <th>Location</th>
+                                        <th>Contact</th>
+                                        <th>Status</th>
+                                        <th style={{ textAlign: 'right' }}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {dailyUpdates.map(agent => (
+                                        <tr key={agent._id}>
+                                            <td style={{ fontWeight: 'bold' }}>{agent.name}</td>
+                                            <td>
+                                                <span style={{ 
+                                                    fontFamily: 'monospace', 
+                                                    background: agent.agentCode ? 'rgba(129, 140, 248, 0.1)' : 'rgba(239, 68, 68, 0.1)', 
+                                                    color: agent.agentCode ? '#818cf8' : '#f87171',
+                                                    padding: '0.2rem 0.5rem', 
+                                                    borderRadius: '4px',
+                                                    fontSize: '0.85rem',
+                                                    fontWeight: 'bold',
+                                                    border: `1px solid ${agent.agentCode ? 'rgba(129, 140, 248, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+                                                }}>
+                                                    {agent.agentCode || 'DRAFT'}
+                                                </span>
+                                            </td>
+                                            <td>{agent.location}</td>
+                                            <td>{agent.contactNumber1}</td>
+                                            <td>
+                                                <span className={`status-badge ${agent.isVisited ? 'visited' : ''}`} style={{ fontSize: '0.75rem' }}>
+                                                    {agent.isVisited ? 'Visited' : 'Pending'}
+                                                </span>
+                                            </td>
+                                            <td style={{ textAlign: 'right' }}>
+                                                <button 
+                                                    onClick={() => handleEditClick(agent)}
+                                                    style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', padding: '0.4rem', borderRadius: '6px', cursor: 'pointer', marginRight: '0.5rem' }}
+                                                >
+                                                    <Edit size={16} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {dailyUpdates.length === 0 && (
+                                        <tr>
+                                            <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+                                                No updates today.
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </section>
             )}
