@@ -14,12 +14,14 @@ const NetAgentDashboard = () => {
     const navigate = useNavigate();
     const loggedInUsername = localStorage.getItem('loggedInUsername');
 
-    const isToday = (date) => {
-        if (!date) return false;
-        const d = new Date(date);
-        const today = new Date();
-        return d.toDateString() === today.toDateString();
+    const isSameDay = (date1, date2) => {
+        if (!date1 || !date2) return false;
+        const d1 = new Date(date1);
+        const d2 = new Date(date2);
+        return d1.toDateString() === d2.toDateString();
     };
+
+    const [selectedUpdateDate, setSelectedUpdateDate] = useState(new Date().toISOString().split('T')[0]);
     const [agents, setAgents] = useState([]);
     const [orders, setOrders] = useState([]);
     const adminRole = localStorage.getItem('adminRole');
@@ -151,12 +153,12 @@ const NetAgentDashboard = () => {
 
     const dailyUpdates = agents.filter(agent => {
         if (agent.editedBy !== loggedInUsername) return false;
-        return !agent.agentCode || 
-               isToday(agent.createdAt) || 
-               isToday(agent.visitedDate) || 
-               isToday(agent.activeDate) || 
-               isToday(agent.posmDate) || 
-               (agent.revisitedDates && agent.revisitedDates.some(isToday));
+        
+        return isSameDay(agent.createdAt, selectedUpdateDate) || 
+               isSameDay(agent.visitedDate, selectedUpdateDate) || 
+               isSameDay(agent.activeDate, selectedUpdateDate) || 
+               isSameDay(agent.posmDate, selectedUpdateDate) || 
+               (agent.revisitedDates && agent.revisitedDates.some(d => isSameDay(d, selectedUpdateDate)));
     });
 
     const draftUpdatesCount = dailyUpdates.filter(a => !a.agentCode).length;
@@ -548,25 +550,45 @@ const NetAgentDashboard = () => {
 
                     {/* My Daily Updates Section */}
                     <div style={{ marginTop: '3rem' }}>
-                        <h2 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#4ade80' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <h2 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#4ade80', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '1' }}>
                                 <Users size={24} /> My Daily Updates
+                                <span style={{ fontSize: '1.1rem', opacity: 0.6, marginLeft: '0.5rem' }}>({dailyUpdates.length})</span>
+                                {draftUpdatesCount > 0 && (
+                                    <span style={{ 
+                                        fontSize: '0.85rem', 
+                                        color: '#eab308', 
+                                        background: 'rgba(234, 179, 8, 0.1)', 
+                                        padding: '0.2rem 0.6rem', 
+                                        borderRadius: '12px',
+                                        border: '1px solid rgba(234, 179, 8, 0.2)',
+                                        whiteSpace: 'nowrap',
+                                        fontWeight: 'normal',
+                                        marginLeft: '0.5rem'
+                                    }}>
+                                        {draftUpdatesCount} Add Details Only Agents
+                                    </span>
+                                )}
                             </div>
-                            <span style={{ fontSize: '1.1rem', opacity: 0.6 }}>({dailyUpdates.length})</span>
-                            {draftUpdatesCount > 0 && (
-                                <span style={{ 
-                                    fontSize: '0.85rem', 
-                                    color: '#eab308', 
-                                    background: 'rgba(234, 179, 8, 0.1)', 
-                                    padding: '0.2rem 0.6rem', 
-                                    borderRadius: '12px',
-                                    border: '1px solid rgba(234, 179, 8, 0.2)',
-                                    whiteSpace: 'nowrap',
-                                    fontWeight: 'normal'
-                                }}>
-                                    {draftUpdatesCount} Add Details Only Agents
-                                </span>
-                            )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <input 
+                                    type="date" 
+                                    value={selectedUpdateDate} 
+                                    onChange={(e) => setSelectedUpdateDate(e.target.value)}
+                                    style={{ 
+                                        padding: '0.5rem 1rem', 
+                                        borderRadius: '8px', 
+                                        border: '1px solid rgba(255,255,255,0.1)', 
+                                        background: 'rgba(0,0,0,0.2)', 
+                                        color: 'white',
+                                        fontSize: '0.9rem',
+                                        outline: 'none',
+                                        transition: 'all 0.3s ease'
+                                    }}
+                                    onFocus={(e) => e.target.style.borderColor = 'var(--primary-color)'}
+                                    onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                                />
+                            </div>
                         </h2>
 
                         <div className="table-container" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>

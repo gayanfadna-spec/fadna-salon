@@ -25,12 +25,14 @@ const SalesmanDashboard = () => {
     const [filterVisited, setFilterVisited] = useState(false);
     const navigate = useNavigate();
 
-    const isToday = (date) => {
-        if (!date) return false;
-        const d = new Date(date);
-        const today = new Date();
-        return d.toDateString() === today.toDateString();
+    const isSameDay = (date1, date2) => {
+        if (!date1 || !date2) return false;
+        const d1 = new Date(date1);
+        const d2 = new Date(date2);
+        return d1.toDateString() === d2.toDateString();
     };
+
+    const [selectedUpdateDate, setSelectedUpdateDate] = useState(new Date().toISOString().split('T')[0]);
 
     useEffect(() => {
         const storedSalesman = localStorage.getItem('salesmanUser');
@@ -225,12 +227,12 @@ const SalesmanDashboard = () => {
     const dailyUpdates = salons.filter(salon => {
         if (salon.editedBy !== loggedInUsername) return false;
         if (filterVisited && !salon.isVisited) return false;
-        return !salon.salonCode || 
-               isToday(salon.createdAt) || 
-               isToday(salon.visitedDate) || 
-               isToday(salon.activeDate) || 
-               isToday(salon.posmDate) || 
-               (salon.revisitedDates && salon.revisitedDates.some(isToday));
+        
+        return isSameDay(salon.createdAt, selectedUpdateDate) || 
+               isSameDay(salon.visitedDate, selectedUpdateDate) || 
+               isSameDay(salon.activeDate, selectedUpdateDate) || 
+               isSameDay(salon.posmDate, selectedUpdateDate) || 
+               (salon.revisitedDates && salon.revisitedDates.some(d => isSameDay(d, selectedUpdateDate)));
     });
 
     const draftUpdatesCount = dailyUpdates.filter(s => !s.salonCode).length;
@@ -759,24 +761,45 @@ const SalesmanDashboard = () => {
 
                 {/* My Daily Updates Section - Always visible */}
                 <section className="glass-container">
-                    <h2 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.5rem', color: '#4ade80' }}>
-                        <Store size={24} /> My Daily Updates
-                        <span style={{ fontSize: '1rem', opacity: 0.6, marginLeft: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <span>({dailyUpdates.length})</span>
-                            {draftUpdatesCount > 0 && (
-                                <span style={{ 
-                                    fontSize: '0.85rem', 
-                                    color: '#eab308', 
-                                    background: 'rgba(234, 179, 8, 0.1)', 
-                                    padding: '0.2rem 0.6rem', 
-                                    borderRadius: '12px',
-                                    border: '1px solid rgba(234, 179, 8, 0.2)',
-                                    whiteSpace: 'nowrap'
-                                }}>
-                                    {draftUpdatesCount} Add Details Only Salons
-                                </span>
-                            )}
-                        </span>
+                    <h2 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.5rem', color: '#4ade80', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '1' }}>
+                            <Store size={24} /> My Daily Updates
+                            <span style={{ fontSize: '1rem', opacity: 0.6, marginLeft: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <span>({dailyUpdates.length})</span>
+                                {draftUpdatesCount > 0 && (
+                                    <span style={{ 
+                                        fontSize: '0.85rem', 
+                                        color: '#eab308', 
+                                        background: 'rgba(234, 179, 8, 0.1)', 
+                                        padding: '0.2rem 0.6rem', 
+                                        borderRadius: '12px',
+                                        border: '1px solid rgba(234, 179, 8, 0.2)',
+                                        whiteSpace: 'nowrap'
+                                    }}>
+                                        {draftUpdatesCount} Add Details Only Salons
+                                    </span>
+                                )}
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <input 
+                                type="date" 
+                                value={selectedUpdateDate} 
+                                onChange={(e) => setSelectedUpdateDate(e.target.value)}
+                                style={{ 
+                                    padding: '0.5rem 1rem', 
+                                    borderRadius: '8px', 
+                                    border: '1px solid rgba(255,255,255,0.1)', 
+                                    background: 'rgba(0,0,0,0.2)', 
+                                    color: 'white',
+                                    fontSize: '0.9rem',
+                                    outline: 'none',
+                                    transition: 'border-color 0.2s'
+                                }}
+                                onFocus={(e) => e.target.style.borderColor = 'var(--primary-color)'}
+                                onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                            />
+                        </div>
                     </h2>
 
                     <div className="table-container animate-fade-in" style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', overflow: 'hidden' }}>
