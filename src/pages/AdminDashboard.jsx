@@ -9,9 +9,28 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     LineChart, Line, AreaChart, Area
 } from 'recharts';
+import { 
+    LayoutDashboard, ShoppingBag, Store, Package, Monitor, 
+    Users, BarChart3, FileText, UserCheck, Globe, QrCode, LogOut 
+} from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://salonfadna-backend.onrender.com/api';
+
+const AVAILABLE_PERMISSIONS = [
+    { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={16} /> },
+    { id: 'orders', label: 'Orders', icon: <ShoppingBag size={16} /> },
+    { id: 'salons', label: 'Salons', icon: <Store size={16} /> },
+    { id: 'products', label: 'Products', icon: <Package size={16} /> },
+    { id: 'monitor', label: 'Monitor', icon: <Monitor size={16} /> },
+    { id: 'accounts', label: 'Accounts', icon: <Users size={16} /> },
+    { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={16} /> },
+    { id: 'reports', label: 'Reports', icon: <FileText size={16} /> },
+    { id: 'visit-log', label: 'Visit Log', icon: <FileText size={16} /> },
+    { id: 'agents-dashboard', label: 'Agents', icon: <UserCheck size={16} />, path: '/agent-admin' },
+    { id: 'net-agents-dashboard', label: 'Net.Agents', icon: <Globe size={16} />, path: '/net-agent-admin' },
+    { id: 'scan-dashboard', label: 'Scan', icon: <QrCode size={16} />, path: '/qr-generator' }
+];
 
 const AdminDashboard = () => {
     const [salons, setSalons] = useState([]);
@@ -23,6 +42,34 @@ const AdminDashboard = () => {
     const [formModeAdmin, setFormModeAdmin] = useState('create'); // 'create' or 'assign'
     const navigate = useNavigate();
     const adminRole = localStorage.getItem('adminRole');
+    const loggedInUsername = localStorage.getItem('loggedInUsername') || 'Admin';
+    const rawPermissions = localStorage.getItem('adminPermissions');
+    const adminPermissions = rawPermissions ? JSON.parse(rawPermissions) : null;
+
+    // Helper to check permission
+    const hasPermission = (tabId) => {
+        // SuperAdmin always has full access
+        if (adminRole === 'superadmin') return true;
+        
+        // Overview is always accessible to everyone
+        if (tabId === 'overview') return true; 
+        
+        // Use explicitly assigned permissions (strict mode)
+        if (Array.isArray(adminPermissions)) {
+            return adminPermissions.includes(tabId);
+        }
+
+        // No permissions assigned means no access to extra functions
+        return false;
+    };
+
+    // Auto-select first allowed tab if current is restricted
+    useEffect(() => {
+        if (!hasPermission(activeTab)) {
+            const firstAllowed = AVAILABLE_PERMISSIONS.find(p => hasPermission(p.id));
+            if (firstAllowed) setActiveTab(firstAllowed.id);
+        }
+    }, [activeTab, adminPermissions, adminRole]);
 
     useEffect(() => {
         const storedAdmin = localStorage.getItem('adminUser');
@@ -39,7 +86,7 @@ const AdminDashboard = () => {
     const [editingProductId, setEditingProductId] = useState(null);
     const [selectedSalonId, setSelectedSalonId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [newAccount, setNewAccount] = useState({ username: '', password: '', role: 'salesman' });
+    const [newAccount, setNewAccount] = useState({ username: '', password: '', role: 'salesman', permissions: [] });
     const [accounts, setAccounts] = useState([]);
     const [editingAccountId, setEditingAccountId] = useState(null);
     const [reps, setReps] = useState([]);
@@ -132,6 +179,63 @@ const AdminDashboard = () => {
     }, [salons, selectedRep, detailedFilterRep, searchTerm, filterDetailedVisited, filterDetailedActive, filterDetailedPOSM, detailedFilterStartDate, detailedFilterEndDate]);
 
     const detailedFilteredSalonsCount = detailedFilteredSalons.length;
+
+    const visitHistoryData = React.useMemo(() => {
+        const history = [];
+        salons.forEach(s => {
+            const rep = (s.repName && s.repName.trim() !== '') ? s.repName : 'Unassigned';
+            
+            // New Visit
+            if (s.isVisited && s.visitedDate) {
+                const localDate = new Date(s.visitedDate);
+                const dateStr = localDate.getFullYear() + '-' + String(localDate.getMonth() + 1).padStart(2, '0') + '-' + String(localDate.getDate()).padStart(2, '0');
+                history.push({
+                    date: localDate,
+                    dateStr: dateStr,
+                    salonName: s.name,
+                    salonCode: s.salonCode || 'N/A',
+                    repName: rep,
+                    location: s.location || 'N/A',
+                    type: 'New Visit'
+                });
+            }
+
+            // Re-visits
+            if (s.revisitedDates && Array.isArray(s.revisitedDates)) {
+                s.revisitedDates.forEach(rd => {
+                    const localDate = new Date(rd);
+                    const dateStr = localDate.getFullYear() + '-' + String(localDate.getMonth() + 1).padStart(2, '0') + '-' + String(localDate.getDate()).padStart(2, '0');
+                    history.push({
+                        date: localDate,
+                        dateStr: dateStr,
+                        salonName: s.name,
+                        salonCode: s.salonCode || 'N/A',
+                        repName: rep,
+                        location: s.location || 'N/A',
+                        type: 'Re-visit'
+                    });
+                });
+            }
+        });
+
+        // Apply Filters
+        return history.filter(item => {
+            // Rep Filter
+            if (selectedRep && item.repName !== selectedRep) return false;
+            
+            // Search Filter
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                if (!item.salonName.toLowerCase().includes(term) && !item.salonCode.toLowerCase().includes(term)) return false;
+            }
+
+            // Date Range Filter (String comparison for exact day match)
+            if (reportStartDate && item.dateStr < reportStartDate) return false;
+            if (reportEndDate && item.dateStr > reportEndDate) return false;
+
+            return true;
+        }).sort((a, b) => b.date - a.date); // Sort descending (latest first)
+    }, [salons, selectedRep, searchTerm, reportStartDate, reportEndDate]);
 
     const fetchOrders = React.useCallback(async () => {
         try {
@@ -567,6 +671,23 @@ const AdminDashboard = () => {
         } catch (err) {
             console.error(`Error toggling ${field}`, err);
             alert(`Failed to update ${field}`);
+        }
+    };
+
+    const handleAddRevisit = async (salon) => {
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const updatedRevisits = [...(salon.revisitedDates || []), today];
+            const payload = { ...salon, revisitedDates: updatedRevisits };
+            const res = await axios.put(`${API_URL}/salons/${salon._id}`, payload);
+            if (res.data.success) {
+                fetchSalons();
+                fetchAnalytics();
+                alert(`Revisit added for ${salon.name}`);
+            }
+        } catch (err) {
+            console.error('Error adding revisit', err);
+            alert('Failed to add revisit');
         }
     };
 
@@ -1205,65 +1326,63 @@ const AdminDashboard = () => {
 
     return (
         <div className="admin-container animate-fade-in">
-            {/* Header - Logo and External Links */}
-            <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <img src="/Fadna New Logo.png" alt="Fadna Logo" className="site-logo" style={{ maxHeight: '40px' }} />
-                    <h1 style={{ margin: 0 }}>Admin Dashboard</h1>
+            {/* Modern Header */}
+            <header className="modern-header">
+                <div className="header-brand">
+                    <img src="/Fadna New Logo.png" alt="Fadna Logo" className="site-logo" style={{ maxHeight: '45px' }} />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <h1>Admin Dashboard</h1>
+                        <div style={{ fontSize: '0.8rem', opacity: 0.7, color: '#bae6fd', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <div style={{ width: '8px', height: '8px', background: '#4ade80', borderRadius: '50%', boxShadow: '0 0 8px #4ade80' }}></div>
+                            Logged in as: <span style={{ fontWeight: 'bold', color: '#fff' }}>{loggedInUsername}</span>
+                            <span style={{ opacity: 0.5 }}>({adminRole})</span>
+                        </div>
+                    </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div className="header-actions">
                     <ThemeToggle />
-                    <button className="btn-primary outline" style={{ padding: '0.5rem 1rem', opacity: 0.8 }} onClick={() => navigate('/agent-admin')}>Agents Dashboard</button>
-                    <button className="btn-primary outline" style={{ padding: '0.5rem 1rem', opacity: 0.8 }} onClick={() => navigate('/net-agent-admin')}>Net.Agents Dashboard</button>
-                    <button className="btn-primary" style={{ padding: '0.5rem 1rem', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }} onClick={() => navigate('/qr-generator')}>🔲 Scan Dashboard</button>
-                    <button className="btn-primary outline" style={{ borderColor: '#ef4444', color: '#ef4444', padding: '0.5rem 1rem' }}
-                        onClick={() => { localStorage.removeItem('adminUser'); navigate('/admin-login'); }}>Log Out</button>
+                    <button className="action-btn danger" 
+                        onClick={() => { localStorage.removeItem('adminUser'); navigate('/admin-login'); }}>
+                        <LogOut size={18} /> Log Out
+                    </button>
                 </div>
             </header>
 
-            {/* Main Navigation Tabs */}
+            {/* Modern Navigation Pills */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
-                <div className="tabs-container" style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
-                    <button className={`btn-primary nav-btn ${activeTab === 'overview' ? '' : 'outline'}`} style={{ opacity: activeTab === 'overview' ? 1 : 0.7 }} onClick={() => setActiveTab('overview')}>Overview</button>
-                    {(adminRole === 'admin' || adminRole === 'superadmin') && (
-                        <button className={`btn-primary nav-btn ${activeTab === 'orders' ? '' : 'outline'}`} style={{ opacity: activeTab === 'orders' ? 1 : 0.7 }} onClick={() => setActiveTab('orders')}>Orders</button>
-                    )}
-                    {(adminRole !== 'admin') && (
-                        <>
-                            <button className={`btn-primary nav-btn ${activeTab === 'salons' ? '' : 'outline'}`} style={{ opacity: activeTab === 'salons' ? 1 : 0.7 }} onClick={() => setActiveTab('salons')}>Salons</button>
-                            <button className={`btn-primary nav-btn ${activeTab === 'products' ? '' : 'outline'}`} style={{ opacity: activeTab === 'products' ? 1 : 0.7 }} onClick={() => setActiveTab('products')}>Products</button>
-                            <button className={`btn-primary nav-btn ${activeTab === 'monitor' ? '' : 'outline'}`} style={{ opacity: activeTab === 'monitor' ? 1 : 0.7 }} onClick={() => setActiveTab('monitor')}>Monitor</button>
-                            <button className={`btn-primary nav-btn ${activeTab === 'accounts' ? '' : 'outline'}`} style={{ opacity: activeTab === 'accounts' ? 1 : 0.7 }} onClick={() => setActiveTab('accounts')}>Accounts</button>
-                        </>
-                    )}
-                    {(adminRole === 'admin' || adminRole === 'superadmin') && (
-                        <button className={`btn-primary nav-btn ${activeTab === 'order-analytics' ? '' : 'outline'}`} style={{ opacity: activeTab === 'order-analytics' ? 1 : 0.7 }} onClick={() => setActiveTab('order-analytics')}>Order Analytics</button>
-                    )}
-                    {(adminRole === 'admin' || adminRole === 'superadmin') && (
-                        <button className={`btn-primary nav-btn ${activeTab === 'reports' ? '' : 'outline'}`} style={{ opacity: activeTab === 'reports' ? 1 : 0.7 }} onClick={() => setActiveTab('reports')}>Reports</button>
-                    )}
-                </div>
+                <nav className="modern-nav-container">
+                    {AVAILABLE_PERMISSIONS.map(tab => (
+                        hasPermission(tab.id) && (
+                            <button 
+                                key={tab.id}
+                                className={`nav-pill ${activeTab === tab.id ? 'active' : ''}`} 
+                                onClick={() => tab.path ? navigate(tab.path) : setActiveTab(tab.id)}
+                            >
+                                {tab.icon} {tab.label}
+                            </button>
+                        )
+                    ))}
+                </nav>
 
                 {/* Contextual Filters */}
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                     {(activeTab === 'orders' || activeTab === 'monitor' || activeTab === 'salons' || activeTab === 'overview') && (
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                             <input type="text" placeholder="Search..." value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                style={{ padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', outline: 'none', transition: 'all 0.3s ease' }} />
-                            <button className="btn-primary" style={{ padding: '0.5rem 1rem' }}>Search</button>
+                                style={{ padding: '0.6rem 1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white', outline: 'none', transition: 'all 0.3s ease', width: '200px', marginBottom: 0 }} />
                         </div>
                     )}
                     <select value={selectedRep} onChange={(e) => setSelectedRep(e.target.value)}
-                        style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease' }}>
+                        style={{ padding: '0.6rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease', width: 'auto', marginBottom: 0 }}>
                         <option value="" >All Reps</option>
                         {reps.map(rep => <option key={rep._id} value={rep.name} >{rep.name}</option>)}
                         <option value="Unassigned" >Unassigned</option>
                     </select>
 
                     <select value={selectedSalonId} onChange={(e) => setSelectedSalonId(e.target.value)}
-                        style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease' }}>
+                        style={{ padding: '0.6rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white', transition: 'all 0.3s ease', width: 'auto', marginBottom: 0 }}>
                         <option value="" >All Salons</option>
                         {salons.map(salon => <option key={salon._id} value={salon._id} >{salon.name}</option>)}
                     </select>
@@ -1455,13 +1574,46 @@ const AdminDashboard = () => {
                                         repActivityData.map((rep, index) => (
                                             <tr key={index}>
                                                 <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>{rep.repName}</td>
-                                                <td style={{ textAlign: 'center' }}>{rep.visited}</td>
+                                                <td 
+                                                    style={{ textAlign: 'center', cursor: 'pointer', textDecoration: 'underline' }}
+                                                    onClick={() => {
+                                                        setDetailedFilterRep(rep.repName);
+                                                        setFilterDetailedVisited(true);
+                                                        setFilterDetailedActive(false);
+                                                        setFilterDetailedPOSM(false);
+                                                        document.getElementById('detailed-activity-list')?.scrollIntoView({ behavior: 'smooth' });
+                                                    }}
+                                                >
+                                                    {rep.visited}
+                                                </td>
                                                 <td style={{ textAlign: 'center' }}>{rep.revisited}</td>
-                                                <td style={{ textAlign: 'center', color: '#4ade80' }}>{rep.active}</td>
+                                                <td 
+                                                    style={{ textAlign: 'center', color: '#4ade80', cursor: 'pointer', textDecoration: 'underline' }}
+                                                    onClick={() => {
+                                                        setDetailedFilterRep(rep.repName);
+                                                        setFilterDetailedVisited(false);
+                                                        setFilterDetailedActive(true);
+                                                        setFilterDetailedPOSM(false);
+                                                        document.getElementById('detailed-activity-list')?.scrollIntoView({ behavior: 'smooth' });
+                                                    }}
+                                                >
+                                                    {rep.active}
+                                                </td>
                                                 <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#38bdf8' }}>
                                                     {Math.round(calculatePeriodicActivePercentage(rep.active, rep.visited, rep.revisited))}%
                                                 </td>
-                                                <td style={{ textAlign: 'center' }}>{rep.posm}</td>
+                                                <td 
+                                                    style={{ textAlign: 'center', cursor: 'pointer', textDecoration: 'underline' }}
+                                                    onClick={() => {
+                                                        setDetailedFilterRep(rep.repName);
+                                                        setFilterDetailedVisited(false);
+                                                        setFilterDetailedActive(false);
+                                                        setFilterDetailedPOSM(true);
+                                                        document.getElementById('detailed-activity-list')?.scrollIntoView({ behavior: 'smooth' });
+                                                    }}
+                                                >
+                                                    {rep.posm}
+                                                </td>
                                             </tr>
                                         ))
                                     ) : (
@@ -1542,7 +1694,7 @@ const AdminDashboard = () => {
                         </div>
                     </div>
 
-                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div id="detailed-activity-list" style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                                 <h3 style={{ margin: 0, color: '#fff' }}>Detailed Rep Salon Activity List</h3>
@@ -1666,6 +1818,7 @@ const AdminDashboard = () => {
                                             <th style={{ textAlign: 'center' }}>Visited</th>
                                             <th style={{ textAlign: 'center' }}>Active</th>
                                             <th style={{ textAlign: 'center' }}>POSM</th>
+                                            <th style={{ textAlign: 'center' }}>Revisited</th>
                                             <th style={{ textAlign: 'center' }}>Actions</th>
                                         </tr>
                                     </thead>
@@ -1684,37 +1837,72 @@ const AdminDashboard = () => {
                                                     />
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    <span
-                                                        onClick={() => handleToggleStatus(s, 'isVisited')}
-                                                        style={{ cursor: 'pointer', fontSize: '1.2rem', color: s.isVisited ? '#4ade80' : '#ef4444', transition: 'transform 0.2s' }}
-                                                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
-                                                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                                        title="Click to toggle Visited status"
-                                                    >
-                                                        {s.isVisited ? '✓' : '✗'}
-                                                    </span>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                        <span
+                                                            onClick={() => handleToggleStatus(s, 'isVisited')}
+                                                            style={{ cursor: 'pointer', fontSize: '1.2rem', color: s.isVisited ? '#4ade80' : '#ef4444', transition: 'transform 0.2s' }}
+                                                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                                                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                                            title="Click to toggle Visited status"
+                                                        >
+                                                            {s.isVisited ? '✓' : '✗'}
+                                                        </span>
+                                                        {s.isVisited && s.visitedDate && (
+                                                            <small style={{ fontSize: '0.65rem', opacity: 0.7 }}>{new Date(s.visitedDate).toLocaleDateString()}</small>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    <span
-                                                        onClick={() => handleToggleStatus(s, 'isActive')}
-                                                        style={{ cursor: 'pointer', fontSize: '1.2rem', color: s.isActive ? '#4ade80' : '#ef4444', transition: 'transform 0.2s' }}
-                                                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
-                                                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                                        title="Click to toggle Active status"
-                                                    >
-                                                        {s.isActive ? '✓' : '✗'}
-                                                    </span>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                        <span
+                                                            onClick={() => handleToggleStatus(s, 'isActive')}
+                                                            style={{ cursor: 'pointer', fontSize: '1.2rem', color: s.isActive ? '#4ade80' : '#ef4444', transition: 'transform 0.2s' }}
+                                                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                                                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                                            title="Click to toggle Active status"
+                                                        >
+                                                            {s.isActive ? '✓' : '✗'}
+                                                        </span>
+                                                        {s.isActive && s.activeDate && (
+                                                            <small style={{ fontSize: '0.65rem', opacity: 0.7 }}>{new Date(s.activeDate).toLocaleDateString()}</small>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    <span
-                                                        onClick={() => handleToggleStatus(s, 'posmActive')}
-                                                        style={{ cursor: 'pointer', fontSize: '1.2rem', color: s.posmActive ? '#4ade80' : '#ef4444', transition: 'transform 0.2s' }}
-                                                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
-                                                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                                        title="Click to toggle POSM status"
-                                                    >
-                                                        {s.posmActive ? '✓' : '✗'}
-                                                    </span>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                        <span
+                                                            onClick={() => handleToggleStatus(s, 'posmActive')}
+                                                            style={{ cursor: 'pointer', fontSize: '1.2rem', color: s.posmActive ? '#4ade80' : '#ef4444', transition: 'transform 0.2s' }}
+                                                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                                                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                                            title="Click to toggle POSM status"
+                                                        >
+                                                            {s.posmActive ? '✓' : '✗'}
+                                                        </span>
+                                                        {s.posmActive && s.posmDate && (
+                                                            <small style={{ fontSize: '0.65rem', opacity: 0.7 }}>{new Date(s.posmDate).toLocaleDateString()}</small>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
+                                                        <span style={{ fontWeight: 'bold', color: '#38bdf8' }}>{s.revisitedDates?.length || 0}</span>
+                                                        <button 
+                                                            onClick={() => handleAddRevisit(s)}
+                                                            style={{ 
+                                                                padding: '2px 8px', 
+                                                                fontSize: '0.65rem', 
+                                                                borderRadius: '4px', 
+                                                                border: '1px solid #38bdf8', 
+                                                                background: 'rgba(56,189,248,0.1)', 
+                                                                color: '#38bdf8',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                            title="Add today as a revisit date"
+                                                        >
+                                                            + Revisit
+                                                        </button>
+                                                    </div>
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
                                                     <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
@@ -1738,7 +1926,7 @@ const AdminDashboard = () => {
                                         ))}
                                         {detailedFilteredSalons.length === 0 && (
                                             <tr>
-                                                <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No salons found matching your criteria</td>
+                                                <td colSpan="9" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No salons found matching your criteria</td>
                                             </tr>
                                         )}
                                     </tbody>
@@ -1980,7 +2168,20 @@ const AdminDashboard = () => {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
                                     <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
                                         <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500', minWidth: '150px' }}>
-                                            <input type="checkbox" checked={newSalon.isVisited} onChange={(e) => setNewSalon({ ...newSalon, isVisited: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)', margin: 0 }} />
+                                            <input 
+                                                type="checkbox" 
+                                                checked={newSalon.isVisited} 
+                                                onChange={(e) => {
+                                                    const isChecked = e.target.checked;
+                                                    const today = new Date().toISOString().split('T')[0];
+                                                    setNewSalon({ 
+                                                        ...newSalon, 
+                                                        isVisited: isChecked,
+                                                        visitedDate: (isChecked && !newSalon.visitedDate) ? today : newSalon.visitedDate
+                                                    });
+                                                }} 
+                                                style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)', margin: 0 }} 
+                                            />
                                             Visited Salon
                                         </label>
                                         {newSalon.isVisited && (
@@ -1994,7 +2195,20 @@ const AdminDashboard = () => {
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
                                         <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500', minWidth: '150px' }}>
-                                            <input type="checkbox" checked={newSalon.isActive} onChange={(e) => setNewSalon({ ...newSalon, isActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)', margin: 0 }} />
+                                            <input 
+                                                type="checkbox" 
+                                                checked={newSalon.isActive} 
+                                                onChange={(e) => {
+                                                    const isChecked = e.target.checked;
+                                                    const today = new Date().toISOString().split('T')[0];
+                                                    setNewSalon({ 
+                                                        ...newSalon, 
+                                                        isActive: isChecked,
+                                                        activeDate: (isChecked && !newSalon.activeDate) ? today : newSalon.activeDate
+                                                    });
+                                                }} 
+                                                style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)', margin: 0 }} 
+                                            />
                                             Active Salon
                                         </label>
                                         {newSalon.isActive && (
@@ -2008,7 +2222,20 @@ const AdminDashboard = () => {
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
                                         <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500', minWidth: '150px' }}>
-                                            <input type="checkbox" checked={newSalon.posmActive} onChange={(e) => setNewSalon({ ...newSalon, posmActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)', margin: 0 }} />
+                                            <input 
+                                                type="checkbox" 
+                                                checked={newSalon.posmActive} 
+                                                onChange={(e) => {
+                                                    const isChecked = e.target.checked;
+                                                    const today = new Date().toISOString().split('T')[0];
+                                                    setNewSalon({ 
+                                                        ...newSalon, 
+                                                        posmActive: isChecked,
+                                                        posmDate: (isChecked && !newSalon.posmDate) ? today : newSalon.posmDate
+                                                    });
+                                                }} 
+                                                style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)', margin: 0 }} 
+                                            />
                                             POSM Active Salon
                                         </label>
                                         {newSalon.posmActive && (
@@ -2020,6 +2247,7 @@ const AdminDashboard = () => {
                                             />
                                         )}
                                     </div>
+
                                 </div>
 
                                 <div className="input-group" style={{ marginBottom: '2rem' }}>
@@ -2370,8 +2598,21 @@ const AdminDashboard = () => {
                                                 <div style={{ marginTop: '0.25rem', fontSize: '0.8rem', opacity: 0.6 }}>
                                                     Created: {salon.createdAt ? new Date(salon.createdAt).toLocaleDateString() : 'N/A'}
                                                 </div>
-                                                <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--secondary-color)', fontWeight: 'bold' }}>
-                                                    Code: {salon.salonCode || 'N/A'}
+                                                <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--secondary-color)', fontWeight: 'bold', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                                    <span>Code: {salon.salonCode || 'N/A'}</span>
+                                                    {salon.isVisited && salon.visitedDate && (
+                                                        <span 
+                                                            onClick={() => {
+                                                                setSearchTerm(salon.name);
+                                                                setActiveTab('visit-log');
+                                                            }}
+                                                            style={{ fontSize: '0.75rem', color: '#4ade80', fontWeight: 'normal', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', textDecoration: 'underline' }}
+                                                            title="Click to view visit log for this salon"
+                                                        >
+                                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                                            {new Date(salon.visitedDate).toLocaleDateString()}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -2696,12 +2937,14 @@ const AdminDashboard = () => {
                         <h2>Account Management</h2>
                         <div style={{ marginBottom: '2rem', background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '1rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                <h3 style={{ margin: 0 }}>{editingAccountId ? 'Edit Account' : 'Create Salesman Account'}</h3>
+                                <h3 style={{ margin: 0, color: '#6366f1' }}>
+                                    {editingAccountId ? `Editing User: ${newAccount.username}` : 'Create New Account'}
+                                </h3>
                                 {editingAccountId && (
                                     <button onClick={() => {
                                         setEditingAccountId(null);
-                                        setNewAccount({ username: '', password: '', role: 'salesman' });
-                                    }} className="btn-primary outline" style={{ padding: '0.4rem 1rem' }}>Cancel Edit</button>
+                                        setNewAccount({ username: '', password: '', role: 'salesman', permissions: [] });
+                                    }} className="action-btn danger" style={{ padding: '0.4rem 1rem' }}>Cancel Editing</button>
                                 )}
                             </div>
                             <form onSubmit={async (e) => {
@@ -2709,14 +2952,18 @@ const AdminDashboard = () => {
                                 try {
                                     if (editingAccountId) {
                                         // Prepare payload: only send password if it's not empty
-                                        const payload = { username: newAccount.username, role: newAccount.role };
+                                        const payload = { 
+                                            username: newAccount.username, 
+                                            role: newAccount.role,
+                                            permissions: newAccount.permissions 
+                                        };
                                         if (newAccount.password) {
                                             payload.password = newAccount.password;
                                         }
                                         const res = await axios.put(`${API_URL}/auth/accounts/${editingAccountId}`, payload);
                                         if (res.data.success) {
                                             alert('Account Updated Successfully');
-                                            setNewAccount({ username: '', password: '', role: 'salesman' });
+                                            setNewAccount({ username: '', password: '', role: 'salesman', permissions: [] });
                                             setEditingAccountId(null);
                                             fetchAccounts();
                                         }
@@ -2724,7 +2971,7 @@ const AdminDashboard = () => {
                                         const res = await axios.post(`${API_URL}/auth/salesman`, newAccount);
                                         if (res.data.success) {
                                             alert('Account Created Successfully');
-                                            setNewAccount({ username: '', password: '', role: 'salesman' });
+                                            setNewAccount({ username: '', password: '', role: 'salesman', permissions: [] });
                                             fetchAccounts();
                                         }
                                     }
@@ -2766,6 +3013,68 @@ const AdminDashboard = () => {
                                         />
                                     </div>
                                 </div>
+
+                                <div style={{ marginBottom: '1.5rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                        <label style={{ fontWeight: 'bold', color: '#6366f1' }}>Dashboard Permissions</label>
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            <button type="button" onClick={() => setNewAccount({ ...newAccount, permissions: AVAILABLE_PERMISSIONS.map(p => p.id) })} className="action-btn" style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}>Select All</button>
+                                            <button type="button" onClick={() => setNewAccount({ ...newAccount, permissions: [] })} className="action-btn" style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}>Clear All</button>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem' }}>
+                                        {AVAILABLE_PERMISSIONS.map(p => {
+                                            const isChecked = newAccount.permissions.includes(p.id);
+                                            return (
+                                                <label 
+                                                    key={p.id} 
+                                                    style={{ 
+                                                        display: 'flex', 
+                                                        alignItems: 'center', 
+                                                        gap: '0.8rem', 
+                                                        background: isChecked ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255,255,255,0.03)', 
+                                                        padding: '0.6rem 1rem', 
+                                                        borderRadius: '10px', 
+                                                        cursor: 'pointer', 
+                                                        border: isChecked ? '1px solid #6366f1' : '1px solid rgba(255,255,255,0.08)',
+                                                        transition: 'all 0.2s ease',
+                                                        boxShadow: isChecked ? '0 0 10px rgba(99, 102, 241, 0.1)' : 'none'
+                                                    }}
+                                                >
+                                                    <div style={{ 
+                                                        width: '18px', 
+                                                        height: '18px', 
+                                                        borderRadius: '4px', 
+                                                        border: '2px solid', 
+                                                        borderColor: isChecked ? '#6366f1' : 'rgba(255,255,255,0.3)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        background: isChecked ? '#6366f1' : 'transparent',
+                                                        transition: 'all 0.2s ease'
+                                                    }}>
+                                                        {isChecked && <div style={{ width: '8px', height: '8px', background: 'white', borderRadius: '1px' }}></div>}
+                                                    </div>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={isChecked}
+                                                        onChange={(e) => {
+                                                            const updated = e.target.checked 
+                                                                ? [...newAccount.permissions, p.id]
+                                                                : newAccount.permissions.filter(id => id !== p.id);
+                                                            setNewAccount({ ...newAccount, permissions: updated });
+                                                        }}
+                                                        style={{ display: 'none' }}
+                                                    />
+                                                    <span style={{ fontSize: '0.9rem', color: isChecked ? '#fff' : '#cbd5e1', fontWeight: isChecked ? 'bold' : 'normal' }}>
+                                                        {p.label}
+                                                    </span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
                                 <button type="submit" className="btn-primary" style={{ width: '100%' }}>
                                     {editingAccountId ? 'Update Account' : 'Create Account'}
                                 </button>
@@ -2780,6 +3089,7 @@ const AdminDashboard = () => {
                                         <tr>
                                             <th>Username</th>
                                             <th>Role</th>
+                                            <th>Access Functions</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
@@ -2793,11 +3103,39 @@ const AdminDashboard = () => {
                                                     </span>
                                                 </td>
                                                 <td>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                                                        {Array.isArray(acc.permissions) && acc.permissions.length > 0 ? (
+                                                            acc.permissions.map(pId => {
+                                                                const perm = AVAILABLE_PERMISSIONS.find(p => p.id === pId);
+                                                                return perm ? (
+                                                                    <span key={pId} style={{ 
+                                                                        background: 'rgba(99, 102, 241, 0.15)', 
+                                                                        color: '#818cf8', 
+                                                                        padding: '0.2rem 0.5rem', 
+                                                                        borderRadius: '4px', 
+                                                                        fontSize: '0.75rem',
+                                                                        border: '1px solid rgba(99, 102, 241, 0.3)'
+                                                                    }}>
+                                                                        {perm.label}
+                                                                    </span>
+                                                                ) : null;
+                                                            })
+                                                        ) : (
+                                                            <span style={{ fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic' }}>Restricted / No Access</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td>
                                                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                         <button
                                                             onClick={() => {
                                                                 setEditingAccountId(acc._id);
-                                                                setNewAccount({ username: acc.username, password: '', role: acc.role || 'salesman' });
+                                                                setNewAccount({ 
+                                                                    username: acc.username, 
+                                                                    password: '', 
+                                                                    role: acc.role || 'salesman',
+                                                                    permissions: Array.isArray(acc.permissions) ? [...acc.permissions] : []
+                                                                });
                                                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                                                             }}
                                                             className="icon-btn primary"
@@ -2806,7 +3144,7 @@ const AdminDashboard = () => {
                                                         >
                                                             Edit
                                                         </button>
-                                                        {!['admin', 'superadmin'].includes(acc.role) && (
+                                                        {acc.role !== 'superadmin' && (
                                                             <button
                                                                 onClick={async () => {
                                                                     if (window.confirm('Are you sure you want to delete this account?')) {
@@ -2968,6 +3306,134 @@ const AdminDashboard = () => {
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    </section>
+                )
+            }
+
+            {
+                activeTab === 'visit-log' && (
+                    <section className="glass-container animate-fade-in">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', flexWrap: 'wrap', gap: '1.5rem' }}>
+                            <div>
+                                <h2 style={{ margin: 0 }}>Visit & Re-visit History</h2>
+                                <p style={{ opacity: 0.6, fontSize: '0.9rem', margin: '0.5rem 0 0 0' }}>Date-wise log of all salon visits and interactions</p>
+                            </div>
+                            
+                            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                                <div className="input-group" style={{ width: '200px' }}>
+                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>Representative</label>
+                                    <select
+                                        value={selectedRep}
+                                        onChange={(e) => setSelectedRep(e.target.value)}
+                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white' }}
+                                    >
+                                        <option value="" >All Representatives</option>
+                                        {reps.map(rep => (
+                                            <option key={rep._id} value={rep.name} >{rep.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>From Date</label>
+                                    <input
+                                        type="date"
+                                        value={reportStartDate}
+                                        onChange={(e) => setReportStartDate(e.target.value)}
+                                        style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', colorScheme: 'dark' }}
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>To Date</label>
+                                    <input
+                                        type="date"
+                                        value={reportEndDate}
+                                        onChange={(e) => setReportEndDate(e.target.value)}
+                                        style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', colorScheme: 'dark' }}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button 
+                                        onClick={() => {
+                                            setReportStartDate('');
+                                            setReportEndDate('');
+                                            setSelectedRep('');
+                                        }}
+                                        className="btn-primary outline"
+                                        style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                                    >
+                                        Reset
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            if (!visitHistoryData.length) return alert('No data to export');
+                                            const exportData = visitHistoryData.map(v => ({
+                                                'Date': v.dateStr,
+                                                'Salon Name': v.salonName,
+                                                'Salon Code': v.salonCode,
+                                                'Representative': v.repName,
+                                                'Location': v.location,
+                                                'Visit Type': v.type
+                                            }));
+                                            const ws = XLSX.utils.json_to_sheet(exportData);
+                                            const wb = XLSX.utils.book_new();
+                                            XLSX.utils.book_append_sheet(wb, ws, "Visit Log");
+                                            XLSX.writeFile(wb, `Visit_Log_${new Date().toISOString().split('T')[0]}.xlsx`);
+                                        }} 
+                                        className="btn-primary" 
+                                        style={{ background: '#10b981', border: 'none', padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                                    >
+                                        📥 Export Excel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="table-container shadow-sm">
+                            <table className="styled-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr>
+                                        <th style={{ textAlign: 'left', padding: '1rem' }}>DATE</th>
+                                        <th style={{ textAlign: 'left', padding: '1rem' }}>SALON NAME</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem' }}>CODE</th>
+                                        <th style={{ textAlign: 'left', padding: '1rem' }}>REPRESENTATIVE</th>
+                                        <th style={{ textAlign: 'left', padding: '1rem' }}>LOCATION</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem' }}>TYPE</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {visitHistoryData.length > 0 ? (
+                                        visitHistoryData.map((item, idx) => (
+                                            <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>{item.dateStr}</td>
+                                                <td>{item.salonName}</td>
+                                                <td style={{ textAlign: 'center', opacity: 0.7 }}>{item.salonCode}</td>
+                                                <td>{item.repName}</td>
+                                                <td style={{ fontSize: '0.9rem', opacity: 0.8 }}>{item.location}</td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <span style={{ 
+                                                        padding: '4px 10px', 
+                                                        borderRadius: '20px', 
+                                                        fontSize: '0.75rem', 
+                                                        fontWeight: 'bold',
+                                                        background: item.type === 'New Visit' ? 'rgba(74,222,128,0.15)' : 'rgba(56,189,248,0.15)',
+                                                        color: item.type === 'New Visit' ? '#4ade80' : '#38bdf8',
+                                                        border: `1px solid ${item.type === 'New Visit' ? 'rgba(74,222,128,0.3)' : 'rgba(56,189,248,0.3)'}`
+                                                    }}>
+                                                        {item.type}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="6" style={{ textAlign: 'center', padding: '4rem', color: 'gray' }}>
+                                                No visit records found for the selected criteria
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </section>
                 )

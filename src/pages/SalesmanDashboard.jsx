@@ -513,7 +513,28 @@ const SalesmanDashboard = () => {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
                                     <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
                                         <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500', minWidth: '150px' }}>
-                                            <input type="checkbox" checked={editingSalonId ? editFormData.isVisited : newSalon.isVisited} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, isVisited: e.target.checked }) : setNewSalon({ ...newSalon, isVisited: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} />
+                                            <input 
+                                                type="checkbox" 
+                                                checked={editingSalonId ? editFormData.isVisited : newSalon.isVisited} 
+                                                onChange={(e) => {
+                                                    const isChecked = e.target.checked;
+                                                    const today = new Date().toISOString().split('T')[0];
+                                                    if (editingSalonId) {
+                                                        setEditFormData({ 
+                                                            ...editFormData, 
+                                                            isVisited: isChecked,
+                                                            visitedDate: (isChecked && !editFormData.visitedDate) ? today : editFormData.visitedDate
+                                                        });
+                                                    } else {
+                                                        setNewSalon({ 
+                                                            ...newSalon, 
+                                                            isVisited: isChecked,
+                                                            visitedDate: (isChecked && !newSalon.visitedDate) ? today : newSalon.visitedDate
+                                                        });
+                                                    }
+                                                }} 
+                                                style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} 
+                                            />
                                             Visited Salon
                                         </label>
                                         {(editingSalonId ? editFormData.isVisited : newSalon.isVisited) && (
@@ -527,7 +548,28 @@ const SalesmanDashboard = () => {
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
                                         <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500', minWidth: '150px' }}>
-                                            <input type="checkbox" checked={editingSalonId ? editFormData.isActive : newSalon.isActive} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, isActive: e.target.checked }) : setNewSalon({ ...newSalon, isActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} />
+                                            <input 
+                                                type="checkbox" 
+                                                checked={editingSalonId ? editFormData.isActive : newSalon.isActive} 
+                                                onChange={(e) => {
+                                                    const isChecked = e.target.checked;
+                                                    const today = new Date().toISOString().split('T')[0];
+                                                    if (editingSalonId) {
+                                                        setEditFormData({ 
+                                                            ...editFormData, 
+                                                            isActive: isChecked,
+                                                            activeDate: (isChecked && !editFormData.activeDate) ? today : editFormData.activeDate
+                                                        });
+                                                    } else {
+                                                        setNewSalon({ 
+                                                            ...newSalon, 
+                                                            isActive: isChecked,
+                                                            activeDate: (isChecked && !newSalon.activeDate) ? today : newSalon.activeDate
+                                                        });
+                                                    }
+                                                }} 
+                                                style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} 
+                                            />
                                             Active Salon
                                         </label>
                                         {(editingSalonId ? editFormData.isActive : newSalon.isActive) && (
@@ -541,7 +583,28 @@ const SalesmanDashboard = () => {
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
                                         <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500', minWidth: '150px' }}>
-                                            <input type="checkbox" checked={editingSalonId ? editFormData.posmActive : newSalon.posmActive} onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, posmActive: e.target.checked }) : setNewSalon({ ...newSalon, posmActive: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} />
+                                            <input 
+                                                type="checkbox" 
+                                                checked={editingSalonId ? editFormData.posmActive : newSalon.posmActive} 
+                                                onChange={(e) => {
+                                                    const isChecked = e.target.checked;
+                                                    const today = new Date().toISOString().split('T')[0];
+                                                    if (editingSalonId) {
+                                                        setEditFormData({ 
+                                                            ...editFormData, 
+                                                            posmActive: isChecked,
+                                                            posmDate: (isChecked && !editFormData.posmDate) ? today : editFormData.posmDate
+                                                        });
+                                                    } else {
+                                                        setNewSalon({ 
+                                                            ...newSalon, 
+                                                            posmActive: isChecked,
+                                                            posmDate: (isChecked && !newSalon.posmDate) ? today : newSalon.posmDate
+                                                        });
+                                                    }
+                                                }} 
+                                                style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} 
+                                            />
                                             POSM Active Salon
                                         </label>
                                         {(editingSalonId ? editFormData.posmActive : newSalon.posmActive) && (
@@ -708,6 +771,9 @@ const SalesmanDashboard = () => {
                                             <button onClick={() => setExpandedSalonId(expandedSalonId === `search-${salon._id}` ? null : `search-${salon._id}`)} className="icon-btn" title="View Details">
                                                 {expandedSalonId === `search-${salon._id}` ? <EyeOff size={16} /> : <Eye size={16} />}
                                             </button>
+                                            <button onClick={() => handleDeleteSalon(salon._id)} className="icon-btn danger" title="Delete" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
+                                                <X size={16} />
+                                            </button>
                                         </div>
 
                                         <div>
@@ -740,9 +806,19 @@ const SalesmanDashboard = () => {
                                         )}
 
                                         <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                                            <div style={{ display: 'flex', gap: '0.4rem' }}>
-                                                {salon.isVisited && <span className="status-badge completed" style={{ fontSize: '0.7rem' }}>Visited</span>}
-                                                {salon.isActive && <span className="status-badge processing" style={{ fontSize: '0.7rem' }}>Active</span>}
+                                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                                {salon.isVisited && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                        <span className="status-badge completed" style={{ fontSize: '0.7rem' }}>Visited</span>
+                                                        {salon.visitedDate && <span style={{ fontSize: '0.65rem', opacity: 0.7, color: '#4ade80' }}>{new Date(salon.visitedDate).toLocaleDateString()}</span>}
+                                                    </div>
+                                                )}
+                                                {salon.isActive && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                        <span className="status-badge processing" style={{ fontSize: '0.7rem' }}>Active</span>
+                                                        {salon.activeDate && <span style={{ fontSize: '0.65rem', opacity: 0.7, color: '#38bdf8' }}>{new Date(salon.activeDate).toLocaleDateString()}</span>}
+                                                    </div>
+                                                )}
                                             </div>
                                             {salon.editedBy === loggedInUsername && <span style={{ fontSize: '0.75rem', color: '#818cf8', fontWeight: '500' }}>Your Salon</span>}
                                         </div>

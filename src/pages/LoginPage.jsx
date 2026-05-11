@@ -48,6 +48,11 @@ const LoginPage = () => {
                 if (res.data.success) {
                     localStorage.setItem('adminToken', res.data.token);
                     localStorage.setItem('adminRole', res.data.role);
+                    if (res.data.permissions && Array.isArray(res.data.permissions)) {
+                        localStorage.setItem('adminPermissions', JSON.stringify(res.data.permissions));
+                    } else {
+                        localStorage.removeItem('adminPermissions');
+                    }
                     // Store the username for the 'Edited By' feature
                     if (res.data.username) {
                         localStorage.setItem('loggedInUsername', res.data.username);
