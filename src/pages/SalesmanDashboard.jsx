@@ -237,6 +237,14 @@ const SalesmanDashboard = () => {
 
     const draftUpdatesCount = dailyUpdates.filter(s => !s.salonCode).length;
 
+    // Calculate Daily Activity Counts
+    const visitedTodayCount = dailyUpdates.filter(s => isSameDay(s.visitedDate, selectedUpdateDate)).length;
+    const revisitedTodayCount = dailyUpdates.reduce((acc, s) => {
+        return acc + (s.revisitedDates || []).filter(d => isSameDay(d, selectedUpdateDate)).length;
+    }, 0);
+    const activeTodayCount = dailyUpdates.filter(s => isSameDay(s.activeDate, selectedUpdateDate)).length;
+    const posmTodayCount = dailyUpdates.filter(s => isSameDay(s.posmDate, selectedUpdateDate)).length;
+
     return (
         <div className="container animate-fade-in" style={{ paddingBottom: '4rem' }}>
             <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
@@ -809,14 +817,26 @@ const SalesmanDashboard = () => {
                                             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                                                 {salon.isVisited && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                                        <span className="status-badge completed" style={{ fontSize: '0.7rem' }}>Visited</span>
+                                                        <span className="status-badge completed" style={{ fontSize: '0.7rem' }}>{isSameDay(salon.visitedDate, selectedUpdateDate) ? 'New Visited' : 'Visited'}</span>
                                                         {salon.visitedDate && <span style={{ fontSize: '0.65rem', opacity: 0.7, color: '#4ade80' }}>{new Date(salon.visitedDate).toLocaleDateString()}</span>}
+                                                    </div>
+                                                )}
+                                                {salon.revisitedDates && salon.revisitedDates.length > 0 && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                        <span className="status-badge" style={{ fontSize: '0.7rem', background: 'rgba(129, 140, 248, 0.2)', color: '#818cf8', border: '1px solid rgba(129, 140, 248, 0.3)' }}>Revisited</span>
+                                                        <span style={{ fontSize: '0.65rem', opacity: 0.7, color: '#818cf8' }}>{salon.revisitedDates.length} times</span>
                                                     </div>
                                                 )}
                                                 {salon.isActive && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                                                         <span className="status-badge processing" style={{ fontSize: '0.7rem' }}>Active</span>
                                                         {salon.activeDate && <span style={{ fontSize: '0.65rem', opacity: 0.7, color: '#38bdf8' }}>{new Date(salon.activeDate).toLocaleDateString()}</span>}
+                                                    </div>
+                                                )}
+                                                {salon.posmActive && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                        <span className="status-badge shipped" style={{ fontSize: '0.7rem' }}>POSM</span>
+                                                        {salon.posmDate && <span style={{ fontSize: '0.65rem', opacity: 0.7, color: '#f472b6' }}>{new Date(salon.posmDate).toLocaleDateString()}</span>}
                                                     </div>
                                                 )}
                                             </div>
@@ -838,24 +858,36 @@ const SalesmanDashboard = () => {
                 {/* My Daily Updates Section - Always visible */}
                 <section className="glass-container">
                     <h2 style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.5rem', color: '#4ade80', flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '1' }}>
-                            <Store size={24} /> My Daily Updates
-                            <span style={{ fontSize: '1rem', opacity: 0.6, marginLeft: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                <span>({dailyUpdates.length})</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: '1' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <Store size={24} /> My Daily Updates
+                                <span style={{ fontSize: '1rem', opacity: 0.6, marginLeft: '0.5rem' }}>({dailyUpdates.length})</span>
+                            </div>
+                            
+                            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                                <div title="New first-time visits today" style={{ background: 'rgba(74, 222, 128, 0.1)', color: '#4ade80', padding: '0.2rem 0.75rem', borderRadius: '8px', fontSize: '0.8rem', border: '1px solid rgba(74, 222, 128, 0.2)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4ade80' }}></span>
+                                    New Visited: <strong style={{ marginLeft: '2px' }}>{visitedTodayCount}</strong>
+                                </div>
+                                <div title="Follow-up visits today" style={{ background: 'rgba(129, 140, 248, 0.1)', color: '#818cf8', padding: '0.2rem 0.75rem', borderRadius: '8px', fontSize: '0.8rem', border: '1px solid rgba(129, 140, 248, 0.2)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#818cf8' }}></span>
+                                    Revisited: <strong style={{ marginLeft: '2px' }}>{revisitedTodayCount}</strong>
+                                </div>
+                                <div title="Salons activated today" style={{ background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', padding: '0.2rem 0.75rem', borderRadius: '8px', fontSize: '0.8rem', border: '1px solid rgba(56, 189, 248, 0.2)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#38bdf8' }}></span>
+                                    Active: <strong style={{ marginLeft: '2px' }}>{activeTodayCount}</strong>
+                                </div>
+                                <div title="POSM items activated today" style={{ background: 'rgba(244, 114, 182, 0.1)', color: '#f472b6', padding: '0.2rem 0.75rem', borderRadius: '8px', fontSize: '0.8rem', border: '1px solid rgba(244, 114, 182, 0.2)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f472b6' }}></span>
+                                    POSM: <strong style={{ marginLeft: '2px' }}>{posmTodayCount}</strong>
+                                </div>
                                 {draftUpdatesCount > 0 && (
-                                    <span style={{ 
-                                        fontSize: '0.85rem', 
-                                        color: '#eab308', 
-                                        background: 'rgba(234, 179, 8, 0.1)', 
-                                        padding: '0.2rem 0.6rem', 
-                                        borderRadius: '12px',
-                                        border: '1px solid rgba(234, 179, 8, 0.2)',
-                                        whiteSpace: 'nowrap'
-                                    }}>
-                                        {draftUpdatesCount} Add Details Only Salons
-                                    </span>
+                                    <div style={{ background: 'rgba(234, 179, 8, 0.1)', color: '#eab308', padding: '0.2rem 0.75rem', borderRadius: '8px', fontSize: '0.8rem', border: '1px solid rgba(234, 179, 8, 0.2)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#eab308' }}></span>
+                                        Details Only: <strong style={{ marginLeft: '2px' }}>{draftUpdatesCount}</strong>
+                                    </div>
                                 )}
-                            </span>
+                            </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             <input 
@@ -921,9 +953,12 @@ const SalesmanDashboard = () => {
                                                 <td style={{ fontSize: '0.9rem', color: '#cbd5e1' }}>{salon.contactNumber1 || salon.contactNumber || '-'}</td>
                                                 <td>
                                                     <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-                                                        {salon.isVisited && <span className="status-badge completed" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>Visited</span>}
-                                                        {salon.isActive && <span className="status-badge processing" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>Active</span>}
-                                                        {salon.posmActive && <span className="status-badge shipped" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>POSM</span>}
+                                                        {isSameDay(salon.visitedDate, selectedUpdateDate) && <span className="status-badge completed" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>New Visited</span>}
+                                                        {salon.revisitedDates && salon.revisitedDates.some(d => isSameDay(d, selectedUpdateDate)) && <span className="status-badge" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem', background: 'rgba(129, 140, 248, 0.2)', color: '#818cf8', border: '1px solid rgba(129, 140, 248, 0.3)' }}>Revisited</span>}
+                                                        {isSameDay(salon.activeDate, selectedUpdateDate) && <span className="status-badge processing" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>Active</span>}
+                                                        {isSameDay(salon.posmDate, selectedUpdateDate) && <span className="status-badge shipped" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>POSM</span>}
+                                                        {/* Show existing statuses in a subtler way if they didn't happen today but the salon is in the list due to other activity */}
+                                                        {(!isSameDay(salon.visitedDate, selectedUpdateDate) && salon.isVisited) && <span style={{ fontSize: '0.65rem', opacity: 0.5, border: '1px solid rgba(255,255,255,0.1)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>Prev. Visited</span>}
                                                     </div>
                                                 </td>
                                                 <td style={{ textAlign: 'right' }}>
