@@ -109,6 +109,13 @@ const AdminDashboard = () => {
     const [detailedFilterStartDate, setDetailedFilterStartDate] = useState('');
     const [detailedFilterEndDate, setDetailedFilterEndDate] = useState('');
 
+    const formatDate = (dateString) => {
+        if (!dateString) return 'N/A';
+        const date = new Date(dateString);
+        if (isNaN(date.getTime()) || date.getTime() === 0) return 'N/A';
+        return date.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+    };
+
     const filteredSalons = React.useMemo(() => {
         return salons.filter(salon => {
             const rep = (salon.repName && salon.repName.trim() !== '') ? salon.repName : 'Unassigned';
@@ -192,6 +199,7 @@ const AdminDashboard = () => {
                 history.push({
                     date: localDate,
                     dateStr: dateStr,
+                    displayDate: formatDate(s.visitedDate),
                     salonName: s.name,
                     salonCode: s.salonCode || 'N/A',
                     repName: rep,
@@ -208,6 +216,7 @@ const AdminDashboard = () => {
                     history.push({
                         date: localDate,
                         dateStr: dateStr,
+                        displayDate: formatDate(rd),
                         salonName: s.name,
                         salonCode: s.salonCode || 'N/A',
                         repName: rep,
@@ -527,12 +536,12 @@ const AdminDashboard = () => {
             password: salon.plainPassword || '',
             accountDetails: salon.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' },
             isVisited: salon.isVisited || false,
-            visitedDate: salon.visitedDate ? salon.visitedDate.split('T')[0] : '',
+            visitedDate: salon.visitedDate || '',
             revisitedDates: salon.revisitedDates || [],
             isActive: salon.isActive || false,
-            activeDate: salon.activeDate ? salon.activeDate.split('T')[0] : '',
+            activeDate: salon.activeDate || '',
             posmActive: salon.posmActive || false,
-            posmDate: salon.posmDate ? salon.posmDate.split('T')[0] : '',
+            posmDate: salon.posmDate || '',
             isDraft: !salon.salonCode,
             assignToCode: ''
         });
@@ -568,7 +577,7 @@ const AdminDashboard = () => {
             }
         } catch (err) {
             console.error(err);
-            alert('Error updating salon');
+            alert(err.response?.data?.message || 'Error updating salon');
         }
     };
 
@@ -934,14 +943,14 @@ const AdminDashboard = () => {
                 s.contactNumber2 || '',
                 `"${(s.repName || '').replace(/"/g, '""')}"`,
                 `"${(s.remark || '').replace(/"/g, '""')}"`,
-                s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '',
+                s.createdAt ? formatDate(s.createdAt) : '',
                 s.isVisited ? 'Yes' : 'No',
-                s.visitedDate ? new Date(s.visitedDate).toLocaleDateString() : '',
-                (s.revisitedDates || []).map(d => new Date(d).toLocaleDateString()).join('; '),
+                s.visitedDate ? formatDate(s.visitedDate) : '',
+                (s.revisitedDates || []).map(d => formatDate(d)).join('; '),
                 s.isActive ? 'Yes' : 'No',
-                s.activeDate ? new Date(s.activeDate).toLocaleDateString() : '',
+                s.activeDate ? formatDate(s.activeDate) : '',
                 s.posmActive ? 'Yes' : 'No',
-                s.posmDate ? new Date(s.posmDate).toLocaleDateString() : ''
+                s.posmDate ? formatDate(s.posmDate) : ''
             ];
         });
         const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -1728,11 +1737,11 @@ const AdminDashboard = () => {
                                                 'Location': s.location,
                                                 'Contact': s.contactNumber1 || s.contactNumber || 'N/A',
                                                 'Visited': s.isVisited ? 'Yes' : 'No',
-                                                'Visited Date': s.visitedDate ? new Date(s.visitedDate).toLocaleDateString() : 'N/A',
+                                                'Visited Date': s.visitedDate ? formatDate(s.visitedDate) : 'N/A',
                                                 'Active': s.isActive ? 'Yes' : 'No',
-                                                'Active Date': s.activeDate ? new Date(s.activeDate).toLocaleDateString() : 'N/A',
+                                                'Active Date': s.activeDate ? formatDate(s.activeDate) : 'N/A',
                                                 'POSM': s.posmActive ? 'Yes' : 'No',
-                                                'POSM Date': s.posmDate ? new Date(s.posmDate).toLocaleDateString() : 'N/A',
+                                                'POSM Date': s.posmDate ? formatDate(s.posmDate) : 'N/A',
                                                 'Revisits': (s.revisitedDates || []).length
                                             }));
                                             const worksheet = XLSX.utils.json_to_sheet(data);
@@ -1852,7 +1861,7 @@ const AdminDashboard = () => {
                                                             {s.isVisited ? '✓' : '✗'}
                                                         </span>
                                                         {s.isVisited && s.visitedDate && (
-                                                            <small style={{ fontSize: '0.65rem', opacity: 0.7 }}>{new Date(s.visitedDate).toLocaleDateString()}</small>
+                                                            <small style={{ fontSize: '0.65rem', opacity: 0.7 }}>{formatDate(s.visitedDate)}</small>
                                                         )}
                                                     </div>
                                                 </td>
@@ -1868,7 +1877,7 @@ const AdminDashboard = () => {
                                                             {s.isActive ? '✓' : '✗'}
                                                         </span>
                                                         {s.isActive && s.activeDate && (
-                                                            <small style={{ fontSize: '0.65rem', opacity: 0.7 }}>{new Date(s.activeDate).toLocaleDateString()}</small>
+                                                            <small style={{ fontSize: '0.65rem', opacity: 0.7 }}>{formatDate(s.activeDate)}</small>
                                                         )}
                                                     </div>
                                                 </td>
@@ -1884,7 +1893,7 @@ const AdminDashboard = () => {
                                                             {s.posmActive ? '✓' : '✗'}
                                                         </span>
                                                         {s.posmActive && s.posmDate && (
-                                                            <small style={{ fontSize: '0.65rem', opacity: 0.7 }}>{new Date(s.posmDate).toLocaleDateString()}</small>
+                                                            <small style={{ fontSize: '0.65rem', opacity: 0.7 }}>{formatDate(s.posmDate)}</small>
                                                         )}
                                                     </div>
                                                 </td>
@@ -2259,7 +2268,7 @@ const AdminDashboard = () => {
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', minHeight: '30px' }}>
                                         {(newSalon.revisitedDates || []).map((d, index) => (
                                             <div key={index} style={{ padding: '0.4rem 0.8rem', background: 'rgba(255,255,255,0.1)', borderRadius: '20px', color: '#bae6fd', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                {new Date(d).toLocaleDateString()}
+                                                {formatDate(d)}
                                                 <button type="button" onClick={() => {
                                                     const newArr = [...newSalon.revisitedDates];
                                                     newArr.splice(index, 1);
@@ -2600,7 +2609,7 @@ const AdminDashboard = () => {
                                                     {salon.location || 'No Location'}
                                                 </div>
                                                 <div style={{ marginTop: '0.25rem', fontSize: '0.8rem', opacity: 0.6 }}>
-                                                    Created: {salon.createdAt ? new Date(salon.createdAt).toLocaleDateString() : 'N/A'}
+                                                    Created: {formatDate(salon.createdAt)}
                                                 </div>
                                                 <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--secondary-color)', fontWeight: 'bold', display: 'flex', gap: '1rem', alignItems: 'center' }}>
                                                     <span>Code: {salon.salonCode || 'N/A'}</span>
@@ -2614,7 +2623,7 @@ const AdminDashboard = () => {
                                                             title="Click to view visit log for this salon"
                                                         >
                                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                                                            {new Date(salon.visitedDate).toLocaleDateString()}
+                                                            {formatDate(salon.visitedDate)}
                                                         </span>
                                                     )}
                                                 </div>
@@ -2649,10 +2658,10 @@ const AdminDashboard = () => {
                                                 <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                                                     <p style={{ margin: '0.2rem 0' }}><strong>Visited Salon:</strong> <span style={{ color: salon.isVisited ? '#4ade80' : '#ef4444' }}>{salon.isVisited ? 'Yes' : 'No'}</span></p>
                                                     {salon.isVisited && salon.visitedDate && (
-                                                        <p style={{ margin: '0.2rem 0' }}><strong>Visited Date:</strong> {new Date(salon.visitedDate).toLocaleDateString()}</p>
+                                                        <p style={{ margin: '0.2rem 0' }}><strong>Visited Date:</strong> {formatDate(salon.visitedDate)}</p>
                                                     )}
                                                     {salon.revisitedDates && salon.revisitedDates.length > 0 && (
-                                                        <p style={{ margin: '0.2rem 0' }}><strong>Revisited Dates:</strong> {salon.revisitedDates.map(d => new Date(d).toLocaleDateString()).join(', ')}</p>
+                                                        <p style={{ margin: '0.2rem 0' }}><strong>Revisited Dates:</strong> {salon.revisitedDates.map(d => formatDate(d)).join(', ')}</p>
                                                     )}
                                                     <p style={{ margin: '0.2rem 0' }}><strong>Active Salon:</strong> <span style={{ color: salon.isActive ? '#4ade80' : '#ef4444' }}>{salon.isActive ? 'Yes' : 'No'}</span></p>
                                                     <p style={{ margin: '0.2rem 0' }}><strong>POSM Active Salon:</strong> <span style={{ color: salon.posmActive ? '#4ade80' : '#ef4444' }}>{salon.posmActive ? 'Yes' : 'No'}</span></p>
@@ -3402,7 +3411,7 @@ const AdminDashboard = () => {
                                         onClick={() => {
                                             if (!visitHistoryData.length) return alert('No data to export');
                                             const exportData = visitHistoryData.map(v => ({
-                                                'Date': v.dateStr,
+                                                'Date': v.displayDate,
                                                 'Salon Name': v.salonName,
                                                 'Salon Code': v.salonCode,
                                                 'Representative': v.repName,
@@ -3439,7 +3448,7 @@ const AdminDashboard = () => {
                                     {visitHistoryData.length > 0 ? (
                                         visitHistoryData.map((item, idx) => (
                                             <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>{item.dateStr}</td>
+                                                <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>{item.displayDate}</td>
                                                 <td>{item.salonName}</td>
                                                 <td style={{ textAlign: 'center', opacity: 0.7 }}>{item.salonCode}</td>
                                                 <td>{item.repName}</td>

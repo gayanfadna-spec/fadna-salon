@@ -34,6 +34,13 @@ const SalesmanDashboard = () => {
     };
 
     const [selectedUpdateDate, setSelectedUpdateDate] = useState(new Date().toISOString().split('T')[0]);
+    
+    const formatDate = (dateString) => {
+        if (!dateString) return 'N/A';
+        const date = new Date(dateString);
+        if (isNaN(date.getTime()) || date.getTime() === 0) return 'N/A';
+        return date.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+    };
 
     useEffect(() => {
         const storedSalesman = localStorage.getItem('salesmanUser');
@@ -965,19 +972,19 @@ const SalesmanDashboard = () => {
                                                 {salon.isVisited && (
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4ade80' }}>
                                                         <span>New Visited:</span>
-                                                        <span>{new Date(salon.visitedDate).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                                                        <span>{formatDate(salon.visitedDate)}</span>
                                                     </div>
                                                 )}
                                                 {salon.isActive && (
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#38bdf8' }}>
                                                         <span>Active:</span>
-                                                        <span>{new Date(salon.activeDate).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                                                        <span>{formatDate(salon.activeDate)}</span>
                                                     </div>
                                                 )}
                                                 {salon.posmActive && (
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f472b6' }}>
                                                         <span>POSM:</span>
-                                                        <span>{new Date(salon.posmDate).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                                                        <span>{formatDate(salon.posmDate)}</span>
                                                     </div>
                                                 )}
                                                 {salon.revisitedDates && salon.revisitedDates.length > 0 && (
@@ -987,7 +994,7 @@ const SalesmanDashboard = () => {
                                                             {salon.revisitedDates.slice().reverse().map((d, i) => (
                                                                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', color: '#bae6fd', opacity: 0.8 }}>
                                                                     <span>#{salon.revisitedDates.length - i}</span>
-                                                                    <span>{new Date(d).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                                                                    <span>{formatDate(d)}</span>
                                                                 </div>
                                                             ))}
                                                         </div>
@@ -1118,25 +1125,25 @@ const SalesmanDashboard = () => {
                                                         {isSameDay(salon.visitedDate, selectedUpdateDate) && (
                                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                                                                 <span className="status-badge completed" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>New Visited</span>
-                                                                <span style={{ fontSize: '0.6rem', opacity: 0.7, color: '#4ade80' }}>{new Date(salon.visitedDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                                <span style={{ fontSize: '0.6rem', opacity: 0.7, color: '#4ade80' }}>{formatDate(salon.visitedDate)}</span>
                                                             </div>
                                                         )}
                                                         {salon.revisitedDates && salon.revisitedDates.some(d => isSameDay(d, selectedUpdateDate)) && (
                                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                                                                 <span className="status-badge" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem', background: 'rgba(129, 140, 248, 0.2)', color: '#818cf8', border: '1px solid rgba(129, 140, 248, 0.3)' }}>Revisited</span>
-                                                                <span style={{ fontSize: '0.6rem', opacity: 0.7, color: '#818cf8' }}>{new Date(salon.revisitedDates.filter(d => isSameDay(d, selectedUpdateDate)).pop()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                                <span style={{ fontSize: '0.6rem', opacity: 0.7, color: '#818cf8' }}>{formatDate(salon.revisitedDates.filter(d => isSameDay(d, selectedUpdateDate)).pop())}</span>
                                                             </div>
                                                         )}
                                                         {isSameDay(salon.activeDate, selectedUpdateDate) && (
                                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                                                                 <span className="status-badge processing" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>Active</span>
-                                                                <span style={{ fontSize: '0.6rem', opacity: 0.7, color: '#38bdf8' }}>{new Date(salon.activeDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                                <span style={{ fontSize: '0.6rem', opacity: 0.7, color: '#38bdf8' }}>{formatDate(salon.activeDate)}</span>
                                                             </div>
                                                         )}
                                                         {isSameDay(salon.posmDate, selectedUpdateDate) && (
                                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                                                                 <span className="status-badge shipped" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>POSM</span>
-                                                                <span style={{ fontSize: '0.6rem', opacity: 0.7, color: '#f472b6' }}>{new Date(salon.posmDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                                <span style={{ fontSize: '0.6rem', opacity: 0.7, color: '#f472b6' }}>{formatDate(salon.posmDate)}</span>
                                                             </div>
                                                         )}
                                                         {(!isSameDay(salon.visitedDate, selectedUpdateDate) && salon.isVisited) && <span style={{ fontSize: '0.65rem', opacity: 0.4, border: '1px solid rgba(255,255,255,0.05)', padding: '0.1rem 0.4rem', borderRadius: '4px', alignSelf: 'center' }}>Previously Visited</span>}
