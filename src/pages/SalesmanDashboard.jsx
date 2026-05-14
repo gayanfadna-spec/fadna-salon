@@ -19,6 +19,7 @@ const SalesmanDashboard = () => {
     const [formMode, setFormMode] = useState(null); // 'create' | 'assign' | 'draft' | null
     const [editFormData, setEditFormData] = useState({ name: '', location: '', contactNumber1: '', contactNumber2: '', remark: '', repName: '', accountDetails: { bankName: '', branch: '', accountNumber: '', accountName: '' }, isVisited: false, visitedDate: '', revisitedDates: [], isActive: false, activeDate: '', posmActive: false, posmDate: '', assignToCode: '', isDraft: false });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [loadingQuickUpdate, setLoadingQuickUpdate] = useState(null); // 'visited' | 'active' | 'posm' | 'revisit' | null
     const [reps, setReps] = useState([]);
     const [selectedExcelFile, setSelectedExcelFile] = useState(null);
     const [newBulkSalons, setNewBulkSalons] = useState([]);
@@ -194,6 +195,76 @@ const SalesmanDashboard = () => {
         }
     };
 
+    const handleQuickUpdate = async (salon, field) => {
+        try {
+            setLoadingQuickUpdate(field);
+            const now = new Date();
+            const timestamp = now.toISOString();
+            let payload = { ...salon };
+            
+            const role = localStorage.getItem('adminRole');
+            const username = localStorage.getItem('loggedInUsername');
+            payload.editedBy = ['admin', 'superadmin'].includes(role) ? 'admin' : username;
+
+            if (field === 'visited') {
+                if (salon.isVisited) {
+                    setLoadingQuickUpdate(null);
+                    return;
+                }
+                payload.isVisited = true;
+                payload.visitedDate = timestamp;
+            } else if (field === 'active') {
+                if (salon.isActive) {
+                    setLoadingQuickUpdate(null);
+                    return;
+                }
+                payload.isActive = true;
+                payload.activeDate = timestamp;
+            } else if (field === 'posm') {
+                if (salon.posmActive) {
+                    setLoadingQuickUpdate(null);
+                    return;
+                }
+                payload.posmActive = true;
+                payload.posmDate = timestamp;
+            } else if (field === 'revisit') {
+                // Check if already revisited today
+                const todayStr = now.toDateString();
+                const alreadyRevisitedToday = (salon.revisitedDates || []).some(d => new Date(d).toDateString() === todayStr);
+                
+                if (alreadyRevisitedToday) {
+                    if (!window.confirm('You have already marked a revisit for today. Do you want to add another entry?')) {
+                        setLoadingQuickUpdate(null);
+                        return;
+                    }
+                }
+                payload.revisitedDates = [...(salon.revisitedDates || []), timestamp];
+            }
+
+            const res = await axios.put(`${API_URL}/salons/${salon._id}`, payload);
+            if (res.data.success) {
+                const updatedSalon = res.data.salon;
+                fetchSalons();
+                // If we're editing this salon, update the form data state to refresh the UI
+                if (editingSalonId === salon._id) {
+                    setEditFormData({
+                        ...updatedSalon,
+                        visitedDate: updatedSalon.visitedDate || '',
+                        activeDate: updatedSalon.activeDate || '',
+                        posmDate: updatedSalon.posmDate || '',
+                        isDraft: !updatedSalon.salonCode,
+                        assignToCode: ''
+                    });
+                }
+            }
+        } catch (err) {
+            console.error('Quick update error:', err);
+            alert('Error updating salon status.');
+        } finally {
+            setLoadingQuickUpdate(null);
+        }
+    };
+
     const startEditing = (salon) => {
         setEditingSalonId(salon._id);
         setEditFormData({
@@ -205,12 +276,12 @@ const SalesmanDashboard = () => {
             repName: salon.repName || '',
             accountDetails: salon.accountDetails || { bankName: '', branch: '', accountNumber: '', accountName: '' },
             isVisited: salon.isVisited || false,
-            visitedDate: salon.visitedDate ? salon.visitedDate.split('T')[0] : '',
+            visitedDate: salon.visitedDate || '',
             revisitedDates: salon.revisitedDates || [],
             isActive: salon.isActive || false,
-            activeDate: salon.activeDate ? salon.activeDate.split('T')[0] : '',
+            activeDate: salon.activeDate || '',
             posmActive: salon.posmActive || false,
-            posmDate: salon.posmDate ? salon.posmDate.split('T')[0] : '',
+            posmDate: salon.posmDate || '',
             isDraft: !salon.salonCode,
             assignToCode: ''
         });
@@ -338,11 +409,6 @@ const SalesmanDashboard = () => {
                             <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'white', background: 'none', WebkitTextFillColor: 'initial' }}>
                                 {editingSalonId ? <><Edit3 size={24} color="var(--accent-color)" /> Update Salon</> : (formMode === 'assign' ? <><Hash size={24} color="var(--primary-color)" /> Enter QR Code</> : (formMode === 'draft' ? <><Edit3 size={24} color="#eab308" /> Add Draft Details</> : <><Store size={24} color="var(--primary-color)" /> Enter QR</>))}
                             </h2>
-                            {editingSalonId && (
-                                <button onClick={() => setEditingSalonId(null)} className="icon-btn danger" style={{ background: 'rgba(239,68,68,0.1)', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <X size={16} /> Cancel
-                                </button>
-                            )}
                         </div>
 
                         <form onSubmit={editingSalonId ? handleUpdateSalon : handleCreateSalon}>
@@ -513,144 +579,153 @@ const SalesmanDashboard = () => {
                                 </div>
                             </div>
 
-                            {/* Group 3: Status & Marks */}
+                            {/* Group 3: Salesman Activity Log */}
                             <div style={{ background: 'rgba(0,0,0,0.15)', padding: '1.5rem', borderRadius: '12px', marginBottom: '2rem' }}>
                                 <h3 style={{ fontSize: '1.1rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', background: 'none', WebkitTextFillColor: 'initial' }}>
-                                    <Store size={18} /> Status & Marks
+                                    <Store size={18} /> Salesman Activity Log
                                 </h3>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
-                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500', minWidth: '150px' }}>
-                                            <input 
-                                                type="checkbox" 
-                                                checked={editingSalonId ? editFormData.isVisited : newSalon.isVisited} 
-                                                onChange={(e) => {
-                                                    const isChecked = e.target.checked;
-                                                    const today = new Date().toISOString().split('T')[0];
-                                                    if (editingSalonId) {
-                                                        setEditFormData({ 
-                                                            ...editFormData, 
-                                                            isVisited: isChecked,
-                                                            visitedDate: (isChecked && !editFormData.visitedDate) ? today : editFormData.visitedDate
-                                                        });
-                                                    } else {
-                                                        setNewSalon({ 
-                                                            ...newSalon, 
-                                                            isVisited: isChecked,
-                                                            visitedDate: (isChecked && !newSalon.visitedDate) ? today : newSalon.visitedDate
-                                                        });
-                                                    }
-                                                }} 
-                                                style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} 
-                                            />
-                                            Visited Salon
-                                        </label>
-                                        {(editingSalonId ? editFormData.isVisited : newSalon.isVisited) && (
-                                            <input
-                                                type="date"
-                                                value={editingSalonId ? editFormData.visitedDate : newSalon.visitedDate}
-                                                onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, visitedDate: e.target.value }) : setNewSalon({ ...newSalon, visitedDate: e.target.value })}
-                                                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white', flex: '1 1 200px' }}
-                                            />
-                                        )}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                    {/* Action Buttons Row */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                const salon = editingSalonId ? { ...editFormData, _id: editingSalonId } : null;
+                                                if (salon) handleQuickUpdate(salon, 'visited');
+                                                else setNewSalon({ ...newSalon, isVisited: true, visitedDate: new Date().toISOString() });
+                                            }}
+                                            disabled={loadingQuickUpdate === 'visited' || (editingSalonId ? editFormData.isVisited : newSalon.isVisited)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '0.75rem', borderRadius: '10px',
+                                                fontSize: '0.9rem', fontWeight: '600', cursor: (editingSalonId ? editFormData.isVisited : newSalon.isVisited) ? 'default' : 'pointer',
+                                                background: (editingSalonId ? editFormData.isVisited : newSalon.isVisited) ? 'rgba(74, 222, 128, 0.2)' : 'rgba(255,255,255,0.08)',
+                                                color: (editingSalonId ? editFormData.isVisited : newSalon.isVisited) ? '#4ade80' : '#cbd5e1',
+                                                border: `1px solid ${(editingSalonId ? editFormData.isVisited : newSalon.isVisited) ? 'rgba(74, 222, 128, 0.4)' : 'rgba(255,255,255,0.15)'}`,
+                                                transition: 'all 0.2s',
+                                                opacity: loadingQuickUpdate === 'visited' ? 0.7 : 1,
+                                                transform: loadingQuickUpdate === 'visited' ? 'scale(0.98)' : 'none'
+                                            }}
+                                        >
+                                            {loadingQuickUpdate === 'visited' ? <span className="animate-spin">⏳</span> : (editingSalonId ? editFormData.isVisited : newSalon.isVisited) ? <CheckCircle2 size={18} /> : <div style={{ width: 18, height: 18, borderRadius: '4px', border: '2px solid currentColor', opacity: 0.5 }}></div>}
+                                            New Visited
+                                        </button>
+
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                const salon = editingSalonId ? { ...editFormData, _id: editingSalonId } : null;
+                                                if (salon) handleQuickUpdate(salon, 'active');
+                                                else setNewSalon({ ...newSalon, isActive: true, activeDate: new Date().toISOString() });
+                                            }}
+                                            disabled={loadingQuickUpdate === 'active' || (editingSalonId ? editFormData.isActive : newSalon.isActive)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '0.75rem', borderRadius: '10px',
+                                                fontSize: '0.9rem', fontWeight: '600', cursor: (editingSalonId ? editFormData.isActive : newSalon.isActive) ? 'default' : 'pointer',
+                                                background: (editingSalonId ? editFormData.isActive : newSalon.isActive) ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255,255,255,0.08)',
+                                                color: (editingSalonId ? editFormData.isActive : newSalon.isActive) ? '#38bdf8' : '#cbd5e1',
+                                                border: `1px solid ${(editingSalonId ? editFormData.isActive : newSalon.isActive) ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255,255,255,0.15)'}`,
+                                                transition: 'all 0.2s',
+                                                opacity: loadingQuickUpdate === 'active' ? 0.7 : 1,
+                                                transform: loadingQuickUpdate === 'active' ? 'scale(0.98)' : 'none'
+                                            }}
+                                        >
+                                            {loadingQuickUpdate === 'active' ? <span className="animate-spin">⏳</span> : (editingSalonId ? editFormData.isActive : newSalon.isActive) ? <CheckCircle2 size={18} /> : <div style={{ width: 18, height: 18, borderRadius: '4px', border: '2px solid currentColor', opacity: 0.5 }}></div>}
+                                            Active
+                                        </button>
+
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                const salon = editingSalonId ? { ...editFormData, _id: editingSalonId } : null;
+                                                if (salon) handleQuickUpdate(salon, 'posm');
+                                                else setNewSalon({ ...newSalon, posmActive: true, posmDate: new Date().toISOString() });
+                                            }}
+                                            disabled={loadingQuickUpdate === 'posm' || (editingSalonId ? editFormData.posmActive : newSalon.posmActive)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '0.75rem', borderRadius: '10px',
+                                                fontSize: '0.9rem', fontWeight: '600', cursor: (editingSalonId ? editFormData.posmActive : newSalon.posmActive) ? 'default' : 'pointer',
+                                                background: (editingSalonId ? editFormData.posmActive : newSalon.posmActive) ? 'rgba(244, 114, 182, 0.2)' : 'rgba(255,255,255,0.08)',
+                                                color: (editingSalonId ? editFormData.posmActive : newSalon.posmActive) ? '#f472b6' : '#cbd5e1',
+                                                border: `1px solid ${(editingSalonId ? editFormData.posmActive : newSalon.posmActive) ? 'rgba(244, 114, 182, 0.4)' : 'rgba(255,255,255,0.15)'}`,
+                                                transition: 'all 0.2s',
+                                                opacity: loadingQuickUpdate === 'posm' ? 0.7 : 1,
+                                                transform: loadingQuickUpdate === 'posm' ? 'scale(0.98)' : 'none'
+                                            }}
+                                        >
+                                            {loadingQuickUpdate === 'posm' ? <span className="animate-spin">⏳</span> : (editingSalonId ? editFormData.posmActive : newSalon.posmActive) ? <CheckCircle2 size={18} /> : <div style={{ width: 18, height: 18, borderRadius: '4px', border: '2px solid currentColor', opacity: 0.5 }}></div>}
+                                            POSM
+                                        </button>
+
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                const salon = editingSalonId ? { ...editFormData, _id: editingSalonId } : null;
+                                                if (salon) handleQuickUpdate(salon, 'revisit');
+                                                else {
+                                                    const timestamp = new Date().toISOString();
+                                                    setNewSalon({ ...newSalon, revisitedDates: [...(newSalon.revisitedDates || []), timestamp] });
+                                                }
+                                            }}
+                                            disabled={loadingQuickUpdate === 'revisit'}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '0.75rem', borderRadius: '10px',
+                                                fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer',
+                                                background: 'rgba(129, 140, 248, 0.15)',
+                                                color: '#818cf8',
+                                                border: '1px solid rgba(129, 140, 248, 0.4)',
+                                                transition: 'all 0.2s',
+                                                opacity: loadingQuickUpdate === 'revisit' ? 0.7 : 1
+                                            }}
+                                        >
+                                            {loadingQuickUpdate === 'revisit' ? <span className="animate-spin">⏳</span> : <Plus size={18} />}
+                                            Revisit
+                                        </button>
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
-                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500', minWidth: '150px' }}>
-                                            <input 
-                                                type="checkbox" 
-                                                checked={editingSalonId ? editFormData.isActive : newSalon.isActive} 
-                                                onChange={(e) => {
-                                                    const isChecked = e.target.checked;
-                                                    const today = new Date().toISOString().split('T')[0];
-                                                    if (editingSalonId) {
-                                                        setEditFormData({ 
-                                                            ...editFormData, 
-                                                            isActive: isChecked,
-                                                            activeDate: (isChecked && !editFormData.activeDate) ? today : editFormData.activeDate
-                                                        });
-                                                    } else {
-                                                        setNewSalon({ 
-                                                            ...newSalon, 
-                                                            isActive: isChecked,
-                                                            activeDate: (isChecked && !newSalon.activeDate) ? today : newSalon.activeDate
-                                                        });
-                                                    }
-                                                }} 
-                                                style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} 
-                                            />
-                                            Active Salon
-                                        </label>
-                                        {(editingSalonId ? editFormData.isActive : newSalon.isActive) && (
-                                            <input
-                                                type="date"
-                                                value={editingSalonId ? editFormData.activeDate : newSalon.activeDate}
-                                                onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, activeDate: e.target.value }) : setNewSalon({ ...newSalon, activeDate: e.target.value })}
-                                                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white', flex: '1 1 200px' }}
-                                            />
-                                        )}
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
-                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#f8fafc', fontSize: '0.95rem', fontWeight: '500', minWidth: '150px' }}>
-                                            <input 
-                                                type="checkbox" 
-                                                checked={editingSalonId ? editFormData.posmActive : newSalon.posmActive} 
-                                                onChange={(e) => {
-                                                    const isChecked = e.target.checked;
-                                                    const today = new Date().toISOString().split('T')[0];
-                                                    if (editingSalonId) {
-                                                        setEditFormData({ 
-                                                            ...editFormData, 
-                                                            posmActive: isChecked,
-                                                            posmDate: (isChecked && !editFormData.posmDate) ? today : editFormData.posmDate
-                                                        });
-                                                    } else {
-                                                        setNewSalon({ 
-                                                            ...newSalon, 
-                                                            posmActive: isChecked,
-                                                            posmDate: (isChecked && !newSalon.posmDate) ? today : newSalon.posmDate
-                                                        });
-                                                    }
-                                                }} 
-                                                style={{ width: '20px', height: '20px', accentColor: 'var(--primary-color)' }} 
-                                            />
-                                            POSM Active Salon
-                                        </label>
-                                        {(editingSalonId ? editFormData.posmActive : newSalon.posmActive) && (
-                                            <input
-                                                type="date"
-                                                value={editingSalonId ? editFormData.posmDate : newSalon.posmDate}
-                                                onChange={(e) => editingSalonId ? setEditFormData({ ...editFormData, posmDate: e.target.value }) : setNewSalon({ ...newSalon, posmDate: e.target.value })}
-                                                style={{ padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white', flex: '1 1 200px' }}
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                                    <label style={{ color: '#cbd5e1', fontSize: '1rem', fontWeight: 'bold' }}>Revisited Dates (Mark old visits here)</label>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                        {((editingSalonId ? editFormData.revisitedDates : newSalon.revisitedDates) || []).map((d, index) => (
-                                            <div key={index} style={{ padding: '0.4rem 0.8rem', background: 'rgba(255,255,255,0.1)', borderRadius: '20px', color: '#bae6fd', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                {new Date(d).toLocaleDateString()}
-                                                <button type="button" onClick={() => {
-                                                    const data = editingSalonId ? editFormData : newSalon;
-                                                    const newArr = [...data.revisitedDates];
-                                                    newArr.splice(index, 1);
-                                                    if (editingSalonId) setEditFormData({ ...editFormData, revisitedDates: newArr }); else setNewSalon({ ...newSalon, revisitedDates: newArr });
-                                                }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '1.1rem', lineHeight: 1, cursor: 'pointer', padding: 0 }}>&times;</button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-                                        <input type="date" id={`revisit-date-${editingSalonId || 'new'}`} style={{ flex: '1 1 200px', padding: '0.6rem', margin: 0, borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', color: 'white' }} />
-                                        <button type="button" onClick={() => {
-                                            const dateVal = document.getElementById(`revisit-date-${editingSalonId || 'new'}`).value;
-                                            if (dateVal) {
-                                                const data = editingSalonId ? editFormData : newSalon;
-                                                const newValue = [...(data.revisitedDates || []), dateVal];
-                                                if (editingSalonId) setEditFormData({ ...editFormData, revisitedDates: newValue }); else setNewSalon({ ...newSalon, revisitedDates: newValue });
-                                                document.getElementById(`revisit-date-${editingSalonId || 'new'}`).value = '';
-                                            }
-                                        }} className="btn-primary" style={{ padding: '0.6rem 1.5rem', whiteSpace: 'nowrap', flex: '0 1 auto' }}>+ Add Date</button>
+
+                                    {/* History Display List */}
+                                    <div style={{ background: 'rgba(0,0,0,0.25)', padding: '1.25rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                        <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: '#cbd5e1', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <Eye size={16} style={{ opacity: 0.6 }} /> Activity History
+                                        </h4>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.85rem' }}>
+                                            {(editingSalonId ? editFormData.isVisited : newSalon.isVisited) && (
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4ade80', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(74, 222, 128, 0.1)' }}>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><CheckCircle2 size={14} /> New Visited</span>
+                                                    <span>{new Date(editingSalonId ? editFormData.visitedDate : newSalon.visitedDate).toLocaleString()}</span>
+                                                </div>
+                                            )}
+                                            {(editingSalonId ? editFormData.isActive : newSalon.isActive) && (
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#38bdf8', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(56, 189, 248, 0.1)' }}>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><CheckCircle2 size={14} /> Active</span>
+                                                    <span>{new Date(editingSalonId ? editFormData.activeDate : newSalon.activeDate).toLocaleString()}</span>
+                                                </div>
+                                            )}
+                                            {(editingSalonId ? editFormData.posmActive : newSalon.posmActive) && (
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f472b6', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(244, 114, 182, 0.1)' }}>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><CheckCircle2 size={14} /> POSM</span>
+                                                    <span>{new Date(editingSalonId ? editFormData.posmDate : newSalon.posmDate).toLocaleString()}</span>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Revisit History List */}
+                                            {((editingSalonId ? editFormData.revisitedDates : newSalon.revisitedDates) || []).length > 0 && (
+                                                <div style={{ marginTop: '0.5rem' }}>
+                                                    <div style={{ color: '#818cf8', marginBottom: '0.5rem', fontWeight: '600' }}>Revisit History:</div>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '150px', overflowY: 'auto', paddingRight: '8px' }}>
+                                                        {((editingSalonId ? editFormData.revisitedDates : newSalon.revisitedDates) || []).slice().reverse().map((d, i) => (
+                                                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', color: '#bae6fd', opacity: 0.9, padding: '0.4rem', background: 'rgba(255,255,255,0.03)', borderRadius: '6px' }}>
+                                                                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Plus size={12} /> Revisit #{((editingSalonId ? editFormData.revisitedDates : newSalon.revisitedDates) || []).length - i}</span>
+                                                                <span>{new Date(d).toLocaleString()}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {!(editingSalonId ? editFormData.isVisited : newSalon.isVisited) && !(editingSalonId ? editFormData.isActive : newSalon.isActive) && !(editingSalonId ? editFormData.posmActive : newSalon.posmActive) && !((editingSalonId ? editFormData.revisitedDates : newSalon.revisitedDates) || []).length && (
+                                                <div style={{ textAlign: 'center', opacity: 0.4, padding: '1rem', fontStyle: 'italic' }}>No activity logged yet for this salon.</div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -813,34 +888,121 @@ const SalesmanDashboard = () => {
                                             </div>
                                         )}
 
-                                        <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                            {/* Quick Tick Action Bar */}
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                                                <button 
+                                                    onClick={() => handleQuickUpdate(salon, 'visited')}
+                                                    disabled={loadingQuickUpdate === 'visited' || salon.isVisited}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.6rem', borderRadius: '8px',
+                                                        fontSize: '0.75rem', fontWeight: '600', cursor: salon.isVisited ? 'default' : 'pointer',
+                                                        background: salon.isVisited ? 'rgba(74, 222, 128, 0.2)' : 'rgba(255,255,255,0.08)',
+                                                        color: salon.isVisited ? '#4ade80' : '#cbd5e1',
+                                                        border: `1px solid ${salon.isVisited ? 'rgba(74, 222, 128, 0.4)' : 'rgba(255,255,255,0.15)'}`,
+                                                        transition: 'all 0.2s',
+                                                        opacity: loadingQuickUpdate === 'visited' ? 0.7 : 1
+                                                    }}
+                                                >
+                                                    {loadingQuickUpdate === 'visited' ? '...' : salon.isVisited ? <CheckCircle2 size={14} /> : <div style={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid currentColor', opacity: 0.5 }}></div>}
+                                                    New Visited
+                                                </button>
+                                                
+                                                <button 
+                                                    onClick={() => handleQuickUpdate(salon, 'active')}
+                                                    disabled={loadingQuickUpdate === 'active' || salon.isActive}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.6rem', borderRadius: '8px',
+                                                        fontSize: '0.75rem', fontWeight: '600', cursor: salon.isActive ? 'default' : 'pointer',
+                                                        background: salon.isActive ? 'rgba(56, 189, 248, 0.2)' : 'rgba(255,255,255,0.08)',
+                                                        color: salon.isActive ? '#38bdf8' : '#cbd5e1',
+                                                        border: `1px solid ${salon.isActive ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255,255,255,0.15)'}`,
+                                                        transition: 'all 0.2s',
+                                                        opacity: loadingQuickUpdate === 'active' ? 0.7 : 1
+                                                    }}
+                                                >
+                                                    {loadingQuickUpdate === 'active' ? '...' : salon.isActive ? <CheckCircle2 size={14} /> : <div style={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid currentColor', opacity: 0.5 }}></div>}
+                                                    Active
+                                                </button>
+
+                                                <button 
+                                                    onClick={() => handleQuickUpdate(salon, 'posm')}
+                                                    disabled={loadingQuickUpdate === 'posm' || salon.posmActive}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.6rem', borderRadius: '8px',
+                                                        fontSize: '0.75rem', fontWeight: '600', cursor: salon.posmActive ? 'default' : 'pointer',
+                                                        background: salon.posmActive ? 'rgba(244, 114, 182, 0.2)' : 'rgba(255,255,255,0.08)',
+                                                        color: salon.posmActive ? '#f472b6' : '#cbd5e1',
+                                                        border: `1px solid ${salon.posmActive ? 'rgba(244, 114, 182, 0.4)' : 'rgba(255,255,255,0.15)'}`,
+                                                        transition: 'all 0.2s',
+                                                        opacity: loadingQuickUpdate === 'posm' ? 0.7 : 1
+                                                    }}
+                                                >
+                                                    {loadingQuickUpdate === 'posm' ? '...' : salon.posmActive ? <CheckCircle2 size={14} /> : <div style={{ width: 14, height: 14, borderRadius: '3px', border: '1.5px solid currentColor', opacity: 0.5 }}></div>}
+                                                    POSM
+                                                </button>
+
+                                                <button 
+                                                    onClick={() => handleQuickUpdate(salon, 'revisit')}
+                                                    disabled={loadingQuickUpdate === 'revisit'}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.6rem', borderRadius: '8px',
+                                                        fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer',
+                                                        background: 'rgba(129, 140, 248, 0.15)',
+                                                        color: '#818cf8',
+                                                        border: '1px solid rgba(129, 140, 248, 0.4)',
+                                                        transition: 'all 0.2s',
+                                                        opacity: loadingQuickUpdate === 'revisit' ? 0.7 : 1
+                                                    }}
+                                                >
+                                                    {loadingQuickUpdate === 'revisit' ? '...' : <Plus size={14} />}
+                                                    Revisit
+                                                </button>
+                                            </div>
+
+                                            {/* Activity History List */}
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', background: 'rgba(0,0,0,0.2)', padding: '0.6rem', borderRadius: '8px', fontSize: '0.75rem' }}>
                                                 {salon.isVisited && (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                                        <span className="status-badge completed" style={{ fontSize: '0.7rem' }}>{isSameDay(salon.visitedDate, selectedUpdateDate) ? 'New Visited' : 'Visited'}</span>
-                                                        {salon.visitedDate && <span style={{ fontSize: '0.65rem', opacity: 0.7, color: '#4ade80' }}>{new Date(salon.visitedDate).toLocaleDateString()}</span>}
-                                                    </div>
-                                                )}
-                                                {salon.revisitedDates && salon.revisitedDates.length > 0 && (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                                        <span className="status-badge" style={{ fontSize: '0.7rem', background: 'rgba(129, 140, 248, 0.2)', color: '#818cf8', border: '1px solid rgba(129, 140, 248, 0.3)' }}>Revisited</span>
-                                                        <span style={{ fontSize: '0.65rem', opacity: 0.7, color: '#818cf8' }}>{salon.revisitedDates.length} times</span>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4ade80' }}>
+                                                        <span>New Visited:</span>
+                                                        <span>{new Date(salon.visitedDate).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
                                                     </div>
                                                 )}
                                                 {salon.isActive && (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                                        <span className="status-badge processing" style={{ fontSize: '0.7rem' }}>Active</span>
-                                                        {salon.activeDate && <span style={{ fontSize: '0.65rem', opacity: 0.7, color: '#38bdf8' }}>{new Date(salon.activeDate).toLocaleDateString()}</span>}
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#38bdf8' }}>
+                                                        <span>Active:</span>
+                                                        <span>{new Date(salon.activeDate).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
                                                     </div>
                                                 )}
                                                 {salon.posmActive && (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                                        <span className="status-badge shipped" style={{ fontSize: '0.7rem' }}>POSM</span>
-                                                        {salon.posmDate && <span style={{ fontSize: '0.65rem', opacity: 0.7, color: '#f472b6' }}>{new Date(salon.posmDate).toLocaleDateString()}</span>}
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f472b6' }}>
+                                                        <span>POSM:</span>
+                                                        <span>{new Date(salon.posmDate).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
                                                     </div>
                                                 )}
+                                                {salon.revisitedDates && salon.revisitedDates.length > 0 && (
+                                                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '0.2rem', paddingTop: '0.2rem' }}>
+                                                        <div style={{ color: '#818cf8', marginBottom: '0.2rem', fontWeight: '600' }}>Revisits:</div>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem', maxHeight: '60px', overflowY: 'auto', paddingRight: '4px' }}>
+                                                            {salon.revisitedDates.slice().reverse().map((d, i) => (
+                                                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', color: '#bae6fd', opacity: 0.8 }}>
+                                                                    <span>#{salon.revisitedDates.length - i}</span>
+                                                                    <span>{new Date(d).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {!salon.isVisited && !salon.isActive && !salon.posmActive && (!salon.revisitedDates || salon.revisitedDates.length === 0) && (
+                                                    <div style={{ textAlign: 'center', opacity: 0.4, fontStyle: 'italic' }}>No activity logged yet</div>
+                                                )}
                                             </div>
-                                            {salon.editedBy === loggedInUsername && <span style={{ fontSize: '0.75rem', color: '#818cf8', fontWeight: '500' }}>Your Salon</span>}
+
+                                            {salon.editedBy === loggedInUsername && (
+                                                <div style={{ textAlign: 'right', fontSize: '0.7rem', color: '#818cf8', fontWeight: '500', opacity: 0.8 }}>
+                                                    Your Salon
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -952,13 +1114,32 @@ const SalesmanDashboard = () => {
                                                 <td style={{ fontSize: '0.9rem', color: '#cbd5e1' }}>{salon.location || 'N/A'}</td>
                                                 <td style={{ fontSize: '0.9rem', color: '#cbd5e1' }}>{salon.contactNumber1 || salon.contactNumber || '-'}</td>
                                                 <td>
-                                                    <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-                                                        {isSameDay(salon.visitedDate, selectedUpdateDate) && <span className="status-badge completed" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>New Visited</span>}
-                                                        {salon.revisitedDates && salon.revisitedDates.some(d => isSameDay(d, selectedUpdateDate)) && <span className="status-badge" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem', background: 'rgba(129, 140, 248, 0.2)', color: '#818cf8', border: '1px solid rgba(129, 140, 248, 0.3)' }}>Revisited</span>}
-                                                        {isSameDay(salon.activeDate, selectedUpdateDate) && <span className="status-badge processing" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>Active</span>}
-                                                        {isSameDay(salon.posmDate, selectedUpdateDate) && <span className="status-badge shipped" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>POSM</span>}
-                                                        {/* Show existing statuses in a subtler way if they didn't happen today but the salon is in the list due to other activity */}
-                                                        {(!isSameDay(salon.visitedDate, selectedUpdateDate) && salon.isVisited) && <span style={{ fontSize: '0.65rem', opacity: 0.5, border: '1px solid rgba(255,255,255,0.1)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>Prev. Visited</span>}
+                                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                        {isSameDay(salon.visitedDate, selectedUpdateDate) && (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                                                <span className="status-badge completed" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>New Visited</span>
+                                                                <span style={{ fontSize: '0.6rem', opacity: 0.7, color: '#4ade80' }}>{new Date(salon.visitedDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                            </div>
+                                                        )}
+                                                        {salon.revisitedDates && salon.revisitedDates.some(d => isSameDay(d, selectedUpdateDate)) && (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                                                <span className="status-badge" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem', background: 'rgba(129, 140, 248, 0.2)', color: '#818cf8', border: '1px solid rgba(129, 140, 248, 0.3)' }}>Revisited</span>
+                                                                <span style={{ fontSize: '0.6rem', opacity: 0.7, color: '#818cf8' }}>{new Date(salon.revisitedDates.filter(d => isSameDay(d, selectedUpdateDate)).pop()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                            </div>
+                                                        )}
+                                                        {isSameDay(salon.activeDate, selectedUpdateDate) && (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                                                <span className="status-badge processing" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>Active</span>
+                                                                <span style={{ fontSize: '0.6rem', opacity: 0.7, color: '#38bdf8' }}>{new Date(salon.activeDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                            </div>
+                                                        )}
+                                                        {isSameDay(salon.posmDate, selectedUpdateDate) && (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                                                <span className="status-badge shipped" style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem' }}>POSM</span>
+                                                                <span style={{ fontSize: '0.6rem', opacity: 0.7, color: '#f472b6' }}>{new Date(salon.posmDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                            </div>
+                                                        )}
+                                                        {(!isSameDay(salon.visitedDate, selectedUpdateDate) && salon.isVisited) && <span style={{ fontSize: '0.65rem', opacity: 0.4, border: '1px solid rgba(255,255,255,0.05)', padding: '0.1rem 0.4rem', borderRadius: '4px', alignSelf: 'center' }}>Previously Visited</span>}
                                                     </div>
                                                 </td>
                                                 <td style={{ textAlign: 'right' }}>

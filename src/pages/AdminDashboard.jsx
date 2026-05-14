@@ -259,7 +259,11 @@ const AdminDashboard = () => {
     const fetchAnalytics = React.useCallback(async () => {
         try {
             const params = selectedSalonId ? { salonId: selectedSalonId } : {};
-            if (reportStartDate) params.startDate = reportStartDate;
+            if (reportStartDate) {
+                params.startDate = reportStartDate;
+                // If only start date is provided, assume single-day filter as per user request
+                if (!reportEndDate) params.endDate = reportStartDate;
+            }
             if (reportEndDate) params.endDate = reportEndDate;
 
             const salonRes = await axios.get(`${API_URL}/analytics/salon-performance`, { params });
@@ -3198,14 +3202,44 @@ const AdminDashboard = () => {
                             </form>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
                                 {reps.map(rep => (
-                                    <div key={rep._id} style={{ background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <span>{rep.name}</span>
-                                        <button onClick={async () => {
-                                            if (window.confirm('Delete this rep?')) {
-                                                await axios.delete(`${API_URL}/reps/${rep._id}`);
-                                                fetchReps();
-                                            }
-                                        }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0', fontSize: '1rem', fontWeight: 'bold' }} title="Delete Rep">✕</button>
+                                    <div key={rep._id} style={{ 
+                                        background: rep.includeInReports === false ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.1)', 
+                                        padding: '0.5rem 1rem', 
+                                        borderRadius: '20px', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: '0.8rem',
+                                        border: rep.includeInReports === false ? '1px dashed rgba(255,255,255,0.2)' : '1px solid transparent',
+                                        transition: 'all 0.3s ease'
+                                    }}>
+                                        <span style={{ 
+                                            opacity: rep.includeInReports === false ? 0.4 : 1,
+                                            textDecoration: rep.includeInReports === false ? 'line-through' : 'none'
+                                        }}>{rep.name}</span>
+                                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '0.5rem' }}>
+                                            <button 
+                                                onClick={async () => {
+                                                    try {
+                                                        await axios.put(`${API_URL}/reps/${rep._id}`, { includeInReports: rep.includeInReports === false });
+                                                        fetchReps();
+                                                        fetchAnalytics(); // Refresh analytics to see change
+                                                    } catch (err) {
+                                                        alert('Error updating rep visibility');
+                                                    }
+                                                }} 
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', padding: '0', display: 'flex', alignItems: 'center' }} 
+                                                title={rep.includeInReports === false ? "Include in Summary Table" : "Hide from Summary Table"}
+                                            >
+                                                {rep.includeInReports === false ? '🔇' : '📊'}
+                                            </button>
+                                            <button onClick={async () => {
+                                                if (window.confirm('Delete this rep?')) {
+                                                    await axios.delete(`${API_URL}/reps/${rep._id}`);
+                                                    fetchReps();
+                                                    fetchAnalytics();
+                                                }
+                                            }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0', fontSize: '1rem', fontWeight: 'bold', display: 'flex', alignItems: 'center' }} title="Delete Rep">✕</button>
+                                        </div>
                                     </div>
                                 ))}
                                 {reps.length === 0 && <span style={{ opacity: 0.5 }}>No Reps Found</span>}
