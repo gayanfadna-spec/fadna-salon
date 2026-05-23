@@ -99,6 +99,7 @@ const AdminDashboard = () => {
     const [filterDetailedVisited, setFilterDetailedVisited] = useState(false);
     const [filterDetailedActive, setFilterDetailedActive] = useState(false);
     const [filterDetailedPOSM, setFilterDetailedPOSM] = useState(false);
+    const [filterDetailedRevisited, setFilterDetailedRevisited] = useState(false);
     const [visibleCount, setVisibleCount] = useState(50);
     const [repActivityData, setRepActivityData] = useState([]);
     const [totalRepActivityData, setTotalRepActivityData] = useState([]);
@@ -149,6 +150,7 @@ const AdminDashboard = () => {
             if (filterDetailedVisited && !s.isVisited) return false;
             if (filterDetailedActive && !s.isActive) return false;
             if (filterDetailedPOSM && !s.posmActive) return false;
+            if (filterDetailedRevisited && (!s.revisitedDates || s.revisitedDates.length === 0)) return false;
 
             // 3. Date Range Filter (Activity Based)
             if (detailedFilterStartDate || detailedFilterEndDate) {
@@ -183,7 +185,7 @@ const AdminDashboard = () => {
             }
             return true;
         });
-    }, [salons, selectedRep, detailedFilterRep, searchTerm, filterDetailedVisited, filterDetailedActive, filterDetailedPOSM, detailedFilterStartDate, detailedFilterEndDate]);
+    }, [salons, selectedRep, detailedFilterRep, searchTerm, filterDetailedVisited, filterDetailedActive, filterDetailedPOSM, filterDetailedRevisited, detailedFilterStartDate, detailedFilterEndDate]);
 
     const detailedFilteredSalonsCount = detailedFilteredSalons.length;
 
@@ -1108,14 +1110,10 @@ const AdminDashboard = () => {
             if (!s.isActive) return false;
             
             if (start || end) {
-                // Check if visited in range
-                const hasVisitedInRange = s.visitedDate && new Date(s.visitedDate) >= start && (!end || new Date(s.visitedDate) <= end);
-                // Check if any revisit in range
-                const hasRevisitInRange = (s.revisitedDates || []).some(d => {
-                    const date = new Date(d);
-                    return date >= start && (!end || date <= end);
-                });
-                return hasVisitedInRange || hasRevisitInRange;
+                if (!s.activeDate) return false;
+                const d = new Date(s.activeDate);
+                if (start && d < start) return false;
+                if (end && d > end) return false;
             }
             return true;
         }).length;
@@ -1131,12 +1129,10 @@ const AdminDashboard = () => {
             if (!s.posmActive) return false;
             
             if (start || end) {
-                const hasVisitedInRange = s.visitedDate && new Date(s.visitedDate) >= start && (!end || new Date(s.visitedDate) <= end);
-                const hasRevisitInRange = (s.revisitedDates || []).some(d => {
-                    const date = new Date(d);
-                    return date >= start && (!end || date <= end);
-                });
-                return hasVisitedInRange || hasRevisitInRange;
+                if (!s.posmDate) return false;
+                const d = new Date(s.posmDate);
+                if (start && d < start) return false;
+                if (end && d > end) return false;
             }
             return true;
         }).length;
@@ -1487,26 +1483,26 @@ const AdminDashboard = () => {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
                         <div style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
                             <h3 style={{ color: '#4ade80', marginBottom: '0.5rem', fontSize: '1rem' }}>Total Visited</h3>
-                            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff' }}>{visitedSalonsFromDb}</div>
+                            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff' }}>{pTotalVisited}</div>
                         </div>
                         <div style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
                             <h3 style={{ color: '#38bdf8', marginBottom: '0.5rem', fontSize: '1rem' }}>Active Salons</h3>
-                            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff' }}>{activeSalonsCount}</div>
+                            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff' }}>{pTotalActive}</div>
                         </div>
                         <div style={{ background: 'rgba(244,114,182,0.1)', border: '1px solid rgba(244,114,182,0.3)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
                             <h3 style={{ color: '#f472b6', marginBottom: '0.5rem', fontSize: '1rem' }}>Revisited</h3>
-                            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff' }}>{revisitedCount}</div>
+                            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff' }}>{pTotalRevisited}</div>
                         </div>
                         <div style={{ background: 'rgba(192,132,252,0.1)', border: '1px solid rgba(192,132,252,0.3)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
                             <h3 style={{ color: '#c084fc', marginBottom: '0.5rem', fontSize: '1rem' }}>POSM Active</h3>
-                            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff' }}>{posmSalonsCount}</div>
+                            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fff' }}>{pTotalPOSM}</div>
                         </div>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
                         <div style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(0,0,0,0.2))', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(99,102,241,0.2)' }}>
                             <div style={{ fontSize: '0.9rem', color: '#818cf8', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Market Active Rate</div>
-                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>{activeRate}%</div>
+                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold' }}>{pTotalActivePercent}%</div>
                             <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>Active / Visited Salons</div>
                         </div>
                     </div>
@@ -1720,6 +1716,7 @@ const AdminDashboard = () => {
                                             setFilterDetailedVisited(false);
                                             setFilterDetailedActive(false);
                                             setFilterDetailedPOSM(false);
+                                            setFilterDetailedRevisited(false);
                                             setSearchTerm('');
                                         }}
                                         className="btn-primary outline"
@@ -1742,7 +1739,8 @@ const AdminDashboard = () => {
                                                 'Active Date': s.activeDate ? formatDate(s.activeDate) : 'N/A',
                                                 'POSM': s.posmActive ? 'Yes' : 'No',
                                                 'POSM Date': s.posmDate ? formatDate(s.posmDate) : 'N/A',
-                                                'Revisits': (s.revisitedDates || []).length
+                                                'Revisit Count': (s.revisitedDates || []).length,
+                                                'Revisit Dates': (s.revisitedDates || []).map(d => formatDate(d)).join(', ')
                                             }));
                                             const worksheet = XLSX.utils.json_to_sheet(data);
                                             const workbook = XLSX.utils.book_new();
@@ -1804,6 +1802,10 @@ const AdminDashboard = () => {
                                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer', opacity: filterDetailedPOSM ? 1 : 0.6 }}>
                                             <input type="checkbox" checked={filterDetailedPOSM} onChange={(e) => setFilterDetailedPOSM(e.target.checked)} />
                                             POSM
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer', opacity: filterDetailedRevisited ? 1 : 0.6 }}>
+                                            <input type="checkbox" checked={filterDetailedRevisited} onChange={(e) => setFilterDetailedRevisited(e.target.checked)} />
+                                            Revisited
                                         </label>
                                     </div>
                                 </div>
