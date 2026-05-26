@@ -26,6 +26,7 @@ const AVAILABLE_PERMISSIONS = [
     { id: 'accounts', label: 'Accounts', icon: <Users size={16} /> },
     { id: 'analytics', label: 'Analytics', icon: <BarChart3 size={16} /> },
     { id: 'reports', label: 'Reports', icon: <FileText size={16} /> },
+    { id: 'agent-salon-perf', label: 'Perf. Report', icon: <BarChart3 size={16} /> },
     { id: 'visit-log', label: 'Visit Log', icon: <FileText size={16} /> },
     { id: 'agents-dashboard', label: 'Agents', icon: <UserCheck size={16} />, path: '/agent-admin' },
     { id: 'net-agents-dashboard', label: 'Net.Agents', icon: <Globe size={16} />, path: '/net-agent-admin' },
@@ -105,6 +106,12 @@ const AdminDashboard = () => {
     const [totalRepActivityData, setTotalRepActivityData] = useState([]);
     const [orderSummaryData, setOrderSummaryData] = useState([]);
     const [loadingOrderSummary, setLoadingOrderSummary] = useState(false);
+    
+    // States for Agent/Salon Detailed Performance Tab
+    const [performanceReportType, setPerformanceReportType] = useState('agent');
+    const [performanceReportData, setPerformanceReportData] = useState([]);
+    const [loadingPerformance, setLoadingPerformance] = useState(false);
+    const [expandedPerfRowId, setExpandedPerfRowId] = useState(null);
 
     const [detailedFilterRep, setDetailedFilterRep] = useState('');
     const [detailedFilterStartDate, setDetailedFilterStartDate] = useState('');
@@ -365,11 +372,38 @@ const AdminDashboard = () => {
         }
     }, [reportStartDate, reportEndDate]);
 
+    const fetchDetailedPerformance = React.useCallback(async () => {
+        setLoadingPerformance(true);
+        try {
+            const res = await axios.get(`${API_URL}/analytics/detailed-performance`, {
+                params: {
+                    type: performanceReportType,
+                    startDate: reportStartDate,
+                    endDate: reportEndDate
+                }
+            });
+            if (res.data.success) {
+                setPerformanceReportData(res.data.stats);
+                setExpandedPerfRowId(null);
+            }
+        } catch (error) {
+            console.error('Error fetching detailed performance:', error);
+        } finally {
+            setLoadingPerformance(false);
+        }
+    }, [performanceReportType, reportStartDate, reportEndDate]);
+
     useEffect(() => {
         if (activeTab === 'order-analytics') {
             fetchOrderSummary();
         }
     }, [activeTab, fetchOrderSummary]);
+
+    useEffect(() => {
+        if (activeTab === 'agent-salon-perf') {
+            fetchDetailedPerformance();
+        }
+    }, [activeTab, fetchDetailedPerformance]);
 
     const handleExportOrderSummaryExcel = () => {
         if (!orderSummaryData.length) return alert('No data to export');
@@ -962,19 +996,20 @@ const AdminDashboard = () => {
     };
 
     const handleExportOrders = async () => {
-        let filteredOrders = adminRole === 'admin' ? orders.filter(o => o.status === 'COD' || o.status === 'Paid') : orders;
+        let filteredOrders = orders.filter(o => o.status === 'COD' || o.status === 'Paid');
         if (reportStartDate) filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) >= new Date(reportStartDate));
         if (reportEndDate) {
             const end = new Date(reportEndDate + 'T23:59:59.999Z');
             filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) <= end);
         }
         if (!filteredOrders.length) return alert('No orders to export');
-        const headers = ['Order ID', 'Merchant Order ID', 'Date', 'Salon', 'Customer Name', 'Customer Phone', 'Additional Phone', 'Address', 'City', 'Status', 'Total Amount', 'Items'];
+        const headers = ['Order ID', 'Merchant Order ID', 'Date', 'Salon Name', 'Agent Name', 'Customer Name', 'Customer Phone', 'Additional Phone', 'Address', 'City', 'Status', 'Total Amount', 'Items'];
         const rows = filteredOrders.map(o => [
             o._id,
             o.merchantOrderId || o._id.slice(-6).toUpperCase(),
             `"${new Date(o.createdAt).toLocaleString()}"`,
             `"${(o.salonName || '').replace(/"/g, '""')}"`,
+            `"${(o.agentName || '').replace(/"/g, '""')}"`,
             `"${(o.customerName || '').replace(/"/g, '""')}"`,
             `"${(o.customerPhone || '').replace(/"/g, '""')}"`,
             `"${(o.additionalPhone || '').replace(/"/g, '""')}"`,
@@ -995,23 +1030,6 @@ const AdminDashboard = () => {
         } catch (err) {
             console.error('Failed to mark downloaded status', err);
         }
-    };
-
-    const handleExportPerformance = () => {
-        if (!salonPerformance.length) return alert('No performance data');
-        const headers = ['Salon', 'Valid Orders', 'Returns', 'Cancelled', 'Items Sold', 'Revenue'];
-        const rows = salonPerformance.map(s => [
-            `"${(s.salonName || 'Unknown').replace(/"/g, '""')}"`,
-            s.totalOrders,
-            s.returnedOrders || 0,
-            s.cancelledOrders || 0,
-            s.totalItemsSold,
-            s.totalRevenue
-        ]);
-        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        saveAs(blob, 'performance_report.csv');
-        logReportHistory('Performance Summary', salonPerformance.length);
     };
     const handleExportCombinedExcel = () => {
         if (!repActivityData.length) return alert('No performance data to export');
@@ -1703,252 +1721,7 @@ const AdminDashboard = () => {
                         </div>
                     </div>
 
-                    <div id="detailed-activity-list" style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                                <h3 style={{ margin: 0, color: '#fff' }}>Detailed Rep Salon Activity List</h3>
-                                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                    <button
-                                        onClick={() => {
-                                            setDetailedFilterRep('');
-                                            setDetailedFilterStartDate('');
-                                            setDetailedFilterEndDate('');
-                                            setFilterDetailedVisited(false);
-                                            setFilterDetailedActive(false);
-                                            setFilterDetailedPOSM(false);
-                                            setFilterDetailedRevisited(false);
-                                            setSearchTerm('');
-                                        }}
-                                        className="btn-primary outline"
-                                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                                    >
-                                        Reset Filters
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            if (!detailedFilteredSalons.length) return alert('No data to export');
-                                            const data = detailedFilteredSalons.map(s => ({
-                                                'Salon Name': s.name,
-                                                'Salon Code': s.salonCode || 'N/A',
-                                                'Rep Name': s.repName || 'Unassigned',
-                                                'Location': s.location,
-                                                'Contact': s.contactNumber1 || s.contactNumber || 'N/A',
-                                                'Visited': s.isVisited ? 'Yes' : 'No',
-                                                'Visited Date': s.visitedDate ? formatDate(s.visitedDate) : 'N/A',
-                                                'Active': s.isActive ? 'Yes' : 'No',
-                                                'Active Date': s.activeDate ? formatDate(s.activeDate) : 'N/A',
-                                                'POSM': s.posmActive ? 'Yes' : 'No',
-                                                'POSM Date': s.posmDate ? formatDate(s.posmDate) : 'N/A',
-                                                'Revisit Count': (s.revisitedDates || []).length,
-                                                'Revisit Dates': (s.revisitedDates || []).map(d => formatDate(d)).join(', ')
-                                            }));
-                                            const worksheet = XLSX.utils.json_to_sheet(data);
-                                            const workbook = XLSX.utils.book_new();
-                                            XLSX.utils.book_append_sheet(workbook, worksheet, "Filtered Salons");
-                                            XLSX.writeFile(workbook, `Filtered_Salons_Activity_${new Date().toISOString().split('T')[0]}.xlsx`);
-                                        }}
-                                        className="btn-primary"
-                                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', background: '#10b981', border: 'none' }}
-                                    >
-                                        Export Filtered List
-                                    </button>
-                                </div>
-                            </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', background: 'rgba(255,255,255,0.05)', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                <div className="input-group">
-                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>Select Representative</label>
-                                    <select
-                                        value={detailedFilterRep || selectedRep}
-                                        onChange={(e) => setDetailedFilterRep(e.target.value)}
-                                        style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white' }}
-                                    >
-                                        <option value="" >All Representatives</option>
-                                        {reps.map(rep => (
-                                            <option key={rep._id} value={rep.name} >{rep.name}</option>
-                                        ))}
-                                        <option value="Unassigned" >Unassigned</option>
-                                    </select>
-                                </div>
-                                <div className="input-group">
-                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>Activity Start Date</label>
-                                    <input
-                                        type="date"
-                                        value={detailedFilterStartDate}
-                                        onChange={(e) => setDetailedFilterStartDate(e.target.value)}
-                                        style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', colorScheme: 'dark' }}
-                                    />
-                                </div>
-                                <div className="input-group">
-                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>Activity End Date</label>
-                                    <input
-                                        type="date"
-                                        value={detailedFilterEndDate}
-                                        onChange={(e) => setDetailedFilterEndDate(e.target.value)}
-                                        style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', colorScheme: 'dark' }}
-                                    />
-                                </div>
-                                <div className="input-group">
-                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>Status Filters</label>
-                                    <div style={{ display: 'flex', gap: '0.8rem', height: '100%', alignItems: 'center' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer', opacity: filterDetailedVisited ? 1 : 0.6 }}>
-                                            <input type="checkbox" checked={filterDetailedVisited} onChange={(e) => setFilterDetailedVisited(e.target.checked)} />
-                                            Visited
-                                        </label>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer', opacity: filterDetailedActive ? 1 : 0.6 }}>
-                                            <input type="checkbox" checked={filterDetailedActive} onChange={(e) => setFilterDetailedActive(e.target.checked)} />
-                                            Active
-                                        </label>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer', opacity: filterDetailedPOSM ? 1 : 0.6 }}>
-                                            <input type="checkbox" checked={filterDetailedPOSM} onChange={(e) => setFilterDetailedPOSM(e.target.checked)} />
-                                            POSM
-                                        </label>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer', opacity: filterDetailedRevisited ? 1 : 0.6 }}>
-                                            <input type="checkbox" checked={filterDetailedRevisited} onChange={(e) => setFilterDetailedRevisited(e.target.checked)} />
-                                            Revisited
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div style={{ marginBottom: '1rem', opacity: 0.8, fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>Showing {detailedFilteredSalonsCount} salons meeting activity criteria</span>
-                            {(detailedFilterRep || detailedFilterStartDate || detailedFilterEndDate) && (
-                                <span style={{ color: '#38bdf8', fontSize: '0.8rem' }}>
-                                    Filters Active: {detailedFilterRep && `Rep: ${detailedFilterRep}`} {detailedFilterStartDate && `From: ${detailedFilterStartDate}`} {detailedFilterEndDate && `To: ${detailedFilterEndDate}`}
-                                </span>
-                            )}
-                        </div>
-
-                        {detailedFilteredSalons.length > 0 ? (
-                            <div className="table-container">
-                                <table className="styled-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                    <thead>
-                                        <tr>
-                                            <th>Salon Name</th>
-                                            <th>Phone Number</th>
-                                            <th>Address</th>
-                                            <th style={{ textAlign: 'center' }}>Mark</th>
-                                            <th style={{ textAlign: 'center' }}>Visited</th>
-                                            <th style={{ textAlign: 'center' }}>Active</th>
-                                            <th style={{ textAlign: 'center' }}>POSM</th>
-                                            <th style={{ textAlign: 'center' }}>Revisited</th>
-                                            <th style={{ textAlign: 'center' }}>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {detailedFilteredSalons.map((s, idx) => (
-                                            <tr key={idx} style={{ backgroundColor: s.oneSalonMark ? 'rgba(74, 222, 128, 0.2)' : 'transparent', transition: 'background-color 0.3s' }}>
-                                                <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>{s.name}</td>
-                                                <td>{s.contactNumber1}{s.contactNumber2 ? `, ${s.contactNumber2}` : ''}</td>
-                                                <td style={{ fontSize: '0.9rem', opacity: 0.8 }}>{s.location}</td>
-                                                <td style={{ textAlign: 'center' }}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={s.oneSalonMark || false}
-                                                        onChange={() => handleToggleMark(s)}
-                                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                                                    />
-                                                </td>
-                                                <td style={{ textAlign: 'center' }}>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                                        <span
-                                                            onClick={() => handleToggleStatus(s, 'isVisited')}
-                                                            style={{ cursor: 'pointer', fontSize: '1.2rem', color: s.isVisited ? '#4ade80' : '#ef4444', transition: 'transform 0.2s' }}
-                                                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
-                                                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                                            title="Click to toggle Visited status"
-                                                        >
-                                                            {s.isVisited ? '✓' : '✗'}
-                                                        </span>
-                                                        {s.isVisited && s.visitedDate && (
-                                                            <small style={{ fontSize: '0.65rem', opacity: 0.7 }}>{formatDate(s.visitedDate)}</small>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td style={{ textAlign: 'center' }}>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                                        <span
-                                                            onClick={() => handleToggleStatus(s, 'isActive')}
-                                                            style={{ cursor: 'pointer', fontSize: '1.2rem', color: s.isActive ? '#4ade80' : '#ef4444', transition: 'transform 0.2s' }}
-                                                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
-                                                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                                            title="Click to toggle Active status"
-                                                        >
-                                                            {s.isActive ? '✓' : '✗'}
-                                                        </span>
-                                                        {s.isActive && s.activeDate && (
-                                                            <small style={{ fontSize: '0.65rem', opacity: 0.7 }}>{formatDate(s.activeDate)}</small>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td style={{ textAlign: 'center' }}>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                                        <span
-                                                            onClick={() => handleToggleStatus(s, 'posmActive')}
-                                                            style={{ cursor: 'pointer', fontSize: '1.2rem', color: s.posmActive ? '#4ade80' : '#ef4444', transition: 'transform 0.2s' }}
-                                                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
-                                                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                                                            title="Click to toggle POSM status"
-                                                        >
-                                                            {s.posmActive ? '✓' : '✗'}
-                                                        </span>
-                                                        {s.posmActive && s.posmDate && (
-                                                            <small style={{ fontSize: '0.65rem', opacity: 0.7 }}>{formatDate(s.posmDate)}</small>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td style={{ textAlign: 'center' }}>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
-                                                        <span style={{ fontWeight: 'bold', color: '#38bdf8' }}>{s.revisitedDates?.length || 0}</span>
-                                                        <button 
-                                                            onClick={() => handleAddRevisit(s)}
-                                                            style={{ 
-                                                                padding: '2px 8px', 
-                                                                fontSize: '0.65rem', 
-                                                                borderRadius: '4px', 
-                                                                border: '1px solid #38bdf8', 
-                                                                background: 'rgba(56,189,248,0.1)', 
-                                                                color: '#38bdf8',
-                                                                cursor: 'pointer'
-                                                            }}
-                                                            title="Add today as a revisit date"
-                                                        >
-                                                            + Revisit
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                                <td style={{ textAlign: 'center' }}>
-                                                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                                                        <button
-                                                            onClick={() => { handleEditClick(s); setActiveTab('salons'); }}
-                                                            className="btn-primary outline"
-                                                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
-                                                        >
-                                                            Edit
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteSalon(s._id)}
-                                                            className="btn-primary danger"
-                                                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', backgroundColor: '#ef4444', borderColor: '#ef4444' }}
-                                                        >
-                                                            Delete
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                        {detailedFilteredSalons.length === 0 && (
-                                            <tr>
-                                                <td colSpan="9" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No salons found matching your criteria</td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        ) : null}
-                    </div>
                 </section >
             )}
 
@@ -1967,6 +1740,7 @@ const AdminDashboard = () => {
                                         <th>Items</th>
                                         <th>Total</th>
                                         <th>Status</th>
+                                        {adminRole === 'superadmin' && <th>Actions</th>}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1976,7 +1750,7 @@ const AdminDashboard = () => {
                                             const orderRep = (orderSalon && orderSalon.repName && orderSalon.repName.trim() !== '') ? orderSalon.repName : 'Unassigned';
 
                                             if (selectedRep && orderRep !== selectedRep) return false;
-                                            if (adminRole === 'admin' && order.status !== 'COD' && order.status !== 'Paid') return false;
+                                            if (adminRole === 'admin' && !['COD', 'Paid', 'Shipped', 'Cancelled', 'Returned', 'Completed'].includes(order.status)) return false;
                                             if (!searchTerm) return true;
                                             const term = searchTerm.toLowerCase();
                                             return (
@@ -2007,11 +1781,10 @@ const AdminDashboard = () => {
                                                 <td>
                                                     <select
                                                         value={order.status}
-                                                        disabled={adminRole === 'admin'}
                                                         onChange={async (e) => {
                                                             try {
                                                                 const newStatus = e.target.value;
-                                                                await axios.put(`${API_URL}/orders/${order._id}/status`, { status: newStatus });
+                                                                await axios.put(`${API_URL}/orders/${order._id}/status`, { status: newStatus, adminName: loggedInUsername });
                                                                 fetchOrders();
                                                             } catch (err) {
                                                                 console.error('Failed to update status', err);
@@ -2037,7 +1810,51 @@ const AdminDashboard = () => {
                                                         <option value="Cancelled">Cancelled</option>
                                                         <option value="Payment Failed">Payment Failed</option>
                                                     </select>
+                                                    {order.statusHistory && order.statusHistory.length > 0 ? (
+                                                        <div style={{ fontSize: '0.75rem', marginTop: '0.5rem', textAlign: 'left', maxHeight: '100px', overflowY: 'auto', background: 'rgba(255,255,255,0.05)', padding: '0.5rem', borderRadius: '4px' }}>
+                                                            {order.statusHistory.slice().reverse().map((h, idx) => (
+                                                                <div key={idx} style={{ marginBottom: '0.3rem', borderBottom: idx < order.statusHistory.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none', paddingBottom: '0.2rem' }}>
+                                                                    <span style={{color: '#38bdf8', fontWeight: 'bold'}}>{h.status}</span> by <strong>{h.changedBy}</strong><br />
+                                                                    <span style={{opacity: 0.6, fontSize: '0.7rem'}}>{new Date(h.date).toLocaleString()}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : order.statusChangedBy && (
+                                                        <div style={{ fontSize: '0.75rem', marginTop: '0.5rem', opacity: 0.8, textAlign: 'center' }}>
+                                                            Changed by <strong>{order.statusChangedBy}</strong><br />
+                                                            {new Date(order.statusDate).toLocaleDateString()}
+                                                        </div>
+                                                    )}
                                                 </td>
+                                                {adminRole === 'superadmin' && (
+                                                    <td style={{ textAlign: 'center' }}>
+                                                        <button 
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                if (window.confirm('Are you sure you want to delete this order?')) {
+                                                                    try {
+                                                                        await axios.delete(`${API_URL}/orders/${order._id}`);
+                                                                        fetchOrders();
+                                                                    } catch (err) {
+                                                                        alert('Failed to delete order');
+                                                                    }
+                                                                }
+                                                            }}
+                                                            style={{
+                                                                background: '#ef4444',
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                padding: '6px 12px',
+                                                                borderRadius: '8px',
+                                                                cursor: 'pointer',
+                                                                fontSize: '0.8rem',
+                                                                fontWeight: 'bold'
+                                                            }}
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </td>
+                                                )}
                                             </tr>
                                         ))}
                                 </tbody>
@@ -2457,6 +2274,13 @@ const AdminDashboard = () => {
                                                     style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
                                                 >
                                                     Download All ZIP
+                                                </button>
+                                                <button
+                                                    onClick={() => handleBatchExcelExport(newBulkSalons)}
+                                                    className="btn-primary"
+                                                    style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem', background: '#10b981', border: 'none' }}
+                                                >
+                                                    Export Excel
                                                 </button>
                                                 <button
                                                     onClick={() => setNewBulkSalons([])}
@@ -3301,14 +3125,6 @@ const AdminDashboard = () => {
                                 </button>
                             </div>
 
-                            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
-                                <h3 style={{ margin: 0 }}>Performance Report</h3>
-                                <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9rem', flex: 1 }}>Export a summarized performance table showing the count of orders, returns, and total revenue per salon.</p>
-                                <button onClick={handleExportPerformance} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                    Download Performance CSV
-                                </button>
-                            </div>
 
                             <div style={{ background: 'rgba(56,189,248,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(56,189,248,0.2)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
                                 <h3 style={{ margin: 0, color: '#38bdf8' }}>Combined Performance Excel</h3>
@@ -3358,6 +3174,7 @@ const AdminDashboard = () => {
 
             {
                 activeTab === 'visit-log' && (
+                    <>
                     <section className="glass-container animate-fade-in">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', flexWrap: 'wrap', gap: '1.5rem' }}>
                             <div>
@@ -3479,6 +3296,620 @@ const AdminDashboard = () => {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+                    </section>
+                    <div id="detailed-activity-list" style={{ background: 'rgba(0,0,0,0.2)', padding: '2rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)', marginTop: '2rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                                <h3 style={{ margin: 0, color: '#fff' }}>Detailed Rep Salon Activity List</h3>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button
+                                        onClick={() => {
+                                            setDetailedFilterRep('');
+                                            setDetailedFilterStartDate('');
+                                            setDetailedFilterEndDate('');
+                                            setFilterDetailedVisited(false);
+                                            setFilterDetailedActive(false);
+                                            setFilterDetailedPOSM(false);
+                                            setFilterDetailedRevisited(false);
+                                            setSearchTerm('');
+                                        }}
+                                        className="btn-primary outline"
+                                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                                    >
+                                        Reset Filters
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (!detailedFilteredSalons.length) return alert('No data to export');
+                                            const data = detailedFilteredSalons.map(s => ({
+                                                'Salon Name': s.name,
+                                                'Salon Code': s.salonCode || 'N/A',
+                                                'Rep Name': s.repName || 'Unassigned',
+                                                'Location': s.location,
+                                                'Contact': s.contactNumber1 || s.contactNumber || 'N/A',
+                                                'Visited': s.isVisited ? 'Yes' : 'No',
+                                                'Visited Date': s.visitedDate ? formatDate(s.visitedDate) : 'N/A',
+                                                'Active': s.isActive ? 'Yes' : 'No',
+                                                'Active Date': s.activeDate ? formatDate(s.activeDate) : 'N/A',
+                                                'POSM': s.posmActive ? 'Yes' : 'No',
+                                                'POSM Date': s.posmDate ? formatDate(s.posmDate) : 'N/A',
+                                                'Revisit Count': (s.revisitedDates || []).length,
+                                                'Revisit Dates': (s.revisitedDates || []).map(d => formatDate(d)).join(', ')
+                                            }));
+                                            const worksheet = XLSX.utils.json_to_sheet(data);
+                                            const workbook = XLSX.utils.book_new();
+                                            XLSX.utils.book_append_sheet(workbook, worksheet, "Filtered Salons");
+                                            XLSX.writeFile(workbook, `Filtered_Salons_Activity_${new Date().toISOString().split('T')[0]}.xlsx`);
+                                        }}
+                                        className="btn-primary"
+                                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', background: '#10b981', border: 'none' }}
+                                    >
+                                        Export Filtered List
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', background: 'rgba(255,255,255,0.05)', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                <div className="input-group">
+                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>Select Representative</label>
+                                    <select
+                                        value={detailedFilterRep || selectedRep}
+                                        onChange={(e) => setDetailedFilterRep(e.target.value)}
+                                        style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white' }}
+                                    >
+                                        <option value="" >All Representatives</option>
+                                        {reps.map(rep => (
+                                            <option key={rep._id} value={rep.name} >{rep.name}</option>
+                                        ))}
+                                        <option value="Unassigned" >Unassigned</option>
+                                    </select>
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>Activity Start Date</label>
+                                    <input
+                                        type="date"
+                                        value={detailedFilterStartDate}
+                                        onChange={(e) => setDetailedFilterStartDate(e.target.value)}
+                                        style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', colorScheme: 'dark' }}
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>Activity End Date</label>
+                                    <input
+                                        type="date"
+                                        value={detailedFilterEndDate}
+                                        onChange={(e) => setDetailedFilterEndDate(e.target.value)}
+                                        style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', colorScheme: 'dark' }}
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>Status Filters</label>
+                                    <div style={{ display: 'flex', gap: '0.8rem', height: '100%', alignItems: 'center' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer', opacity: filterDetailedVisited ? 1 : 0.6 }}>
+                                            <input type="checkbox" checked={filterDetailedVisited} onChange={(e) => setFilterDetailedVisited(e.target.checked)} />
+                                            Visited
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer', opacity: filterDetailedActive ? 1 : 0.6 }}>
+                                            <input type="checkbox" checked={filterDetailedActive} onChange={(e) => setFilterDetailedActive(e.target.checked)} />
+                                            Active
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer', opacity: filterDetailedPOSM ? 1 : 0.6 }}>
+                                            <input type="checkbox" checked={filterDetailedPOSM} onChange={(e) => setFilterDetailedPOSM(e.target.checked)} />
+                                            POSM
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer', opacity: filterDetailedRevisited ? 1 : 0.6 }}>
+                                            <input type="checkbox" checked={filterDetailedRevisited} onChange={(e) => setFilterDetailedRevisited(e.target.checked)} />
+                                            Revisited
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ marginBottom: '1rem', opacity: 0.8, fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>Showing {detailedFilteredSalonsCount} salons meeting activity criteria</span>
+                            {(detailedFilterRep || detailedFilterStartDate || detailedFilterEndDate) && (
+                                <span style={{ color: '#38bdf8', fontSize: '0.8rem' }}>
+                                    Filters Active: {detailedFilterRep && `Rep: ${detailedFilterRep}`} {detailedFilterStartDate && `From: ${detailedFilterStartDate}`} {detailedFilterEndDate && `To: ${detailedFilterEndDate}`}
+                                </span>
+                            )}
+                        </div>
+
+                        {detailedFilteredSalons.length > 0 ? (
+                            <div className="table-container">
+                                <table className="styled-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr>
+                                            <th>Salon Name</th>
+                                            <th>Phone Number</th>
+                                            <th>Address</th>
+                                            <th style={{ textAlign: 'center' }}>Mark</th>
+                                            <th style={{ textAlign: 'center' }}>Visited</th>
+                                            <th style={{ textAlign: 'center' }}>Active</th>
+                                            <th style={{ textAlign: 'center' }}>POSM</th>
+                                            <th style={{ textAlign: 'center' }}>Revisited</th>
+                                            <th style={{ textAlign: 'center' }}>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {detailedFilteredSalons.map((s, idx) => (
+                                            <tr key={idx} style={{ backgroundColor: s.oneSalonMark ? 'rgba(74, 222, 128, 0.2)' : 'transparent', transition: 'background-color 0.3s' }}>
+                                                <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>{s.name}</td>
+                                                <td>{s.contactNumber1}{s.contactNumber2 ? `, ${s.contactNumber2}` : ''}</td>
+                                                <td style={{ fontSize: '0.9rem', opacity: 0.8 }}>{s.location}</td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={s.oneSalonMark || false}
+                                                        onChange={() => handleToggleMark(s)}
+                                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                                    />
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                        <span
+                                                            onClick={() => handleToggleStatus(s, 'isVisited')}
+                                                            style={{ cursor: 'pointer', fontSize: '1.2rem', color: s.isVisited ? '#4ade80' : '#ef4444', transition: 'transform 0.2s' }}
+                                                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                                                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                                            title="Click to toggle Visited status"
+                                                        >
+                                                            {s.isVisited ? '✓' : '✗'}
+                                                        </span>
+                                                        {s.isVisited && s.visitedDate && (
+                                                            <small style={{ fontSize: '0.65rem', opacity: 0.7 }}>{formatDate(s.visitedDate)}</small>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                        <span
+                                                            onClick={() => handleToggleStatus(s, 'isActive')}
+                                                            style={{ cursor: 'pointer', fontSize: '1.2rem', color: s.isActive ? '#4ade80' : '#ef4444', transition: 'transform 0.2s' }}
+                                                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                                                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                                            title="Click to toggle Active status"
+                                                        >
+                                                            {s.isActive ? '✓' : '✗'}
+                                                        </span>
+                                                        {s.isActive && s.activeDate && (
+                                                            <small style={{ fontSize: '0.65rem', opacity: 0.7 }}>{formatDate(s.activeDate)}</small>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                        <span
+                                                            onClick={() => handleToggleStatus(s, 'posmActive')}
+                                                            style={{ cursor: 'pointer', fontSize: '1.2rem', color: s.posmActive ? '#4ade80' : '#ef4444', transition: 'transform 0.2s' }}
+                                                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                                                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                                            title="Click to toggle POSM status"
+                                                        >
+                                                            {s.posmActive ? '✓' : '✗'}
+                                                        </span>
+                                                        {s.posmActive && s.posmDate && (
+                                                            <small style={{ fontSize: '0.65rem', opacity: 0.7 }}>{formatDate(s.posmDate)}</small>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem' }}>
+                                                        <span style={{ fontWeight: 'bold', color: '#38bdf8' }}>{s.revisitedDates?.length || 0}</span>
+                                                        <button 
+                                                            onClick={() => handleAddRevisit(s)}
+                                                            style={{ 
+                                                                padding: '2px 8px', 
+                                                                fontSize: '0.65rem', 
+                                                                borderRadius: '4px', 
+                                                                border: '1px solid #38bdf8', 
+                                                                background: 'rgba(56,189,248,0.1)', 
+                                                                color: '#38bdf8',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                            title="Add today as a revisit date"
+                                                        >
+                                                            + Revisit
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                                                        <button
+                                                            onClick={() => { handleEditClick(s); setActiveTab('salons'); }}
+                                                            className="btn-primary outline"
+                                                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteSalon(s._id)}
+                                                            className="btn-primary danger"
+                                                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', backgroundColor: '#ef4444', borderColor: '#ef4444' }}
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {detailedFilteredSalons.length === 0 && (
+                                            <tr>
+                                                <td colSpan="9" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No salons found matching your criteria</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : null}
+                    </div>
+                    </>
+                )
+            }
+            {
+                activeTab === 'agent-salon-perf' && (
+                    <section className="glass-container animate-fade-in">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', flexWrap: 'wrap', gap: '1.5rem' }}>
+                            <div>
+                                <h2 style={{ margin: 0 }}>Agent / Salon Detailed Performance</h2>
+                                <p style={{ opacity: 0.6, fontSize: '0.9rem', margin: '0.5rem 0 0 0' }}>Track order counts, products sold, and total commission earned.</p>
+                            </div>
+                            
+                            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                                <div className="input-group" style={{ width: '150px' }}>
+                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>Group By</label>
+                                    <select
+                                        value={performanceReportType}
+                                        onChange={(e) => setPerformanceReportType(e.target.value)}
+                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white' }}
+                                    >
+                                        <option value="agent">Agent</option>
+                                        <option value="salon">Salon</option>
+                                    </select>
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>From Date</label>
+                                    <input
+                                        type="date"
+                                        value={reportStartDate}
+                                        onChange={(e) => setReportStartDate(e.target.value)}
+                                        style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', colorScheme: 'dark' }}
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '0.3rem', display: 'block' }}>To Date</label>
+                                    <input
+                                        type="date"
+                                        value={reportEndDate}
+                                        onChange={(e) => setReportEndDate(e.target.value)}
+                                        style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', colorScheme: 'dark' }}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button 
+                                        onClick={fetchDetailedPerformance}
+                                        className="btn-primary outline"
+                                        style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                                    >
+                                        Fetch Data
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            if (!performanceReportData.length) return alert('No data to export');
+                                            const exportData = performanceReportData.map(item => {
+                                                const productDetails = (item.products || []).map(p => `${p.name} (${p.quantity})`).join(', ');
+                                                return {
+                                                    'Name': item._id,
+                                                    'Total Orders (paid+cod)': item.totalOrdersPaidCod,
+                                                    'Paid': item.totalPaidOrders,
+                                                    'COD': item.totalCodOrders,
+                                                    'Completed': item.totalCompletedOrders,
+                                                    'Total Commission (Rs)': item.totalCommission,
+                                                    'Products Sold': productDetails
+                                                };
+                                            });
+                                            const ws = XLSX.utils.json_to_sheet(exportData);
+                                            const wb = XLSX.utils.book_new();
+                                            XLSX.utils.book_append_sheet(wb, ws, "Detailed Performance");
+                                            XLSX.writeFile(wb, `Detailed_Performance_${performanceReportType}_${new Date().toISOString().split('T')[0]}.xlsx`);
+                                        }} 
+                                        className="btn-primary" 
+                                        style={{ background: '#10b981', border: 'none', padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                                    >
+                                        📥 Export Excel
+                                    </button>
+                                    <button 
+                                        onClick={async () => {
+                                            try {
+                                                const agentRes = await axios.get(`${API_URL}/agents`);
+                                                const agentsList = Array.isArray(agentRes.data) ? agentRes.data : agentRes.data.agents || agentRes.data.data || [];
+                                                
+                                                const filteredOrders = orders.filter(order => {
+                                                    if (order.status !== 'Paid' && order.status !== 'Completed') return false;
+                                                    if (order.isCommissionPaid) return false;
+                                                    const orderDate = new Date(order.createdAt);
+                                                    if (reportStartDate && new Date(reportStartDate) > orderDate) return false;
+                                                    if (reportEndDate) {
+                                                        const end = new Date(reportEndDate);
+                                                        end.setHours(23, 59, 59, 999);
+                                                        if (end < orderDate) return false;
+                                                    }
+                                                    return true;
+                                                });
+
+                                                if (filteredOrders.length === 0) {
+                                                    return alert('No paid/completed orders found for this period.');
+                                                }
+
+                                                const exportData = [];
+                                                filteredOrders.forEach(order => {
+                                                    let entityName = '';
+                                                    let mobileNo = '';
+                                                    let accountDetails = {};
+
+                                                    if (performanceReportType === 'agent') {
+                                                        if (!order.agentId) return;
+                                                        entityName = order.agentName || 'Unknown Agent';
+                                                        const agent = agentsList.find(a => a._id === order.agentId);
+                                                        if (agent) {
+                                                            mobileNo = agent.contactNumber1 || agent.contactNumber2 || '';
+                                                            accountDetails = agent.accountDetails || {};
+                                                        }
+                                                    } else {
+                                                        if (!order.salonId) return;
+                                                        entityName = order.salonName || 'Unknown Salon';
+                                                        const salon = salons.find(s => s._id === order.salonId);
+                                                        if (salon) {
+                                                            mobileNo = salon.contactNumber1 || salon.contactNumber2 || '';
+                                                            accountDetails = salon.accountDetails || {};
+                                                        }
+                                                    }
+
+                                                    (order.items || []).forEach(item => {
+                                                        exportData.push({
+                                                            'order date': new Date(order.createdAt).toLocaleDateString(),
+                                                            'Customer Name': order.customerName || '',
+                                                            'Product': item.productName || '',
+                                                            'Salon/agent Name': entityName,
+                                                            'Mobile No': mobileNo || order.customerPhone || '',
+                                                            'Bank': accountDetails.bankName || '',
+                                                            'Branch': accountDetails.branch || '',
+                                                            'Account No': accountDetails.accountNumber || '',
+                                                            'Account Name': accountDetails.accountName || '',
+                                                            'Qty': item.quantity || 0,
+                                                            'commission': item.commission || 0
+                                                        });
+                                                    });
+                                                });
+
+                                                if (exportData.length === 0) {
+                                                    return alert('No commission data generated.');
+                                                }
+
+                                                const ws = XLSX.utils.json_to_sheet(exportData);
+                                                const wb = XLSX.utils.book_new();
+                                                XLSX.utils.book_append_sheet(wb, ws, "Commission Report");
+                                                XLSX.writeFile(wb, `Commission_Report_${performanceReportType}_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+                                            } catch (error) {
+                                                console.error('Error generating report:', error);
+                                                alert('Failed to generate report');
+                                            }
+                                        }} 
+                                        className="btn-primary" 
+                                        style={{ background: '#3b82f6', border: 'none', padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                                    >
+                                        📥 Download Commission Report
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="table-container shadow-sm">
+                            {loadingPerformance ? (
+                                <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.7 }}>Loading data...</div>
+                            ) : (
+                                <table className="styled-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr>
+                                            <th style={{ textAlign: 'left', padding: '1rem' }}>{performanceReportType === 'agent' ? 'AGENT NAME' : 'SALON NAME'}</th>
+                                            <th style={{ textAlign: 'center', padding: '1rem' }}>TOTAL ORDERS (paid+cod)</th>
+                                            <th style={{ textAlign: 'center', padding: '1rem' }}>PAID</th>
+                                            <th style={{ textAlign: 'center', padding: '1rem' }}>COD</th>
+                                            <th style={{ textAlign: 'center', padding: '1rem' }}>COMPLETED</th>
+                                            <th style={{ textAlign: 'right', padding: '1rem' }}>TOTAL COMMISSION (Rs)</th>
+                                            <th style={{ textAlign: 'left', padding: '1rem' }}>PRODUCTS SOLD</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {performanceReportData.length > 0 ? (
+                                            performanceReportData.map((item, idx) => (
+                                                <React.Fragment key={idx}>
+                                                <tr 
+                                                    style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', transition: 'background 0.2s' }}
+                                                    onClick={() => setExpandedPerfRowId(expandedPerfRowId === item._id ? null : item._id)}
+                                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                                >
+                                                    <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>
+                                                        <span style={{ display: 'inline-block', width: '15px', marginRight: '5px', fontSize: '0.8rem', opacity: 0.7 }}>
+                                                            {expandedPerfRowId === item._id ? '▼' : '▶'}
+                                                        </span>
+                                                        {item._id}
+                                                    </td>
+                                                    <td style={{ textAlign: 'center' }}>{item.totalOrdersPaidCod}</td>
+                                                    <td style={{ textAlign: 'center', color: '#4ade80' }}>{item.totalPaidOrders}</td>
+                                                    <td style={{ textAlign: 'center', color: '#fbbf24' }}>{item.totalCodOrders}</td>
+                                                    <td style={{ textAlign: 'center', color: '#a78bfa' }}>{item.totalCompletedOrders}</td>
+                                                    <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#4ade80' }}>
+                                                        {item.totalCommission.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </td>
+                                                    <td>
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                                            {(item.products || []).map((p, pIdx) => (
+                                                                <span key={pIdx} style={{
+                                                                    background: 'rgba(255,255,255,0.1)',
+                                                                    padding: '0.2rem 0.5rem',
+                                                                    borderRadius: '4px',
+                                                                    fontSize: '0.8rem',
+                                                                    whiteSpace: 'nowrap'
+                                                                }}>
+                                                                    {p.name}: <strong>{p.quantity}</strong>
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                {expandedPerfRowId === item._id && (
+                                                    <tr style={{ background: 'rgba(0,0,0,0.2)' }}>
+                                                        <td colSpan="7" style={{ padding: '1rem' }}>
+                                                            <div style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                <h4 style={{ margin: '0 0 1rem 0', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                    <ShoppingBag size={16} /> Orders for {item._id}
+                                                                </h4>
+                                                                <div className="table-container shadow-sm" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                                                    <table className="styled-table" style={{ width: '100%', fontSize: '0.9rem' }}>
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Order ID</th>
+                                                                                <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Order Date</th>
+                                                                                <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Customer</th>
+                                                                                <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Salon Name</th>
+                                                                                <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Status</th>
+                                                                                <th style={{ textAlign: 'right', padding: '0.75rem 1rem' }}>Commission (Rs)</th>
+                                                                                <th style={{ textAlign: 'right', padding: '0.75rem 1rem' }}>Items</th>
+                                                                                <th style={{ textAlign: 'center', padding: '0.75rem 1rem' }}>Commission Paid?</th>
+                                                                                {adminRole === 'superadmin' && <th style={{ textAlign: 'center', padding: '0.75rem 1rem' }}>Actions</th>}
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {orders.filter(o => {
+                                                                                if (!["Paid", "COD", "Completed"].includes(o.status)) return false;
+                                                                                if (performanceReportType === 'agent' && o.agentName !== item._id) return false;
+                                                                                if (performanceReportType === 'salon' && o.salonName !== item._id) return false;
+                                                                                if (reportStartDate || reportEndDate) {
+                                                                                    const d = new Date(o.createdAt);
+                                                                                    if (reportStartDate && d < new Date(reportStartDate)) return false;
+                                                                                    if (reportEndDate && d > new Date(reportEndDate + 'T23:59:59.999Z')) return false;
+                                                                                }
+                                                                                return true;
+                                                                            }).map(o => {
+                                                                                const ordCommission = (o.items || []).reduce((sum, i) => sum + ((i.commission || 0) * (i.quantity || 1)), 0);
+                                                                                const itemsSummary = (o.items || []).map(i => `${i.productName} (${i.quantity})`).join(', ');
+                                                                                return (
+                                                                                    <tr key={o._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                                        <td style={{ padding: '0.75rem 1rem', fontSize: '0.8rem', opacity: 0.8 }}>{o.merchantOrderId || o._id.substring(0,8)}</td>
+                                                                                        <td style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>{formatDate(o.createdAt)}</td>
+                                                                                        <td style={{ padding: '0.75rem 1rem' }}>{o.customerName || 'N/A'}</td>
+                                                                                        <td style={{ padding: '0.75rem 1rem' }}>{o.salonName}</td>
+                                                                                        <td style={{ padding: '0.75rem 1rem' }}>
+                                                                                            <span style={{
+                                                                                                padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold',
+                                                                                                background: o.status === 'Paid' ? 'rgba(74,222,128,0.2)' : o.status === 'COD' ? 'rgba(251,191,36,0.2)' : 'rgba(167,139,250,0.2)',
+                                                                                                color: o.status === 'Paid' ? '#4ade80' : o.status === 'COD' ? '#fbbf24' : '#a78bfa'
+                                                                                            }}>{o.status}</span>
+                                                                                        </td>
+                                                                                        <td style={{ textAlign: 'right', padding: '0.75rem 1rem', color: ['Paid', 'Completed'].includes(o.status) ? '#4ade80' : 'gray' }}>
+                                                                                            {ordCommission.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                                        </td>
+                                                                                        <td style={{ textAlign: 'right', padding: '0.75rem 1rem', fontSize: '0.85rem', opacity: 0.8, maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={itemsSummary}>
+                                                                                            {itemsSummary}
+                                                                                        </td>
+                                                                                        <td style={{ textAlign: 'center', padding: '0.75rem 1rem' }}>
+                                                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                                                                                                <button 
+                                                                                                    onClick={async (e) => {
+                                                                                                        e.stopPropagation();
+                                                                                                        try {
+                                                                                                            const res = await axios.put(`${API_URL}/orders/${o._id}/commission`, { 
+                                                                                                                isCommissionPaid: !o.isCommissionPaid,
+                                                                                                                adminName: loggedInUsername 
+                                                                                                            });
+                                                                                                            if (res.data.success) {
+                                                                                                                setOrders(orders.map(or => or._id === o._id ? res.data.order : or));
+                                                                                                            }
+                                                                                                        } catch(err) {
+                                                                                                            alert('Error updating commission status');
+                                                                                                        }
+                                                                                                    }}
+                                                                                                    style={{
+                                                                                                        background: o.isCommissionPaid ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.1)',
+                                                                                                        color: o.isCommissionPaid ? '#4ade80' : 'white',
+                                                                                                        border: `1px solid ${o.isCommissionPaid ? '#4ade80' : 'rgba(255,255,255,0.2)'}`,
+                                                                                                        padding: '4px 10px',
+                                                                                                        borderRadius: '20px',
+                                                                                                        fontSize: '0.75rem',
+                                                                                                        cursor: 'pointer',
+                                                                                                        fontWeight: 'bold',
+                                                                                                        transition: 'all 0.2s'
+                                                                                                    }}
+                                                                                                >
+                                                                                                    {o.isCommissionPaid ? 'Yes' : 'No'}
+                                                                                                </button>
+                                                                                                {o.commissionHistory && o.commissionHistory.length > 0 && (
+                                                                                                    <div style={{ fontSize: '0.65rem', opacity: 0.7, whiteSpace: 'nowrap', textAlign: 'center', lineHeight: '1.2' }}>
+                                                                                                        By: {o.commissionHistory[o.commissionHistory.length - 1].changedBy}<br/>
+                                                                                                        {new Date(o.commissionHistory[o.commissionHistory.length - 1].date).toLocaleDateString()}
+                                                                                                    </div>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </td>
+                                                                                        {adminRole === 'superadmin' && (
+                                                                                            <td style={{ textAlign: 'center', padding: '0.75rem 1rem' }}>
+                                                                                                <button 
+                                                                                                    onClick={async (e) => {
+                                                                                                        e.stopPropagation();
+                                                                                                        if (window.confirm('Are you sure you want to delete this order?')) {
+                                                                                                            try {
+                                                                                                                await axios.delete(`${API_URL}/orders/${o._id}`);
+                                                                                                                fetchOrders();
+                                                                                                            } catch (err) {
+                                                                                                                alert('Failed to delete order');
+                                                                                                            }
+                                                                                                        }
+                                                                                                    }}
+                                                                                                    style={{ background: '#ef4444', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+                                                                                                >
+                                                                                                    Delete
+                                                                                                </button>
+                                                                                            </td>
+                                                                                        )}
+                                                                                    </tr>
+                                                                                );
+                                                                            })}
+                                                                            {orders.filter(o => {
+                                                                                if (!["Paid", "COD", "Completed"].includes(o.status)) return false;
+                                                                                if (performanceReportType === 'agent' && o.agentName !== item._id) return false;
+                                                                                if (performanceReportType === 'salon' && o.salonName !== item._id) return false;
+                                                                                if (reportStartDate || reportEndDate) {
+                                                                                    const d = new Date(o.createdAt);
+                                                                                    if (reportStartDate && d < new Date(reportStartDate)) return false;
+                                                                                    if (reportEndDate && d > new Date(reportEndDate + 'T23:59:59.999Z')) return false;
+                                                                                }
+                                                                                return true;
+                                                                            }).length === 0 && (
+                                                                                <tr><td colSpan="8" style={{ textAlign: 'center', opacity: 0.5, padding: '1rem' }}>No matching orders found locally.</td></tr>
+                                                                            )}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                </React.Fragment>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan="4" style={{ textAlign: 'center', padding: '4rem', color: 'gray' }}>
+                                                    No records found for the selected criteria.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            )}
                         </div>
                     </section>
                 )
