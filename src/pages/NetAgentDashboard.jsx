@@ -425,9 +425,26 @@ const NetAgentDashboard = () => {
 
     const activeCount = agents.filter(a => a.isActive).length;
     const visitedCount = agents.filter(a => a.isVisited).length;
-    const codOrderCount = orders.filter(o => o.status !== 'Draft').length;
-    const totalRevenue = orders.filter(o => ['COD', 'Shipped', 'Completed'].includes(o.status))
+    
+    // Updated order counts
+    const trueCodCount = orders.filter(o => o.status === 'COD').length;
+    const paidCount = orders.filter(o => o.status === 'Paid').length;
+    const returnedCount = orders.filter(o => o.status === 'Returned').length;
+    const completedCount = orders.filter(o => o.status === 'Completed').length;
+    
+    const totalRevenue = orders.filter(o => ['COD', 'Paid', 'Shipped', 'Completed'].includes(o.status))
         .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+        
+    // Product wise count
+    const productCounts = {};
+    orders.filter(o => o.status !== 'Draft' && o.status !== 'Cancelled').forEach(o => {
+        (o.items || []).forEach(item => {
+            if (item.productName) {
+                productCounts[item.productName] = (productCounts[item.productName] || 0) + item.quantity;
+            }
+        });
+    });
+    const sortedProducts = Object.entries(productCounts).sort((a, b) => b[1] - a[1]);
 
     const updateStatus = async (orderId, status) => {
         try {
@@ -506,8 +523,11 @@ const NetAgentDashboard = () => {
                             { label: 'Total Net.Agents', value: agents.length, color: '#38bdf8' },
                             { label: 'Active Agents', value: activeCount, color: '#4ade80' },
                             { label: 'Visited Agents', value: visitedCount, color: '#c084fc' },
-                            { label: 'COD Orders', value: codOrderCount, color: '#f59e0b' },
                             { label: 'Revenue (Confirmed)', value: `Rs.${totalRevenue.toLocaleString()}`, color: '#4ade80' },
+                            { label: 'COD Orders', value: trueCodCount, color: '#f59e0b' },
+                            { label: 'Paid Orders', value: paidCount, color: '#10b981' },
+                            { label: 'Completed Orders', value: completedCount, color: '#0ea5e9' },
+                            { label: 'Returned Orders', value: returnedCount, color: '#f43f5e' },
                         ].map((stat, i) => (
                             <div key={i} style={{ background: `${stat.color}18`, border: `1px solid ${stat.color}44`, borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
                                 <h3 style={{ color: stat.color, fontSize: '0.95rem', marginBottom: '0.5rem' }}>{stat.label}</h3>
@@ -516,34 +536,28 @@ const NetAgentDashboard = () => {
                         ))}
                     </div>
 
-                    {/* Recent Orders Table */}
-                    <h3 style={{ marginBottom: '1rem' }}>Recent COD Orders</h3>
-                    <div className="table-container">
+                    {/* Product Wise Count Table */}
+                    <h3 style={{ marginBottom: '1rem', marginTop: '2rem' }}>Product Wise Count</h3>
+                    <div className="table-container" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
                         <table className="styled-table">
                             <thead>
                                 <tr>
-                                    <th>Date</th><th>Order ID</th><th>Agent/Salon</th><th>Customer</th>
-                                    <th>Total</th><th>Status</th><th>Actions</th>
+                                    <th>Product Name</th>
+                                    <th style={{ textAlign: 'right' }}>Total Quantity Sold</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {orders.filter(o => adminRole !== 'admin' || o.status === 'COD' || o.status === 'Paid').slice(0, 10).map(o => (
-                                    <tr key={o._id} style={{ backgroundColor: o.isDownloaded ? 'rgba(220, 38, 38, 0.15)' : 'transparent' }}>
-                                        <td>{new Date(o.createdAt).toLocaleDateString()}</td>
-                                        <td>{o.merchantOrderId || o._id.slice(-6).toUpperCase()}</td>
-                                        <td>{o.salonName || o.agentName || '—'}</td>
-                                        <td><div>{o.customerName}</div><div style={{ opacity: 0.6, fontSize: '0.8rem' }}>{o.customerPhone}</div></td>
-                                        <td>Rs.{o.totalAmount}</td>
-                                        <td><span className="status-badge" style={{ background: `${statusColors[o.status] || '#6b7280'}22`, color: statusColors[o.status] || '#fff', border: `1px solid ${statusColors[o.status] || '#6b7280'}` }}>{o.status}</span></td>
-                                        <td>
-                                            <select value={o.status} disabled={adminRole === 'admin'} onChange={e => updateStatus(o._id, e.target.value)}
-                                                style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', padding: '0.3rem', fontSize: '0.8rem' }}>
-                                                {['COD', 'Shipped', 'Completed', 'Cancelled', 'Returned'].map(s => <option key={s} value={s} >{s}</option>)}
-                                            </select>
-                                        </td>
+                                {sortedProducts.map(([productName, quantity], idx) => (
+                                    <tr key={idx}>
+                                        <td style={{ fontWeight: 'bold' }}>{productName}</td>
+                                        <td style={{ textAlign: 'right', fontSize: '1.1rem', color: '#4ade80' }}>{quantity}</td>
                                     </tr>
                                 ))}
-                                {!orders.length && <tr><td colSpan="7" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No COD orders yet</td></tr>}
+                                {sortedProducts.length === 0 && (
+                                    <tr>
+                                        <td colSpan="2" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No products sold yet</td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>

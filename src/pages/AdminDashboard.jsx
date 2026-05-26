@@ -1479,9 +1479,7 @@ const AdminDashboard = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                         <h2>Dashboard Overview</h2>
                         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                            <button onClick={handleExportCombinedExcel} className="btn-primary" style={{ padding: '0.8rem 1.5rem', background: 'linear-gradient(135deg, #4ade80, #22c55e)', border: 'none', boxShadow: '0 4px 12px rgba(74,222,128,0.2)' }}>
-                                📥 Download Performance Report
-                            </button>
+
                             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '0.8rem 1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <label style={{ fontSize: '0.8rem', opacity: 0.7 }}>From:</label>
@@ -3127,11 +3125,11 @@ const AdminDashboard = () => {
 
 
                             <div style={{ background: 'rgba(56,189,248,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(56,189,248,0.2)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
-                                <h3 style={{ margin: 0, color: '#38bdf8' }}>Combined Performance Excel</h3>
+                                <h3 style={{ margin: 0, color: '#38bdf8' }}>Performance Report</h3>
                                 <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9rem', flex: 1 }}>Export a detailed Excel report with New Visited, Active, Re-visit, and POSM metrics including total summary and date ranges.</p>
                                 <button onClick={handleExportCombinedExcel} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, #0d9488, #0f766e)', border: 'none' }}>
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                    Export Performance Excel
+                                    Download Performance Report
                                 </button>
                             </div>
                         </div>
