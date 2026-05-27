@@ -551,8 +551,12 @@ h3 {
 
   /* Table Scrolling */
   table {
-    min-width: 600px;
-    /* Force scroll */
+    min-width: max-content;
+    /* Force scroll based on content */
+  }
+  
+  .styled-table td {
+    white-space: nowrap;
   }
 }
 
