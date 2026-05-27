@@ -538,7 +538,7 @@ const NetAgentDashboard = () => {
 
                     {/* Product Wise Count Table */}
                     <h3 style={{ marginBottom: '1rem', marginTop: '2rem' }}>Product Wise Count</h3>
-                    <div className="table-container" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div className="table-container" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '12px', overflowX: 'auto', border: '1px solid rgba(255,255,255,0.05)' }}>
                         <table className="styled-table">
                             <thead>
                                 <tr>
@@ -605,7 +605,7 @@ const NetAgentDashboard = () => {
                             </div>
                         </h2>
 
-                        <div className="table-container" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div className="table-container" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '12px', overflowX: 'auto', border: '1px solid rgba(255,255,255,0.05)' }}>
                             <table className="styled-table">
                                 <thead>
                                     <tr>
