@@ -70,8 +70,8 @@ const NetAgentDashboard = () => {
             const params = selectedAgentId ? { agentId: selectedAgentId } : {};
             const res = await axios.get(`${API_URL}/orders`, { params });
             if (res.data.success) {
-                // Only show COD orders that came from net agents
-                setOrders(res.data.orders.filter(o => o.paymentMethod === 'Cash on Delivery' && o.agentId));
+                // Show COD and Paid orders that came from net agents
+                setOrders(res.data.orders.filter(o => (o.paymentMethod === 'Cash on Delivery' || o.status === 'Paid') && o.agentId));
             }
         } catch (err) { console.error(err); }
     }, [selectedAgentId]);
@@ -670,7 +670,7 @@ const NetAgentDashboard = () => {
             {(adminRole === 'admin' || adminRole === 'superadmin') && activeTab === 'orders' && (
                 <section className="glass-container animate-fade-in">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-                        <h2>COD Orders</h2>
+                        <h2>COD & Paid Orders</h2>
                         <button className="btn-primary" onClick={handleExportOrders} style={{ padding: '0.5rem 1rem' }}>📥 Export CSV</button>
                     </div>
                     <div className="table-container">
@@ -703,12 +703,12 @@ const NetAgentDashboard = () => {
                                         <td>
                                             <select value={o.status} disabled={adminRole === 'admin'} onChange={e => updateStatus(o._id, e.target.value)}
                                                 style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', padding: '0.3rem', fontSize: '0.8rem' }}>
-                                                {['COD', 'Shipped', 'Completed', 'Cancelled', 'Returned'].map(s => <option key={s} value={s} >{s}</option>)}
+                                                {['COD', 'Paid', 'Shipped', 'Completed', 'Cancelled', 'Returned'].map(s => <option key={s} value={s} >{s}</option>)}
                                             </select>
                                         </td>
                                     </tr>
                                 ))}
-                                {!orders.length && <tr><td colSpan="10" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No COD orders yet</td></tr>}
+                                {!orders.length && <tr><td colSpan="10" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No COD or Paid orders yet</td></tr>}
                             </tbody>
                         </table>
                     </div>
@@ -992,7 +992,7 @@ const NetAgentDashboard = () => {
                             <button onClick={handleExportAgents} className="btn-primary">Download CSV</button>
                         </div>
                         <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <h3 style={{ margin: 0 }}>COD Orders Detail</h3>
+                            <h3 style={{ margin: 0 }}>COD & Paid Orders Detail</h3>
                             <button onClick={handleExportOrders} className="btn-primary">Download CSV</button>
                         </div>
                     </div>
