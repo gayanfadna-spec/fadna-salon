@@ -213,7 +213,8 @@ const AdminDashboard = () => {
                     salonCode: s.salonCode || 'N/A',
                     repName: rep,
                     location: s.location || 'N/A',
-                    type: 'New Visit'
+                    type: 'New Visit',
+                    originalSalon: s
                 });
             }
 
@@ -230,8 +231,43 @@ const AdminDashboard = () => {
                         salonCode: s.salonCode || 'N/A',
                         repName: rep,
                         location: s.location || 'N/A',
-                        type: 'Re-visit'
+                        type: 'Re-visit',
+                        originalSalon: s
                     });
+                });
+            }
+
+            // Active
+            if (s.isActive && s.activeDate) {
+                const localDate = new Date(s.activeDate);
+                const dateStr = localDate.getFullYear() + '-' + String(localDate.getMonth() + 1).padStart(2, '0') + '-' + String(localDate.getDate()).padStart(2, '0');
+                history.push({
+                    date: localDate,
+                    dateStr: dateStr,
+                    displayDate: formatDate(s.activeDate),
+                    salonName: s.name,
+                    salonCode: s.salonCode || 'N/A',
+                    repName: rep,
+                    location: s.location || 'N/A',
+                    type: 'Active',
+                    originalSalon: s
+                });
+            }
+
+            // POSM
+            if (s.posmActive && s.posmDate) {
+                const localDate = new Date(s.posmDate);
+                const dateStr = localDate.getFullYear() + '-' + String(localDate.getMonth() + 1).padStart(2, '0') + '-' + String(localDate.getDate()).padStart(2, '0');
+                history.push({
+                    date: localDate,
+                    dateStr: dateStr,
+                    displayDate: formatDate(s.posmDate),
+                    salonName: s.name,
+                    salonCode: s.salonCode || 'N/A',
+                    repName: rep,
+                    location: s.location || 'N/A',
+                    type: 'POSM',
+                    originalSalon: s
                 });
             }
         });
@@ -254,6 +290,43 @@ const AdminDashboard = () => {
             return true;
         }).sort((a, b) => b.date - a.date); // Sort descending (latest first)
     }, [salons, selectedRep, searchTerm, reportStartDate, reportEndDate]);
+
+    const { salonVisitSummaryData, visitCounts } = React.useMemo(() => {
+        const counts = { newVisit: 0, revisit: 0, active: 0, posm: 0 };
+        const map = {};
+        
+        visitHistoryData.forEach(item => {
+            if (item.type === 'New Visit') counts.newVisit++;
+            if (item.type === 'Re-visit') counts.revisit++;
+            if (item.type === 'Active') counts.active++;
+            if (item.type === 'POSM') counts.posm++;
+
+            const key = `${item.salonName}|${item.repName}`;
+            if (!map[key]) {
+                map[key] = {
+                    salonName: item.salonName,
+                    salonCode: item.salonCode,
+                    repName: item.repName,
+                    location: item.location,
+                    originalSalon: item.originalSalon,
+                    newVisit: [],
+                    revisit: [],
+                    active: [],
+                    posm: []
+                };
+            }
+            const timeStr = item.date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            if (item.type === 'New Visit') map[key].newVisit.push(timeStr);
+            if (item.type === 'Re-visit') map[key].revisit.push(timeStr);
+            if (item.type === 'Active') map[key].active.push(timeStr);
+            if (item.type === 'POSM') map[key].posm.push(timeStr);
+        });
+        
+        return {
+            salonVisitSummaryData: Object.values(map).sort((a, b) => a.salonName.localeCompare(b.salonName)),
+            visitCounts: counts
+        };
+    }, [visitHistoryData]);
 
     const fetchOrders = React.useCallback(async () => {
         try {
@@ -3249,46 +3322,84 @@ const AdminDashboard = () => {
                             </div>
                         </div>
 
-                        <div className="table-container shadow-sm">
+                        {/* Summary Metrics */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+                            <div style={{ background: 'rgba(74, 222, 128, 0.1)', border: '1px solid rgba(74, 222, 128, 0.2)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
+                                <h3 style={{ color: '#4ade80', fontSize: '0.95rem', marginBottom: '0.5rem' }}>New Visited</h3>
+                                <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{visitCounts.newVisit}</div>
+                            </div>
+                            <div style={{ background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
+                                <h3 style={{ color: '#38bdf8', fontSize: '0.95rem', marginBottom: '0.5rem' }}>Revisited</h3>
+                                <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{visitCounts.revisit}</div>
+                            </div>
+                            <div style={{ background: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.2)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
+                                <h3 style={{ color: '#f43f5e', fontSize: '0.95rem', marginBottom: '0.5rem' }}>Active</h3>
+                                <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{visitCounts.active}</div>
+                            </div>
+                            <div style={{ background: 'rgba(251, 191, 36, 0.1)', border: '1px solid rgba(251, 191, 36, 0.2)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center' }}>
+                                <h3 style={{ color: '#fbbf24', fontSize: '0.95rem', marginBottom: '0.5rem' }}>POSM</h3>
+                                <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{visitCounts.posm}</div>
+                            </div>
+                        </div>
+
+                        <h3 style={{ marginBottom: '1rem' }}>Salon Visit Summary</h3>
+                        <div className="table-container shadow-sm" style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)' }}>
                             <table className="styled-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr>
-                                        <th style={{ textAlign: 'left', padding: '1rem' }}>DATE</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem', width: '50px' }}>#</th>
                                         <th style={{ textAlign: 'left', padding: '1rem' }}>SALON NAME</th>
                                         <th style={{ textAlign: 'center', padding: '1rem' }}>CODE</th>
-                                        <th style={{ textAlign: 'left', padding: '1rem' }}>REPRESENTATIVE</th>
                                         <th style={{ textAlign: 'left', padding: '1rem' }}>LOCATION</th>
-                                        <th style={{ textAlign: 'center', padding: '1rem' }}>TYPE</th>
+                                        <th style={{ textAlign: 'left', padding: '1rem' }}>REPRESENTATIVE</th>
+                                        <th style={{ textAlign: 'left', padding: '1rem' }}>NEW VISITED</th>
+                                        <th style={{ textAlign: 'left', padding: '1rem' }}>REVISITED</th>
+                                        <th style={{ textAlign: 'left', padding: '1rem' }}>ACTIVE</th>
+                                        <th style={{ textAlign: 'left', padding: '1rem' }}>POSM</th>
+                                        <th style={{ textAlign: 'center', padding: '1rem' }}>ACTION</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {visitHistoryData.length > 0 ? (
-                                        visitHistoryData.map((item, idx) => (
+                                    {salonVisitSummaryData.length > 0 ? (
+                                        salonVisitSummaryData.map((item, idx) => (
                                             <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>{item.displayDate}</td>
-                                                <td>{item.salonName}</td>
+                                                <td style={{ textAlign: 'center', fontWeight: 'bold', opacity: 0.6 }}>{idx + 1}</td>
+                                                <td style={{ fontWeight: 'bold', color: '#bae6fd' }}>{item.salonName}</td>
                                                 <td style={{ textAlign: 'center', opacity: 0.7 }}>{item.salonCode}</td>
-                                                <td>{item.repName}</td>
                                                 <td style={{ fontSize: '0.9rem', opacity: 0.8 }}>{item.location}</td>
+                                                <td>{item.repName}</td>
+                                                <td style={{ fontSize: '0.85rem', color: '#4ade80' }}>
+                                                    {item.newVisit.length > 0 ? item.newVisit.map((t, i) => <div key={i}>{t}</div>) : <span style={{ opacity: 0.3 }}>-</span>}
+                                                </td>
+                                                <td style={{ fontSize: '0.85rem', color: '#38bdf8' }}>
+                                                    {item.revisit.length > 0 ? (
+                                                        <>
+                                                            <div style={{ fontWeight: 'bold', marginBottom: '0.2rem', color: '#bae6fd' }}>Count: {item.revisit.length}</div>
+                                                            {item.revisit.map((t, i) => <div key={i}>{t}</div>)}
+                                                        </>
+                                                    ) : <span style={{ opacity: 0.3 }}>-</span>}
+                                                </td>
+                                                <td style={{ fontSize: '0.85rem', color: '#f43f5e' }}>
+                                                    {item.active.length > 0 ? item.active.map((t, i) => <div key={i}>{t}</div>) : <span style={{ opacity: 0.3 }}>-</span>}
+                                                </td>
+                                                <td style={{ fontSize: '0.85rem', color: '#fbbf24' }}>
+                                                    {item.posm.length > 0 ? item.posm.map((t, i) => <div key={i}>{t}</div>) : <span style={{ opacity: 0.3 }}>-</span>}
+                                                </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    <span style={{ 
-                                                        padding: '4px 10px', 
-                                                        borderRadius: '20px', 
-                                                        fontSize: '0.75rem', 
-                                                        fontWeight: 'bold',
-                                                        background: item.type === 'New Visit' ? 'rgba(74,222,128,0.15)' : 'rgba(56,189,248,0.15)',
-                                                        color: item.type === 'New Visit' ? '#4ade80' : '#38bdf8',
-                                                        border: `1px solid ${item.type === 'New Visit' ? 'rgba(74,222,128,0.3)' : 'rgba(56,189,248,0.3)'}`
-                                                    }}>
-                                                        {item.type}
-                                                    </span>
+                                                    <button
+                                                        onClick={() => { handleEditClick(item.originalSalon); setActiveTab('salons'); }}
+                                                        className="btn-primary outline"
+                                                        style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px' }}
+                                                    >
+                                                        Edit Salon
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan="6" style={{ textAlign: 'center', padding: '4rem', color: 'gray' }}>
-                                                No visit records found for the selected criteria
+                                            <td colSpan="10" style={{ textAlign: 'center', padding: '4rem', color: 'gray' }}>
+                                                No salons found for the selected criteria
                                             </td>
                                         </tr>
                                     )}
