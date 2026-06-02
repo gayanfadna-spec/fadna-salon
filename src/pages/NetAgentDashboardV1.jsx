@@ -20,6 +20,10 @@ const NetAgentDashboardV1 = () => {
     const [newCredentials, setNewCredentials] = useState(null);
     const [editingAgent, setEditingAgent] = useState(null);
 
+    const [products, setProducts] = useState([]);
+    const [agentData, setAgentData] = useState(null);
+    const [childCommissions, setChildCommissions] = useState({});
+
     const netAgentUser = useMemo(() => JSON.parse(localStorage.getItem('netAgentUser')), []);
 
     const emptyForm = {
@@ -50,12 +54,52 @@ const NetAgentDashboardV1 = () => {
         } catch (err) { console.error(err); }
     }, [netAgentUser]);
 
+    const fetchData = React.useCallback(async () => {
+        try {
+            const [agentRes, prodRes] = await Promise.all([
+                axios.get(`${API_URL}/net-agents/${netAgentUser._id}`),
+                axios.get(`${API_URL}/products`)
+            ]);
+            if (agentRes.data.success) {
+                setAgentData(agentRes.data.agent);
+                const comms = {};
+                (agentRes.data.agent.childCommissions || []).forEach(cc => {
+                    comms[cc.productId] = cc.commission;
+                });
+                setChildCommissions(comms);
+            }
+            if (prodRes.data.success) {
+                setProducts(prodRes.data.products.filter(p => p.isActive));
+            }
+        } catch (err) { console.error(err); }
+    }, [netAgentUser]);
+
     useEffect(() => {
         if (netAgentUser) {
             fetchMyAgents();
             fetchOrders();
+            fetchData();
         }
-    }, [fetchMyAgents, fetchOrders, netAgentUser]);
+    }, [fetchMyAgents, fetchOrders, fetchData, netAgentUser]);
+
+    const handleSaveCommissions = async () => {
+        try {
+            const commissionsArray = Object.entries(childCommissions).map(([productId, commission]) => ({
+                productId,
+                commission: Number(commission)
+            }));
+            const res = await axios.put(`${API_URL}/net-agents/${netAgentUser._id}/child-commissions`, {
+                childCommissions: commissionsArray
+            });
+            if (res.data.success) {
+                alert('Commissions updated successfully!');
+                fetchData();
+            }
+        } catch (err) {
+            alert('Failed to update commissions.');
+            console.error(err);
+        }
+    };
 
     const handleCreateAgent = async (e) => {
         e.preventDefault();
@@ -118,6 +162,29 @@ const NetAgentDashboardV1 = () => {
         return (o.customerName || '').toLowerCase().includes(t) || (o.customerPhone || '').includes(t);
     });
 
+    const codCount = orders.filter(o => o.status === 'COD').length;
+    const paidCount = orders.filter(o => o.status === 'Paid').length;
+    const completedCount = orders.filter(o => o.status === 'Completed').length;
+    
+    const totalCommission = orders.filter(o => o.status === 'Paid' || o.status === 'Completed').reduce((sum, o) => {
+        return sum + (o.items || []).reduce((itemSum, i) => {
+            let comm = childCommissions[i.productId] !== undefined ? Number(childCommissions[i.productId]) : (i.commission || 0);
+            return itemSum + (comm * (i.quantity || 1));
+        }, 0);
+    }, 0);
+
+    const productCounts = {};
+    orders.forEach(o => {
+        if (o.status !== 'Draft' && o.status !== 'Cancelled') {
+            (o.items || []).forEach(item => {
+                if (item.productName) {
+                    productCounts[item.productName] = (productCounts[item.productName] || 0) + (item.quantity || 1);
+                }
+            });
+        }
+    });
+    const sortedProducts = Object.entries(productCounts).sort((a, b) => b[1] - a[1]);
+
     return (
         <div className="admin-container animate-fade-in">
             <header className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -132,10 +199,11 @@ const NetAgentDashboardV1 = () => {
                 </div>
             </header>
 
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
                 <button className={`btn-primary ${activeTab === 'overview' ? '' : 'outline'}`} onClick={() => setActiveTab('overview')}>Overview</button>
                 <button className={`btn-primary ${activeTab === 'orders' ? '' : 'outline'}`} onClick={() => setActiveTab('orders')}>Orders (Child-wise)</button>
                 <button className={`btn-primary ${activeTab === 'agents' ? '' : 'outline'}`} onClick={() => setActiveTab('agents')}>My Agents (2nd Level)</button>
+                <button className={`btn-primary ${activeTab === 'commissions' ? '' : 'outline'}`} onClick={() => setActiveTab('commissions')}>Commissions</button>
             </div>
 
             {activeTab === 'overview' && (
@@ -150,6 +218,47 @@ const NetAgentDashboardV1 = () => {
                             <h3>Total Orders</h3>
                             <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{orders.length}</div>
                         </div>
+                        <div className="stat-card" style={{ padding: '1.5rem', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '12px', textAlign: 'center' }}>
+                            <h3>Paid Orders</h3>
+                            <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{paidCount}</div>
+                        </div>
+                        <div className="stat-card" style={{ padding: '1.5rem', background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.3)', borderRadius: '12px', textAlign: 'center' }}>
+                            <h3>COD Orders</h3>
+                            <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{codCount}</div>
+                        </div>
+                        <div className="stat-card" style={{ padding: '1.5rem', background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.3)', borderRadius: '12px', textAlign: 'center' }}>
+                            <h3>Completed Orders</h3>
+                            <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{completedCount}</div>
+                        </div>
+                        <div className="stat-card" style={{ padding: '1.5rem', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '12px', textAlign: 'center' }}>
+                            <h3>Commission (Paid/Completed)</h3>
+                            <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>Rs. {totalCommission.toLocaleString()}</div>
+                        </div>
+                    </div>
+
+                    <h3 style={{ marginBottom: '1rem', marginTop: '2rem' }}>Product Wise Count</h3>
+                    <div className="table-container" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '12px', overflowX: 'auto', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <table className="styled-table">
+                            <thead>
+                                <tr>
+                                    <th>Product Name</th>
+                                    <th style={{ textAlign: 'right' }}>Total Quantity Sold</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sortedProducts.map(([productName, quantity], idx) => (
+                                    <tr key={idx}>
+                                        <td style={{ fontWeight: 'bold' }}>{productName}</td>
+                                        <td style={{ textAlign: 'right', fontSize: '1.1rem', color: '#4ade80' }}>{quantity}</td>
+                                    </tr>
+                                ))}
+                                {sortedProducts.length === 0 && (
+                                    <tr>
+                                        <td colSpan="2" style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>No products sold yet</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </section>
             )}
@@ -166,22 +275,74 @@ const NetAgentDashboardV1 = () => {
                             <input type="text" placeholder="Search orders..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: 'white' }} />
                         </div>
                     </div>
-                    <div className="table-container">
+
+                    <h3 style={{ marginBottom: '1rem' }}>My Direct Orders</h3>
+                    <div className="table-container" style={{ marginBottom: '2rem' }}>
                         <table className="styled-table">
                             <thead>
                                 <tr>
-                                    <th>Date</th><th>Order ID</th><th>Agent (2nd)</th><th>Customer</th><th>Items</th><th>City / Total</th><th>Status</th>
+                                    <th>Date</th><th>Order ID</th><th>Customer</th><th>Items</th><th>City / Total</th><th>My Commission</th><th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredOrders.map(o => {
-                                    const childAgent = myAgents.find(a => a._id === o.netAgent2Id);
+                                {filteredOrders.filter(o => !o.netAgent2Id).map(o => {
+                                    const myCommission = o.items.reduce((sum, i) => sum + ((i.commission || 0) * (i.quantity || 1)), 0);
                                     return (
                                         <tr key={o._id}>
                                             <td>{new Date(o.createdAt).toLocaleDateString()}</td>
                                             <td>{o.merchantOrderId || o._id.slice(-6).toUpperCase()}</td>
                                             <td>
-                                                {childAgent ? childAgent.name : 'Direct / Other'}
+                                                {o.customerName}<br />
+                                                <small>{o.customerPhone}</small>
+                                            </td>
+                                            <td>
+                                                {o.items && o.items.map(i => (
+                                                    <div key={i._id} style={{ fontSize: '0.8rem' }}>• {i.productName} x{i.quantity}</div>
+                                                ))}
+                                            </td>
+                                            <td>
+                                                {o.city}<br />
+                                                <span style={{ fontWeight: 'bold' }}>Rs.{o.totalAmount}</span>
+                                            </td>
+                                            <td style={{ color: '#4ade80', fontWeight: 'bold' }}>Rs.{myCommission}</td>
+                                            <td><span className="status-badge" style={{ background: `${statusColors[o.status] || '#6b7280'}22`, color: statusColors[o.status] || '#fff', border: `1px solid ${statusColors[o.status]}` }}>{o.status}</span></td>
+                                        </tr>
+                                    );
+                                })}
+                                {filteredOrders.filter(o => !o.netAgent2Id).length === 0 && (
+                                    <tr><td colSpan="7" style={{ textAlign: 'center', padding: '1rem', opacity: 0.5 }}>No direct orders</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 style={{ marginBottom: '1rem' }}>2nd Level Agent Orders</h3>
+                    <div className="table-container">
+                        <table className="styled-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th><th>Order ID</th><th>Agent (2nd)</th><th>Customer</th><th>Items</th><th>City / Total</th><th>My Comm.</th><th>Child Comm.</th><th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredOrders.filter(o => o.netAgent2Id).map(o => {
+                                    const childAgent = myAgents.find(a => a._id === o.netAgent2Id);
+                                    let myComm = 0;
+                                    let childComm = 0;
+                                    o.items.forEach(i => {
+                                        const p = products.find(prod => prod._id === i.productId);
+                                        const fullComm = p ? p.commission : 0;
+                                        const cComm = childCommissions[i.productId] !== undefined ? Number(childCommissions[i.productId]) : (i.commission || 0);
+                                        childComm += cComm * (i.quantity || 1);
+                                        myComm += Math.max(0, fullComm - cComm) * (i.quantity || 1);
+                                    });
+
+                                    return (
+                                        <tr key={o._id}>
+                                            <td>{new Date(o.createdAt).toLocaleDateString()}</td>
+                                            <td>{o.merchantOrderId || o._id.slice(-6).toUpperCase()}</td>
+                                            <td>
+                                                {childAgent ? childAgent.name : 'Unknown'}
                                                 {childAgent && <br />}
                                                 {childAgent && <small>{childAgent.agentCode}</small>}
                                             </td>
@@ -198,10 +359,15 @@ const NetAgentDashboardV1 = () => {
                                                 {o.city}<br />
                                                 <span style={{ fontWeight: 'bold' }}>Rs.{o.totalAmount}</span>
                                             </td>
+                                            <td style={{ color: '#4ade80', fontWeight: 'bold' }}>Rs.{myComm}</td>
+                                            <td style={{ color: '#f59e0b', fontWeight: 'bold' }}>Rs.{childComm}</td>
                                             <td><span className="status-badge" style={{ background: `${statusColors[o.status] || '#6b7280'}22`, color: statusColors[o.status] || '#fff', border: `1px solid ${statusColors[o.status]}` }}>{o.status}</span></td>
                                         </tr>
                                     );
                                 })}
+                                {filteredOrders.filter(o => o.netAgent2Id).length === 0 && (
+                                    <tr><td colSpan="9" style={{ textAlign: 'center', padding: '1rem', opacity: 0.5 }}>No child orders</td></tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -321,6 +487,48 @@ const NetAgentDashboardV1 = () => {
                             </div>
                         </div>
                     )}
+                </section>
+            )}
+
+            {activeTab === 'commissions' && (
+                <section className="glass-container">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                        <h2>Set Commission for 2nd Level Agents</h2>
+                        <button className="btn-primary" onClick={handleSaveCommissions}>Save All Commissions</button>
+                    </div>
+                    <p style={{ opacity: 0.7, marginBottom: '1.5rem' }}>Set the specific commission amount that your 2nd level agents will receive when they sell each product.</p>
+                    
+                    <div className="table-container">
+                        <table className="styled-table">
+                            <thead>
+                                <tr>
+                                    <th>Product Name</th>
+                                    <th>Price (Rs.)</th>
+                                    <th>2nd Level Commission (Rs.)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {products.map(p => (
+                                    <tr key={p._id}>
+                                        <td style={{ fontWeight: 'bold' }}>{p.name}</td>
+                                        <td>{p.finalPrice}</td>
+                                        <td>
+                                            <input 
+                                                type="number" 
+                                                value={childCommissions[p._id] !== undefined ? childCommissions[p._id] : ''} 
+                                                onChange={(e) => setChildCommissions({ ...childCommissions, [p._id]: e.target.value })}
+                                                placeholder="Amount"
+                                                style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', width: '120px' }} 
+                                            />
+                                        </td>
+                                    </tr>
+                                ))}
+                                {products.length === 0 && (
+                                    <tr><td colSpan="3" style={{ textAlign: 'center', padding: '2rem' }}>No products found</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </section>
             )}
         </div>

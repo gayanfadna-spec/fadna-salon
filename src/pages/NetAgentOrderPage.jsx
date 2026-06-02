@@ -136,12 +136,22 @@ const NetAgentOrderPage = () => {
         e.preventDefault();
         const items = Object.entries(cart).map(([itemId, qty]) => {
             const item = products.find(i => i._id === itemId);
+            
+            let commission = item.commission || 0;
+            // Override with childCommissions if it's a level 2 agent
+            if (agent && agent.level === 2 && agent.parentNetAgentId && agent.parentNetAgentId.childCommissions) {
+                const override = agent.parentNetAgentId.childCommissions.find(c => c.productId === itemId || c.productId === item._id);
+                if (override) {
+                    commission = override.commission;
+                }
+            }
+
             return {
                 productId: item._id,
                 productName: item.name,
                 quantity: qty,
                 price: item.finalPrice,
-                commission: item.commission || 0
+                commission: commission
             };
         });
         if (items.length === 0) return alert('Please add items to cart');
