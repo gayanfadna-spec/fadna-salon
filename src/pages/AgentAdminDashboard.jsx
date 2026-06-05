@@ -180,12 +180,22 @@ const AgentAdminDashboard = () => {
     };
     //fuck rtrtr
     const handleEditProduct = (product) => {
+        const getTargetVal = (t) => {
+            if (Array.isArray(t)) {
+                if (t.includes('salon') && t.includes('agent')) return 'both';
+                if (t.includes('salon')) return 'salon';
+                if (t.includes('agent')) return 'agent';
+                if (t.includes('both')) return 'both';
+                return 'both';
+            }
+            return t || 'both';
+        };
         setNewProduct({
             name: product.name,
             price: product.price,
             discountType: product.discountType,
             discountValue: product.discountValue,
-            target: product.target || 'both',
+            target: getTargetVal(product.target),
             commission: product.commission || 0
         });
         setEditingProductId(product._id);
@@ -1796,7 +1806,19 @@ const AgentAdminDashboard = () => {
                                             </span>
                                         )}
                                         <div style={{ marginTop: '0.2rem', color: '#38bdf8' }}>
-                                            For: {p.target === 'salon' ? 'Salon Only' : p.target === 'agent' ? 'Agent Only' : 'Both'}
+                                            For: {(() => {
+                                                const t = p.target;
+                                                if (Array.isArray(t)) {
+                                                    if (t.includes('salon') && t.includes('agent')) return 'Both';
+                                                    if (t.includes('salon')) return 'Salon Only';
+                                                    if (t.includes('agent')) return 'Agent Only';
+                                                    if (t.includes('both')) return 'Both';
+                                                    return 'Both';
+                                                }
+                                                if (t === 'salon') return 'Salon Only';
+                                                if (t === 'agent') return 'Agent Only';
+                                                return 'Both';
+                                            })()}
                                         </div>
                                         <div style={{ marginTop: '0.2rem', color: '#4ade80', fontWeight: 'bold' }}>
                                             Commission: Rs.{p.commission || 0}
