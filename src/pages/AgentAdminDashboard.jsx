@@ -50,13 +50,14 @@ const AgentAdminDashboard = () => {
 
     const fetchOrders = React.useCallback(async () => {
         try {
-            const params = selectedAgentId ? { agentId: selectedAgentId } : {};
-            const res = await axios.get(`${API_URL}/orders`, { params });
+            // Always fetch all orders to ensure detailed performance reports have all data
+            // Local .filter() handles the view separation.
+            const res = await axios.get(`${API_URL}/orders`);
             if (res.data.success) setOrders(res.data.orders);
         } catch (err) {
             console.error(err);
         }
-    }, [selectedAgentId]);
+    }, []);
 
     const fetchAgents = React.useCallback(async () => {
         try {
@@ -1746,6 +1747,7 @@ const AgentAdminDashboard = () => {
                                     <option value="both">Both</option>
                                     <option value="salon">Salon Only</option>
                                     <option value="agent">Agent Only</option>
+                                    <option value="netagent">Net Agent Only</option>
                                 </select>
                                 {newProduct.discountType !== 'none' && (
                                     <input
@@ -1812,11 +1814,13 @@ const AgentAdminDashboard = () => {
                                                     if (t.includes('salon') && t.includes('agent')) return 'Both';
                                                     if (t.includes('salon')) return 'Salon Only';
                                                     if (t.includes('agent')) return 'Agent Only';
+                                                    if (t.includes('netagent')) return 'Net Agent Only';
                                                     if (t.includes('both')) return 'Both';
                                                     return 'Both';
                                                 }
                                                 if (t === 'salon') return 'Salon Only';
                                                 if (t === 'agent') return 'Agent Only';
+                                                if (t === 'netagent') return 'Net Agent Only';
                                                 return 'Both';
                                             })()}
                                         </div>

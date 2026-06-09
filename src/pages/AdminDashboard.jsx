@@ -330,13 +330,14 @@ const AdminDashboard = () => {
 
     const fetchOrders = React.useCallback(async () => {
         try {
-            const params = selectedSalonId ? { salonId: selectedSalonId } : {};
-            const res = await axios.get(`${API_URL}/orders`, { params });
+            // Always fetch all orders to ensure detailed performance reports have all data
+            // Local .filter() handles the view separation.
+            const res = await axios.get(`${API_URL}/orders`);
             if (res.data.success) setOrders(res.data.orders);
         } catch (err) {
             console.error(err);
         }
-    }, [selectedSalonId]);
+    }, []);
 
     const fetchSalons = React.useCallback(async () => {
         try {
@@ -2690,6 +2691,7 @@ const AdminDashboard = () => {
                                         <option value="both">Both</option>
                                         <option value="salon">Salon Only</option>
                                         <option value="agent">Agent Only</option>
+                                        <option value="netagent">Net Agent Only</option>
                                     </select>
                                     {newProduct.discountType !== 'none' && (
                                         <input
@@ -2756,11 +2758,13 @@ const AdminDashboard = () => {
                                                         if (t.includes('salon') && t.includes('agent')) return 'Both';
                                                         if (t.includes('salon')) return 'Salon Only';
                                                         if (t.includes('agent')) return 'Agent Only';
+                                                        if (t.includes('netagent')) return 'Net Agent Only';
                                                         if (t.includes('both')) return 'Both';
                                                         return 'Both';
                                                     }
                                                     if (t === 'salon') return 'Salon Only';
                                                     if (t === 'agent') return 'Agent Only';
+                                                    if (t === 'netagent') return 'Net Agent Only';
                                                     return 'Both';
                                                 })()}
                                             </div>
@@ -3917,7 +3921,10 @@ const AdminDashboard = () => {
                                                                         <tbody>
                                                                             {orders.filter(o => {
                                                                                 if (!["Paid", "COD", "Completed"].includes(o.status)) return false;
-                                                                                if (performanceReportType === 'agent' && o.agentName !== item._id) return false;
+                                                                                if (performanceReportType === 'agent') {
+                                                                                    const belongs = o.netAgent1Id === item.entityId || o.agentId === item.entityId || o.agentName === item._id;
+                                                                                    if (!belongs) return false;
+                                                                                }
                                                                                 if (performanceReportType === 'salon' && o.salonName !== item._id) return false;
                                                                                 if (reportStartDate || reportEndDate) {
                                                                                     const d = new Date(o.createdAt);
