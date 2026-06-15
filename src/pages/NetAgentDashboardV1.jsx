@@ -15,6 +15,7 @@ const NetAgentDashboardV1 = () => {
     const [activeTab, setActiveTab] = useState('overview');
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedAgentId, setSelectedAgentId] = useState('');
+    const [orderViewType, setOrderViewType] = useState('all');
     const [qrCode, setQrCode] = useState(null);
     const [createdAgent, setCreatedAgent] = useState(null);
     const [newCredentials, setNewCredentials] = useState(null);
@@ -166,16 +167,29 @@ const NetAgentDashboardV1 = () => {
     const paidCount = orders.filter(o => o.status === 'Paid').length;
     const completedCount = orders.filter(o => o.status === 'Completed').length;
     
-    const totalCommission = orders.filter(o => o.status === 'Paid' || o.status === 'Completed').reduce((sum, o) => {
-        return sum + (o.items || []).reduce((itemSum, i) => {
-            let comm = childCommissions[i.productId] !== undefined ? Number(childCommissions[i.productId]) : (i.commission || 0);
-            return itemSum + (comm * (i.quantity || 1));
-        }, 0);
-    }, 0);
+    let directCommission = 0;
+    let childCommission = 0;
+
+    orders.filter(o => o.status === 'Paid' || o.status === 'Completed').forEach(o => {
+        if (!o.netAgent2Id) {
+            (o.items || []).forEach(i => {
+                directCommission += (i.commission || 0) * (i.quantity || 1);
+            });
+        } else {
+            (o.items || []).forEach(i => {
+                const p = products.find(prod => prod._id === i.productId);
+                const fullComm = p ? p.commission : 0;
+                const cComm = childCommissions[i.productId] !== undefined ? Number(childCommissions[i.productId]) : (i.commission || 0);
+                childCommission += Math.max(0, fullComm - cComm) * (i.quantity || 1);
+            });
+        }
+    });
+
+    const totalCommission = directCommission + childCommission;
 
     const productCounts = {};
     orders.forEach(o => {
-        if (o.status !== 'Draft' && o.status !== 'Cancelled') {
+        if (o.status === 'Paid' || o.status === 'Completed') {
             (o.items || []).forEach(item => {
                 if (item.productName) {
                     productCounts[item.productName] = (productCounts[item.productName] || 0) + (item.quantity || 1);
@@ -201,7 +215,7 @@ const NetAgentDashboardV1 = () => {
 
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
                 <button className={`btn-primary ${activeTab === 'overview' ? '' : 'outline'}`} onClick={() => setActiveTab('overview')}>Overview</button>
-                <button className={`btn-primary ${activeTab === 'orders' ? '' : 'outline'}`} onClick={() => setActiveTab('orders')}>Orders (Child-wise)</button>
+                <button className={`btn-primary ${activeTab === 'orders' ? '' : 'outline'}`} onClick={() => setActiveTab('orders')}>Orders</button>
                 <button className={`btn-primary ${activeTab === 'agents' ? '' : 'outline'}`} onClick={() => setActiveTab('agents')}>My Agents (2nd Level)</button>
                 <button className={`btn-primary ${activeTab === 'commissions' ? '' : 'outline'}`} onClick={() => setActiveTab('commissions')}>Commissions</button>
             </div>
@@ -216,7 +230,23 @@ const NetAgentDashboardV1 = () => {
                         </div>
                         <div className="stat-card" style={{ padding: '1.5rem', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '12px', textAlign: 'center' }}>
                             <h3>Total Orders</h3>
-                            <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{orders.length}</div>
+                            <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{paidCount + codCount + completedCount}</div>
+                        </div>
+                        <div className="stat-card" style={{ gridColumn: '1 / -1', padding: '1.5rem', background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', borderRadius: '12px', textAlign: 'center' }}>
+                            <h3 style={{ marginBottom: '1rem' }}>Direct Orders</h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '1rem' }}>
+                                <div><div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#4ade80' }}>{orders.filter(o => !o.netAgent2Id && o.status === 'Paid').length}</div><small>Paid</small></div>
+                                <div><div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#f59e0b' }}>{orders.filter(o => !o.netAgent2Id && o.status === 'COD').length}</div><small>COD</small></div>
+                                <div><div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#a855f7' }}>{orders.filter(o => !o.netAgent2Id && o.status === 'Completed').length}</div><small>Completed</small></div>
+                            </div>
+                        </div>
+                        <div className="stat-card" style={{ gridColumn: '1 / -1', padding: '1.5rem', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '12px', textAlign: 'center' }}>
+                            <h3 style={{ marginBottom: '1rem' }}>Child Orders</h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '1rem' }}>
+                                <div><div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#4ade80' }}>{orders.filter(o => o.netAgent2Id && o.status === 'Paid').length}</div><small>Paid</small></div>
+                                <div><div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#f59e0b' }}>{orders.filter(o => o.netAgent2Id && o.status === 'COD').length}</div><small>COD</small></div>
+                                <div><div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#a855f7' }}>{orders.filter(o => o.netAgent2Id && o.status === 'Completed').length}</div><small>Completed</small></div>
+                            </div>
                         </div>
                         <div className="stat-card" style={{ padding: '1.5rem', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '12px', textAlign: 'center' }}>
                             <h3>Paid Orders</h3>
@@ -230,9 +260,13 @@ const NetAgentDashboardV1 = () => {
                             <h3>Completed Orders</h3>
                             <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{completedCount}</div>
                         </div>
-                        <div className="stat-card" style={{ padding: '1.5rem', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '12px', textAlign: 'center' }}>
-                            <h3>Commission (Paid/Completed)</h3>
-                            <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>Rs. {totalCommission.toLocaleString()}</div>
+                        <div className="stat-card" style={{ gridColumn: '1 / -1', padding: '1.5rem', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '12px', textAlign: 'center' }}>
+                            <h3 style={{ marginBottom: '1rem' }}>Total Commission (Paid/Completed)</h3>
+                            <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#fff', marginBottom: '1rem' }}>Rs. {totalCommission.toLocaleString()}</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
+                                <div><div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#a855f7' }}>Rs. {directCommission.toLocaleString()}</div><small>From Direct Orders</small></div>
+                                <div><div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#a855f7' }}>Rs. {childCommission.toLocaleString()}</div><small>From Child Orders</small></div>
+                            </div>
                         </div>
                     </div>
 
@@ -268,6 +302,11 @@ const NetAgentDashboardV1 = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                         <h2>Orders Monitoring</h2>
                         <div style={{ display: 'flex', gap: '1rem' }}>
+                            <select value={orderViewType} onChange={e => setOrderViewType(e.target.value)} style={{ padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: 'white' }}>
+                                <option value="all">All Orders</option>
+                                <option value="direct">My Direct Orders</option>
+                                <option value="child">2nd Level Agent Orders</option>
+                            </select>
                             <select value={selectedAgentId} onChange={e => setSelectedAgentId(e.target.value)} style={{ padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: 'white' }}>
                                 <option value="">All My Agents</option>
                                 {myAgents.map(a => <option key={a._id} value={a._id}>{a.name}</option>)}
@@ -276,8 +315,25 @@ const NetAgentDashboardV1 = () => {
                         </div>
                     </div>
 
-                    <h3 style={{ marginBottom: '1rem' }}>My Direct Orders</h3>
-                    <div className="table-container" style={{ marginBottom: '2rem' }}>
+                    {(orderViewType === 'all' || orderViewType === 'direct') && (
+                        <>
+                            {(() => {
+                                const directOrders = filteredOrders.filter(o => !o.netAgent2Id);
+                                const paid = directOrders.filter(o => o.status === 'Paid').length;
+                                const cod = directOrders.filter(o => o.status === 'COD').length;
+                                const completed = directOrders.filter(o => o.status === 'Completed').length;
+                                return (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                                        <h3 style={{ margin: 0 }}>My Direct Orders</h3>
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            <span style={{ fontSize: '0.8rem', padding: '0.2rem 0.5rem', background: 'rgba(74,222,128,0.2)', color: '#4ade80', borderRadius: '4px', border: '1px solid #4ade80' }}>Paid: {paid}</span>
+                                            <span style={{ fontSize: '0.8rem', padding: '0.2rem 0.5rem', background: 'rgba(245,158,11,0.2)', color: '#f59e0b', borderRadius: '4px', border: '1px solid #f59e0b' }}>COD: {cod}</span>
+                                            <span style={{ fontSize: '0.8rem', padding: '0.2rem 0.5rem', background: 'rgba(168,85,247,0.2)', color: '#a855f7', borderRadius: '4px', border: '1px solid #a855f7' }}>Completed: {completed}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                            <div className="table-container" style={{ marginBottom: '2rem' }}>
                         <table className="styled-table">
                             <thead>
                                 <tr>
@@ -315,9 +371,28 @@ const NetAgentDashboardV1 = () => {
                             </tbody>
                         </table>
                     </div>
+                    </>
+                    )}
 
-                    <h3 style={{ marginBottom: '1rem' }}>2nd Level Agent Orders</h3>
-                    <div className="table-container">
+                    {(orderViewType === 'all' || orderViewType === 'child') && (
+                        <>
+                            {(() => {
+                                const childOrders = filteredOrders.filter(o => o.netAgent2Id);
+                                const paid = childOrders.filter(o => o.status === 'Paid').length;
+                                const cod = childOrders.filter(o => o.status === 'COD').length;
+                                const completed = childOrders.filter(o => o.status === 'Completed').length;
+                                return (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                                        <h3 style={{ margin: 0 }}>2nd Level Agent Orders</h3>
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            <span style={{ fontSize: '0.8rem', padding: '0.2rem 0.5rem', background: 'rgba(74,222,128,0.2)', color: '#4ade80', borderRadius: '4px', border: '1px solid #4ade80' }}>Paid: {paid}</span>
+                                            <span style={{ fontSize: '0.8rem', padding: '0.2rem 0.5rem', background: 'rgba(245,158,11,0.2)', color: '#f59e0b', borderRadius: '4px', border: '1px solid #f59e0b' }}>COD: {cod}</span>
+                                            <span style={{ fontSize: '0.8rem', padding: '0.2rem 0.5rem', background: 'rgba(168,85,247,0.2)', color: '#a855f7', borderRadius: '4px', border: '1px solid #a855f7' }}>Completed: {completed}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                            <div className="table-container">
                         <table className="styled-table">
                             <thead>
                                 <tr>
@@ -371,6 +446,8 @@ const NetAgentDashboardV1 = () => {
                             </tbody>
                         </table>
                     </div>
+                    </>
+                    )}
                 </section>
             )}
 

@@ -3701,6 +3701,7 @@ const AdminDashboard = () => {
                                     >
                                         <option value="agent">Agent</option>
                                         <option value="salon">Salon</option>
+                                        <option value="netagent">NetAgent</option>
                                     </select>
                                 </div>
                                 <div className="input-group">
@@ -3760,6 +3761,12 @@ const AdminDashboard = () => {
                                                 const agentRes = await axios.get(`${API_URL}/agents`);
                                                 const agentsList = Array.isArray(agentRes.data) ? agentRes.data : agentRes.data.agents || agentRes.data.data || [];
                                                 
+                                                let netAgentsList = [];
+                                                if (performanceReportType === 'netagent') {
+                                                    const netAgentRes = await axios.get(`${API_URL}/net-agents`);
+                                                    netAgentsList = Array.isArray(netAgentRes.data) ? netAgentRes.data : netAgentRes.data.netAgents || netAgentRes.data.data || netAgentRes.data.agents || [];
+                                                }
+
                                                 const filteredOrders = orders.filter(order => {
                                                     if (order.status !== 'Paid' && order.status !== 'Completed') return false;
                                                     if (order.isCommissionPaid) return false;
@@ -3790,6 +3797,14 @@ const AdminDashboard = () => {
                                                         if (agent) {
                                                             mobileNo = agent.contactNumber1 || agent.contactNumber2 || '';
                                                             accountDetails = agent.accountDetails || {};
+                                                        }
+                                                    } else if (performanceReportType === 'netagent') {
+                                                        if (!order.netAgent1Id) return;
+                                                        entityName = order.netAgent1Name || 'Unknown NetAgent';
+                                                        const netAgent = netAgentsList.find(a => a._id === order.netAgent1Id);
+                                                        if (netAgent) {
+                                                            mobileNo = netAgent.contactNumber1 || netAgent.contactNumber2 || '';
+                                                            accountDetails = netAgent.accountDetails || {};
                                                         }
                                                     } else {
                                                         if (!order.salonId) return;
@@ -3848,7 +3863,7 @@ const AdminDashboard = () => {
                                 <table className="styled-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                                     <thead>
                                         <tr>
-                                            <th style={{ textAlign: 'left', padding: '1rem' }}>{performanceReportType === 'agent' ? 'AGENT NAME' : 'SALON NAME'}</th>
+                                            <th style={{ textAlign: 'left', padding: '1rem' }}>{performanceReportType === 'agent' ? 'AGENT NAME' : performanceReportType === 'netagent' ? 'NETAGENT NAME' : 'SALON NAME'}</th>
                                             <th style={{ textAlign: 'center', padding: '1rem' }}>TOTAL ORDERS (paid+cod)</th>
                                             <th style={{ textAlign: 'center', padding: '1rem' }}>PAID</th>
                                             <th style={{ textAlign: 'center', padding: '1rem' }}>COD</th>
@@ -3921,11 +3936,12 @@ const AdminDashboard = () => {
                                                                         <tbody>
                                                                             {orders.filter(o => {
                                                                                 if (!["Paid", "COD", "Completed"].includes(o.status)) return false;
-                                                                                if (performanceReportType === 'agent') {
+                                                                                if (performanceReportType === 'agent' || performanceReportType === 'netagent') {
                                                                                     const belongs = o.netAgent1Id === item.entityId || o.agentId === item.entityId || o.agentName === item._id;
                                                                                     if (!belongs) return false;
+                                                                                } else if (performanceReportType === 'salon') {
+                                                                                    if (o.salonName !== item._id) return false;
                                                                                 }
-                                                                                if (performanceReportType === 'salon' && o.salonName !== item._id) return false;
                                                                                 if (reportStartDate || reportEndDate) {
                                                                                     const d = new Date(o.createdAt);
                                                                                     if (reportStartDate && d < new Date(reportStartDate)) return false;
@@ -4019,6 +4035,7 @@ const AdminDashboard = () => {
                                                                             {orders.filter(o => {
                                                                                 if (!["Paid", "COD", "Completed"].includes(o.status)) return false;
                                                                                 if (performanceReportType === 'agent' && o.agentName !== item._id) return false;
+                                                                                if (performanceReportType === 'netagent' && o.netAgent1Id !== item._id && o.netAgent1Name !== item._id) return false;
                                                                                 if (performanceReportType === 'salon' && o.salonName !== item._id) return false;
                                                                                 if (reportStartDate || reportEndDate) {
                                                                                     const d = new Date(o.createdAt);
