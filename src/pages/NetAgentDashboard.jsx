@@ -761,13 +761,7 @@ const NetAgentDashboard = () => {
                                     <label>Phone 2</label>
                                     <input placeholder="Phone 2" value={form.contactNumber2} onChange={e => setForm({ ...form, contactNumber2: e.target.value })} />
                                 </div>
-                                <div className="input-group">
-                                    <label>Representative Name</label>
-                                    <select value={form.repName} onChange={e => setForm({ ...form, repName: e.target.value })}>
-                                        <option value="" >Select Rep</option>
-                                        {reps.map(r => <option key={r._id} value={r.name} >{r.name}</option>)}
-                                    </select>
-                                </div>
+
                                 <div className="input-group">
                                     <label>Remark</label>
                                     <input placeholder="Remark" value={form.remark} onChange={e => setForm({ ...form, remark: e.target.value })} />
@@ -782,34 +776,23 @@ const NetAgentDashboard = () => {
                                 </div>
                             </div>
 
-                            <h3 className="section-title">Status</h3>
-                             <div className="form-grid" style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                 <div className="input-group" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
-                                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'white', fontSize: '1rem', minWidth: '150px' }}>
-                                         <input type="checkbox" checked={form.isVisited} onChange={e => setForm({ ...form, isVisited: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
-                                         Visited
-                                     </label>
-                                     {form.isVisited && (
-                                         <input type="date" value={form.visitedDate} onChange={e => setForm({ ...form, visitedDate: e.target.value })} style={{ flex: '1 1 200px', marginTop: 0 }} />
-                                     )}
+                            <h3 className="section-title" style={{ marginTop: '1.5rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', color: '#38bdf8' }}>Bank Details</h3>
+                             <div className="form-grid" style={{ marginBottom: '1.5rem' }}>
+                                 <div className="input-group">
+                                     <label>Bank Name</label>
+                                     <input placeholder="e.g. BOC" value={form.accountDetails?.bankName || ''} onChange={e => setForm({ ...form, accountDetails: { ...form.accountDetails, bankName: e.target.value } })} />
                                  </div>
-                                 <div className="input-group" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
-                                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'white', fontSize: '1rem', minWidth: '150px' }}>
-                                         <input type="checkbox" checked={form.isActive} onChange={e => setForm({ ...form, isActive: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
-                                         Active
-                                     </label>
-                                     {form.isActive && (
-                                         <input type="date" value={form.activeDate} onChange={e => setForm({ ...form, activeDate: e.target.value })} style={{ flex: '1 1 200px', marginTop: 0 }} />
-                                     )}
+                                 <div className="input-group">
+                                     <label>Branch</label>
+                                     <input placeholder="e.g. Colombo 05" value={form.accountDetails?.branch || ''} onChange={e => setForm({ ...form, accountDetails: { ...form.accountDetails, branch: e.target.value } })} />
                                  </div>
-                                 <div className="input-group" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
-                                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'white', fontSize: '1rem', minWidth: '150px' }}>
-                                         <input type="checkbox" checked={form.posmActive} onChange={e => setForm({ ...form, posmActive: e.target.checked })} style={{ width: '22px', height: '22px', margin: 0 }} />
-                                         POSM Active
-                                     </label>
-                                     {form.posmActive && (
-                                         <input type="date" value={form.posmDate} onChange={e => setForm({ ...form, posmDate: e.target.value })} style={{ flex: '1 1 200px', marginTop: 0 }} />
-                                     )}
+                                 <div className="input-group">
+                                     <label>Account Number</label>
+                                     <input placeholder="e.g. 1234567890" value={form.accountDetails?.accountNumber || ''} onChange={e => setForm({ ...form, accountDetails: { ...form.accountDetails, accountNumber: e.target.value } })} />
+                                 </div>
+                                 <div className="input-group">
+                                     <label>Account Name</label>
+                                     <input placeholder="e.g. John Doe" value={form.accountDetails?.accountName || ''} onChange={e => setForm({ ...form, accountDetails: { ...form.accountDetails, accountName: e.target.value } })} />
                                  </div>
                              </div>
 

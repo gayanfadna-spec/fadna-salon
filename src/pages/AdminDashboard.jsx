@@ -3800,9 +3800,10 @@ const AdminDashboard = () => {
                                                         }
                                                     } else if (performanceReportType === 'netagent') {
                                                         if (!order.netAgent1Id) return;
-                                                        entityName = order.netAgent1Name || 'Unknown NetAgent';
+                                                        entityName = order.agentName || 'Unknown NetAgent';
                                                         const netAgent = netAgentsList.find(a => a._id === order.netAgent1Id);
                                                         if (netAgent) {
+                                                            if (entityName === 'Unknown NetAgent') entityName = netAgent.name;
                                                             mobileNo = netAgent.contactNumber1 || netAgent.contactNumber2 || '';
                                                             accountDetails = netAgent.accountDetails || {};
                                                         }
@@ -3819,6 +3820,7 @@ const AdminDashboard = () => {
                                                     (order.items || []).forEach(item => {
                                                         exportData.push({
                                                             'order date': new Date(order.createdAt).toLocaleDateString(),
+                                                            'Invoice No': order.invoiceNumber || '',
                                                             'Customer Name': order.customerName || '',
                                                             'Product': item.productName || '',
                                                             'Salon/agent Name': entityName,
@@ -3828,7 +3830,8 @@ const AdminDashboard = () => {
                                                             'Account No': accountDetails.accountNumber || '',
                                                             'Account Name': accountDetails.accountName || '',
                                                             'Qty': item.quantity || 0,
-                                                            'commission': item.commission || 0
+                                                            'Unit Commission': item.commission || 0,
+                                                            'Total Commission': (item.commission || 0) * (item.quantity || 0)
                                                         });
                                                     });
                                                 });
@@ -3923,6 +3926,7 @@ const AdminDashboard = () => {
                                                                         <thead>
                                                                             <tr>
                                                                                 <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Order ID</th>
+                                                                                <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Invoice No</th>
                                                                                 <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Order Date</th>
                                                                                 <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Customer</th>
                                                                                 <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Salon Name</th>
@@ -3954,6 +3958,51 @@ const AdminDashboard = () => {
                                                                                 return (
                                                                                     <tr key={o._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                                                         <td style={{ padding: '0.75rem 1rem', fontSize: '0.8rem', opacity: 0.8 }}>{o.merchantOrderId || o._id.substring(0,8)}</td>
+                                                                                        <td style={{ padding: '0.75rem 1rem' }}>
+                                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                                                <input
+                                                                                                    id={`invoice-input-${o._id}`}
+                                                                                                    type="text"
+                                                                                                    defaultValue={o.invoiceNumber || ''}
+                                                                                                    style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', width: '90px', fontSize: '0.8rem' }}
+                                                                                                    placeholder="Invoice No"
+                                                                                                />
+                                                                                                <button
+                                                                                                    onClick={async (e) => {
+                                                                                                        e.stopPropagation();
+                                                                                                        const val = document.getElementById(`invoice-input-${o._id}`).value;
+                                                                                                        if (val === o.invoiceNumber) return;
+                                                                                                        try {
+                                                                                                            const res = await axios.put(`${API_URL}/orders/${o._id}/invoice`, { invoiceNumber: val, adminName: loggedInUsername });
+                                                                                                            if (res.data.success) {
+                                                                                                                setOrders(orders.map(or => or._id === o._id ? res.data.order : or));
+                                                                                                                // Optional quick feedback
+                                                                                                                const btn = e.target;
+                                                                                                                const originalText = btn.innerText;
+                                                                                                                btn.innerText = '✓';
+                                                                                                                setTimeout(() => btn.innerText = originalText, 1500);
+                                                                                                            }
+                                                                                                        } catch(err) {
+                                                                                                            alert('Error updating invoice number');
+                                                                                                        }
+                                                                                                    }}
+                                                                                                    style={{
+                                                                                                        background: 'rgba(74,222,128,0.2)',
+                                                                                                        color: '#4ade80',
+                                                                                                        border: '1px solid #4ade80',
+                                                                                                        padding: '2px 6px',
+                                                                                                        borderRadius: '4px',
+                                                                                                        fontSize: '0.7rem',
+                                                                                                        cursor: 'pointer',
+                                                                                                        fontWeight: 'bold',
+                                                                                                        transition: 'all 0.2s'
+                                                                                                    }}
+                                                                                                    title="Save Invoice Number"
+                                                                                                >
+                                                                                                    Save
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        </td>
                                                                                         <td style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>{formatDate(o.createdAt)}</td>
                                                                                         <td style={{ padding: '0.75rem 1rem' }}>{o.customerName || 'N/A'}</td>
                                                                                         <td style={{ padding: '0.75rem 1rem' }}>{o.salonName}</td>
@@ -4044,7 +4093,7 @@ const AdminDashboard = () => {
                                                                                 }
                                                                                 return true;
                                                                             }).length === 0 && (
-                                                                                <tr><td colSpan="8" style={{ textAlign: 'center', opacity: 0.5, padding: '1rem' }}>No matching orders found locally.</td></tr>
+                                                                                <tr><td colSpan="9" style={{ textAlign: 'center', opacity: 0.5, padding: '1rem' }}>No matching orders found locally.</td></tr>
                                                                             )}
                                                                         </tbody>
                                                                     </table>
