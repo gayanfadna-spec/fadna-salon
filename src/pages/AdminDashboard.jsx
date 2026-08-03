@@ -3939,7 +3939,8 @@ const AdminDashboard = () => {
                                                                         </thead>
                                                                         <tbody>
                                                                             {orders.filter(o => {
-                                                                                if (!["Paid", "COD", "Completed"].includes(o.status)) return false;
+                                                                                if (!["Paid", "Completed"].includes(o.status)) return false;
+                                                                                if (o.isCommissionPaid) return false;
                                                                                 if (performanceReportType === 'agent' || performanceReportType === 'netagent') {
                                                                                     const belongs = o.netAgent1Id === item.entityId || o.agentId === item.entityId || o.agentName === item._id;
                                                                                     if (!belongs) return false;
