@@ -1037,6 +1037,35 @@ const AdminDashboard = () => {
 
     // Duplicate declaration removed and moved to top useMemo for performance
 
+    const handleExportSalonSummary = () => {
+        let itemsToExport = salons;
+        if (reportStartDate) itemsToExport = itemsToExport.filter(s => new Date(s.createdAt) >= new Date(reportStartDate));
+        if (reportEndDate) {
+            const end = new Date(reportEndDate + 'T23:59:59.999Z');
+            itemsToExport = itemsToExport.filter(s => new Date(s.createdAt) <= end);
+        }
+        if (!itemsToExport.length) return alert('No salons to export for this date range');
+        const headers = ['Salon ID', 'Name', 'Location', 'Code', 'Contact 1', 'Contact 2', 'Rep Name', 'Register Date', 'Active Date', 'POSM Date'];
+        const rows = itemsToExport.map(s => {
+            return [
+                `"${s._id}"`,
+                `"${(s.name || '').replace(/"/g, '""')}"`,
+                `"${(s.location || '').replace(/"/g, '""')}"`,
+                `"${s.salonCode || ''}"`,
+                `"${s.contactNumber1 || s.contactNumber || ''}"`,
+                `"${s.contactNumber2 || ''}"`,
+                `"${(s.repName || '').replace(/"/g, '""')}"`,
+                `"${s.createdAt ? formatDate(s.createdAt) : ''}"`,
+                `"${s.activeDate ? formatDate(s.activeDate) : ''}"`,
+                `"${s.posmDate ? formatDate(s.posmDate) : ''}"`
+            ];
+        });
+        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        saveAs(blob, 'salon_summary_report.csv');
+        logReportHistory('Salon Summary', itemsToExport.length);
+    };
+
     const handleExportSalons = () => {
         let itemsToExport = salons;
         if (reportStartDate) itemsToExport = itemsToExport.filter(s => new Date(s.createdAt) >= new Date(reportStartDate));
@@ -3210,6 +3239,15 @@ const AdminDashboard = () => {
                                 <button onClick={handleExportSalons} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                                     Download Salons CSV
+                                </button>
+                            </div>
+
+                            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '2rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
+                                <h3 style={{ margin: 0 }}>Salon Summary Report</h3>
+                                <p style={{ margin: 0, opacity: 0.7, fontSize: '0.9rem', flex: 1 }}>Export a simplified list of salons with ID, name, location, code, contacts, rep, and key dates.</p>
+                                <button onClick={handleExportSalonSummary} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                    Download Summary CSV
                                 </button>
                             </div>
 
