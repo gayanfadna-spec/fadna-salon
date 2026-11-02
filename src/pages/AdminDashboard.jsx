@@ -446,7 +446,9 @@ const AdminDashboard = () => {
         }
     }, [reportStartDate, reportEndDate]);
 
-    const fetchDetailedPerformance = React.useCallback(async () => {
+    const [updatingCommission, setUpdatingCommission] = useState(false);
+
+    const fetchDetailedPerformance = React.useCallback(async (keepExpanded = false) => {
         setLoadingPerformance(true);
         try {
             const res = await axios.get(`${API_URL}/analytics/detailed-performance`, {
@@ -458,7 +460,9 @@ const AdminDashboard = () => {
             });
             if (res.data.success) {
                 setPerformanceReportData(res.data.stats);
-                setExpandedPerfRowId(null);
+                if (!keepExpanded) {
+                    setExpandedPerfRowId(null);
+                }
             }
         } catch (error) {
             console.error('Error fetching detailed performance:', error);
@@ -466,6 +470,55 @@ const AdminDashboard = () => {
             setLoadingPerformance(false);
         }
     }, [performanceReportType, reportStartDate, reportEndDate]);
+
+    const handleMarkAllCommissionPaid = async (targetOrders) => {
+        if (!targetOrders || targetOrders.length === 0) return;
+        const count = targetOrders.length;
+        if (!window.confirm(`Are you sure you want to change all ${count} orders to Commission Paid (Yes)?`)) {
+            return;
+        }
+
+        setUpdatingCommission(true);
+        try {
+            const orderIds = targetOrders.map(o => o._id);
+            let updatedOrders = [];
+
+            try {
+                const res = await axios.put(`${API_URL}/orders/bulk/commission`, {
+                    orderIds,
+                    isCommissionPaid: true,
+                    adminName: loggedInUsername
+                });
+                if (res.data && res.data.success && Array.isArray(res.data.orders)) {
+                    updatedOrders = res.data.orders;
+                }
+            } catch (bulkErr) {
+                console.warn('Bulk commission endpoint failed or unavailable, falling back to individual calls:', bulkErr);
+                const results = await Promise.all(
+                    orderIds.map(id => axios.put(`${API_URL}/orders/${id}/commission`, {
+                        isCommissionPaid: true,
+                        adminName: loggedInUsername
+                    }))
+                );
+                updatedOrders = results.filter(r => r.data && r.data.success).map(r => r.data.order);
+            }
+
+            if (updatedOrders.length > 0) {
+                const updatedMap = new Map(updatedOrders.map(o => [o._id, o]));
+                setOrders(prevOrders => prevOrders.map(o => updatedMap.get(o._id) || (orderIds.includes(o._id) ? { ...o, isCommissionPaid: true } : o)));
+            } else {
+                setOrders(prevOrders => prevOrders.map(o => orderIds.includes(o._id) ? { ...o, isCommissionPaid: true } : o));
+            }
+
+            // Refresh parent figures keeping the current row expanded
+            fetchDetailedPerformance(true);
+        } catch (err) {
+            console.error('Error updating commission status for all orders:', err);
+            alert('Failed to update commission status for all orders');
+        } finally {
+            setUpdatingCommission(false);
+        }
+    };
 
     useEffect(() => {
         if (activeTab === 'order-analytics') {
@@ -3952,195 +4005,225 @@ const AdminDashboard = () => {
                                                         </div>
                                                     </td>
                                                 </tr>
-                                                {expandedPerfRowId === item._id && (
-                                                    <tr style={{ background: 'rgba(0,0,0,0.2)' }}>
-                                                        <td colSpan="7" style={{ padding: '1rem' }}>
-                                                            <div style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                                                <h4 style={{ margin: '0 0 1rem 0', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                    <ShoppingBag size={16} /> Orders for {item._id}
-                                                                </h4>
-                                                                <div className="table-container shadow-sm" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                                                                    <table className="styled-table" style={{ width: '100%', fontSize: '0.9rem' }}>
-                                                                        <thead>
-                                                                            <tr>
-                                                                                <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Order ID</th>
-                                                                                <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Invoice No</th>
-                                                                                <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Order Date</th>
-                                                                                <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Customer</th>
-                                                                                <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Salon Name</th>
-                                                                                <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Status</th>
-                                                                                <th style={{ textAlign: 'right', padding: '0.75rem 1rem' }}>Commission (Rs)</th>
-                                                                                <th style={{ textAlign: 'right', padding: '0.75rem 1rem' }}>Items</th>
-                                                                                <th style={{ textAlign: 'center', padding: '0.75rem 1rem' }}>Commission Paid?</th>
-                                                                                {adminRole === 'superadmin' && <th style={{ textAlign: 'center', padding: '0.75rem 1rem' }}>Actions</th>}
-                                                                            </tr>
-                                                                        </thead>
-                                                                        <tbody>
-                                                                            {orders.filter(o => {
-                                                                                if (!["Paid", "Completed"].includes(o.status)) return false;
-                                                                                if (o.isCommissionPaid) return false;
-                                                                                if (performanceReportType === 'agent' || performanceReportType === 'netagent') {
-                                                                                    const belongs = o.netAgent1Id === item.entityId || o.agentId === item.entityId || o.agentName === item._id;
-                                                                                    if (!belongs) return false;
-                                                                                } else if (performanceReportType === 'salon') {
-                                                                                    if (o.salonName !== item._id) return false;
-                                                                                }
-                                                                                if (reportStartDate || reportEndDate) {
-                                                                                    const d = new Date(o.createdAt);
-                                                                                    if (reportStartDate && d < new Date(reportStartDate)) return false;
-                                                                                    if (reportEndDate && d > new Date(reportEndDate + 'T23:59:59.999Z')) return false;
-                                                                                }
-                                                                                return true;
-                                                                            }).map(o => {
-                                                                                const ordCommission = (o.items || []).reduce((sum, i) => sum + ((i.commission || 0) * (i.quantity || 1)), 0);
-                                                                                const itemsSummary = (o.items || []).map(i => `${i.productName} (${i.quantity})`).join(', ');
-                                                                                return (
-                                                                                    <tr key={o._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                                                        <td style={{ padding: '0.75rem 1rem', fontSize: '0.8rem', opacity: 0.8 }}>{o.merchantOrderId || o._id.substring(0,8)}</td>
-                                                                                        <td style={{ padding: '0.75rem 1rem' }}>
-                                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                                                <input
-                                                                                                    id={`invoice-input-${o._id}`}
-                                                                                                    type="text"
-                                                                                                    defaultValue={o.invoiceNumber || ''}
-                                                                                                    style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', width: '90px', fontSize: '0.8rem' }}
-                                                                                                    placeholder="Invoice No"
-                                                                                                />
+                                                {expandedPerfRowId === item._id && (() => {
+                                                    const itemUnpaidOrders = orders.filter(o => {
+                                                        if (!["Paid", "Completed"].includes(o.status)) return false;
+                                                        if (o.isCommissionPaid) return false;
+                                                        if (performanceReportType === 'agent' || performanceReportType === 'netagent') {
+                                                            const belongs = o.netAgent1Id === item.entityId || o.agentId === item.entityId || o.agentName === item._id;
+                                                            if (!belongs) return false;
+                                                        } else if (performanceReportType === 'salon') {
+                                                            if (o.salonName !== item._id) return false;
+                                                        }
+                                                        if (reportStartDate || reportEndDate) {
+                                                            const d = new Date(o.createdAt);
+                                                            if (reportStartDate && d < new Date(reportStartDate)) return false;
+                                                            if (reportEndDate && d > new Date(reportEndDate + 'T23:59:59.999Z')) return false;
+                                                        }
+                                                        return true;
+                                                    });
+
+                                                    return (
+                                                        <tr style={{ background: 'rgba(0,0,0,0.2)' }}>
+                                                            <td colSpan="7" style={{ padding: '1rem' }}>
+                                                                <div style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                                                        <h4 style={{ margin: 0, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                            <ShoppingBag size={16} /> Orders for {item._id}
+                                                                        </h4>
+                                                                        <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                                                                            {itemUnpaidOrders.length} unpaid commission order{itemUnpaidOrders.length === 1 ? '' : 's'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="table-container shadow-sm" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                                                        <table className="styled-table" style={{ width: '100%', fontSize: '0.9rem' }}>
+                                                                            <thead>
+                                                                                <tr>
+                                                                                    <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Order ID</th>
+                                                                                    <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Invoice No</th>
+                                                                                    <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Order Date</th>
+                                                                                    <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Customer</th>
+                                                                                    <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Salon Name</th>
+                                                                                    <th style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>Status</th>
+                                                                                    <th style={{ textAlign: 'right', padding: '0.75rem 1rem' }}>Commission (Rs)</th>
+                                                                                    <th style={{ textAlign: 'right', padding: '0.75rem 1rem' }}>Items</th>
+                                                                                    <th style={{ textAlign: 'center', padding: '0.75rem 1rem', minWidth: '130px' }}>
+                                                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
+                                                                                            <span>Commission Paid?</span>
+                                                                                            {itemUnpaidOrders.length > 0 && (
                                                                                                 <button
-                                                                                                    onClick={async (e) => {
+                                                                                                    type="button"
+                                                                                                    onClick={(e) => {
                                                                                                         e.stopPropagation();
-                                                                                                        const val = document.getElementById(`invoice-input-${o._id}`).value;
-                                                                                                        if (val === o.invoiceNumber) return;
-                                                                                                        try {
-                                                                                                            const res = await axios.put(`${API_URL}/orders/${o._id}/invoice`, { invoiceNumber: val, adminName: loggedInUsername });
-                                                                                                            if (res.data.success) {
-                                                                                                                setOrders(orders.map(or => or._id === o._id ? res.data.order : or));
-                                                                                                                // Optional quick feedback
-                                                                                                                const btn = e.target;
-                                                                                                                const originalText = btn.innerText;
-                                                                                                                btn.innerText = '✓';
-                                                                                                                setTimeout(() => btn.innerText = originalText, 1500);
-                                                                                                            }
-                                                                                                        } catch(err) {
-                                                                                                            alert('Error updating invoice number');
-                                                                                                        }
+                                                                                                        handleMarkAllCommissionPaid(itemUnpaidOrders);
                                                                                                     }}
+                                                                                                    disabled={updatingCommission}
                                                                                                     style={{
-                                                                                                        background: 'rgba(74,222,128,0.2)',
-                                                                                                        color: '#4ade80',
-                                                                                                        border: '1px solid #4ade80',
-                                                                                                        padding: '2px 6px',
-                                                                                                        borderRadius: '4px',
-                                                                                                        fontSize: '0.7rem',
-                                                                                                        cursor: 'pointer',
+                                                                                                        background: updatingCommission ? 'rgba(74, 222, 128, 0.4)' : '#16a34a',
+                                                                                                        color: '#ffffff',
+                                                                                                        border: 'none',
+                                                                                                        padding: '3px 8px',
+                                                                                                        borderRadius: '6px',
+                                                                                                        fontSize: '0.72rem',
+                                                                                                        cursor: updatingCommission ? 'not-allowed' : 'pointer',
                                                                                                         fontWeight: 'bold',
-                                                                                                        transition: 'all 0.2s'
+                                                                                                        whiteSpace: 'nowrap',
+                                                                                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                                                                                                        transition: 'background 0.2s'
                                                                                                     }}
-                                                                                                    title="Save Invoice Number"
+                                                                                                    title={`Mark all ${itemUnpaidOrders.length} orders as Commission Paid (Yes)`}
                                                                                                 >
-                                                                                                    Save
+                                                                                                    {updatingCommission ? 'Updating...' : 'Change All to Yes'}
                                                                                                 </button>
-                                                                                            </div>
-                                                                                        </td>
-                                                                                        <td style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>{formatDate(o.createdAt)}</td>
-                                                                                        <td style={{ padding: '0.75rem 1rem' }}>{o.customerName || 'N/A'}</td>
-                                                                                        <td style={{ padding: '0.75rem 1rem' }}>{o.salonName}</td>
-                                                                                        <td style={{ padding: '0.75rem 1rem' }}>
-                                                                                            <span style={{
-                                                                                                padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold',
-                                                                                                background: o.status === 'Paid' ? 'rgba(74,222,128,0.2)' : o.status === 'COD' ? 'rgba(251,191,36,0.2)' : 'rgba(167,139,250,0.2)',
-                                                                                                color: o.status === 'Paid' ? '#4ade80' : o.status === 'COD' ? '#fbbf24' : '#a78bfa'
-                                                                                            }}>{o.status}</span>
-                                                                                        </td>
-                                                                                        <td style={{ textAlign: 'right', padding: '0.75rem 1rem', color: ['Paid', 'Completed'].includes(o.status) ? '#4ade80' : 'gray' }}>
-                                                                                            {ordCommission.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                                                        </td>
-                                                                                        <td style={{ textAlign: 'right', padding: '0.75rem 1rem', fontSize: '0.85rem', opacity: 0.8, maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={itemsSummary}>
-                                                                                            {itemsSummary}
-                                                                                        </td>
-                                                                                        <td style={{ textAlign: 'center', padding: '0.75rem 1rem' }}>
-                                                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                                                                                                <button 
-                                                                                                    onClick={async (e) => {
-                                                                                                        e.stopPropagation();
-                                                                                                        try {
-                                                                                                            const res = await axios.put(`${API_URL}/orders/${o._id}/commission`, { 
-                                                                                                                isCommissionPaid: !o.isCommissionPaid,
-                                                                                                                adminName: loggedInUsername 
-                                                                                                            });
-                                                                                                            if (res.data.success) {
-                                                                                                                setOrders(orders.map(or => or._id === o._id ? res.data.order : or));
-                                                                                                            }
-                                                                                                        } catch(err) {
-                                                                                                            alert('Error updating commission status');
-                                                                                                        }
-                                                                                                    }}
-                                                                                                    style={{
-                                                                                                        background: o.isCommissionPaid ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.1)',
-                                                                                                        color: o.isCommissionPaid ? '#4ade80' : 'white',
-                                                                                                        border: `1px solid ${o.isCommissionPaid ? '#4ade80' : 'rgba(255,255,255,0.2)'}`,
-                                                                                                        padding: '4px 10px',
-                                                                                                        borderRadius: '20px',
-                                                                                                        fontSize: '0.75rem',
-                                                                                                        cursor: 'pointer',
-                                                                                                        fontWeight: 'bold',
-                                                                                                        transition: 'all 0.2s'
-                                                                                                    }}
-                                                                                                >
-                                                                                                    {o.isCommissionPaid ? 'Yes' : 'No'}
-                                                                                                </button>
-                                                                                                {o.commissionHistory && o.commissionHistory.length > 0 && (
-                                                                                                    <div style={{ fontSize: '0.65rem', opacity: 0.7, whiteSpace: 'nowrap', textAlign: 'center', lineHeight: '1.2' }}>
-                                                                                                        By: {o.commissionHistory[o.commissionHistory.length - 1].changedBy}<br/>
-                                                                                                        {new Date(o.commissionHistory[o.commissionHistory.length - 1].date).toLocaleDateString()}
-                                                                                                    </div>
-                                                                                                )}
-                                                                                            </div>
-                                                                                        </td>
-                                                                                        {adminRole === 'superadmin' && (
-                                                                                            <td style={{ textAlign: 'center', padding: '0.75rem 1rem' }}>
-                                                                                                <button 
-                                                                                                    onClick={async (e) => {
-                                                                                                        e.stopPropagation();
-                                                                                                        if (window.confirm('Are you sure you want to delete this order?')) {
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </th>
+                                                                                    {adminRole === 'superadmin' && <th style={{ textAlign: 'center', padding: '0.75rem 1rem' }}>Actions</th>}
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                {itemUnpaidOrders.map(o => {
+                                                                                    const ordCommission = (o.items || []).reduce((sum, i) => sum + ((i.commission || 0) * (i.quantity || 1)), 0);
+                                                                                    const itemsSummary = (o.items || []).map(i => `${i.productName} (${i.quantity})`).join(', ');
+                                                                                    return (
+                                                                                        <tr key={o._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                                            <td style={{ padding: '0.75rem 1rem', fontSize: '0.8rem', opacity: 0.8 }}>{o.merchantOrderId || o._id.substring(0,8)}</td>
+                                                                                            <td style={{ padding: '0.75rem 1rem' }}>
+                                                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                                                    <input
+                                                                                                        id={`invoice-input-${o._id}`}
+                                                                                                        type="text"
+                                                                                                        defaultValue={o.invoiceNumber || ''}
+                                                                                                        style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.2)', color: 'white', width: '90px', fontSize: '0.8rem' }}
+                                                                                                        placeholder="Invoice No"
+                                                                                                    />
+                                                                                                    <button
+                                                                                                        onClick={async (e) => {
+                                                                                                            e.stopPropagation();
+                                                                                                            const val = document.getElementById(`invoice-input-${o._id}`).value;
+                                                                                                            if (val === o.invoiceNumber) return;
                                                                                                             try {
-                                                                                                                await axios.delete(`${API_URL}/orders/${o._id}`);
-                                                                                                                fetchOrders();
-                                                                                                            } catch (err) {
-                                                                                                                alert('Failed to delete order');
+                                                                                                                const res = await axios.put(`${API_URL}/orders/${o._id}/invoice`, { invoiceNumber: val, adminName: loggedInUsername });
+                                                                                                                if (res.data.success) {
+                                                                                                                    setOrders(orders.map(or => or._id === o._id ? res.data.order : or));
+                                                                                                                    // Optional quick feedback
+                                                                                                                    const btn = e.target;
+                                                                                                                    const originalText = btn.innerText;
+                                                                                                                    btn.innerText = '✓';
+                                                                                                                    setTimeout(() => btn.innerText = originalText, 1500);
+                                                                                                                }
+                                                                                                            } catch(err) {
+                                                                                                                alert('Error updating invoice number');
                                                                                                             }
-                                                                                                        }
-                                                                                                    }}
-                                                                                                    style={{ background: '#ef4444', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
-                                                                                                >
-                                                                                                    Delete
-                                                                                                </button>
+                                                                                                        }}
+                                                                                                        style={{
+                                                                                                            background: 'rgba(74,222,128,0.2)',
+                                                                                                            color: '#4ade80',
+                                                                                                            border: '1px solid #4ade80',
+                                                                                                            padding: '2px 6px',
+                                                                                                            borderRadius: '4px',
+                                                                                                            fontSize: '0.7rem',
+                                                                                                            cursor: 'pointer',
+                                                                                                            fontWeight: 'bold',
+                                                                                                            transition: 'all 0.2s'
+                                                                                                        }}
+                                                                                                        title="Save Invoice Number"
+                                                                                                    >
+                                                                                                        Save
+                                                                                                    </button>
+                                                                                                </div>
                                                                                             </td>
-                                                                                        )}
-                                                                                    </tr>
-                                                                                );
-                                                                            })}
-                                                                            {orders.filter(o => {
-                                                                                if (!["Paid", "COD", "Completed"].includes(o.status)) return false;
-                                                                                if (performanceReportType === 'agent' && o.agentName !== item._id) return false;
-                                                                                if (performanceReportType === 'netagent' && o.netAgent1Id !== item._id && o.netAgent1Name !== item._id) return false;
-                                                                                if (performanceReportType === 'salon' && o.salonName !== item._id) return false;
-                                                                                if (reportStartDate || reportEndDate) {
-                                                                                    const d = new Date(o.createdAt);
-                                                                                    if (reportStartDate && d < new Date(reportStartDate)) return false;
-                                                                                    if (reportEndDate && d > new Date(reportEndDate + 'T23:59:59.999Z')) return false;
-                                                                                }
-                                                                                return true;
-                                                                            }).length === 0 && (
-                                                                                <tr><td colSpan="9" style={{ textAlign: 'center', opacity: 0.5, padding: '1rem' }}>No matching orders found locally.</td></tr>
-                                                                            )}
-                                                                        </tbody>
-                                                                    </table>
+                                                                                            <td style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>{formatDate(o.createdAt)}</td>
+                                                                                            <td style={{ padding: '0.75rem 1rem' }}>{o.customerName || 'N/A'}</td>
+                                                                                            <td style={{ padding: '0.75rem 1rem' }}>{o.salonName}</td>
+                                                                                            <td style={{ padding: '0.75rem 1rem' }}>
+                                                                                                <span style={{
+                                                                                                    padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold',
+                                                                                                    background: o.status === 'Paid' ? 'rgba(74,222,128,0.2)' : o.status === 'COD' ? 'rgba(251,191,36,0.2)' : 'rgba(167,139,250,0.2)',
+                                                                                                    color: o.status === 'Paid' ? '#4ade80' : o.status === 'COD' ? '#fbbf24' : '#a78bfa'
+                                                                                                }}>{o.status}</span>
+                                                                                            </td>
+                                                                                            <td style={{ textAlign: 'right', padding: '0.75rem 1rem', color: ['Paid', 'Completed'].includes(o.status) ? '#4ade80' : 'gray' }}>
+                                                                                                {ordCommission.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                                            </td>
+                                                                                            <td style={{ textAlign: 'right', padding: '0.75rem 1rem', fontSize: '0.85rem', opacity: 0.8, maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={itemsSummary}>
+                                                                                                {itemsSummary}
+                                                                                            </td>
+                                                                                            <td style={{ textAlign: 'center', padding: '0.75rem 1rem' }}>
+                                                                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                                                                                                    <button 
+                                                                                                        onClick={async (e) => {
+                                                                                                            e.stopPropagation();
+                                                                                                            try {
+                                                                                                                const res = await axios.put(`${API_URL}/orders/${o._id}/commission`, { 
+                                                                                                                    isCommissionPaid: !o.isCommissionPaid,
+                                                                                                                    adminName: loggedInUsername 
+                                                                                                                });
+                                                                                                                if (res.data.success) {
+                                                                                                                    setOrders(orders.map(or => or._id === o._id ? res.data.order : or));
+                                                                                                                    fetchDetailedPerformance(true);
+                                                                                                                }
+                                                                                                            } catch(err) {
+                                                                                                                alert('Error updating commission status');
+                                                                                                            }
+                                                                                                        }}
+                                                                                                        style={{
+                                                                                                            background: o.isCommissionPaid ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.1)',
+                                                                                                            color: o.isCommissionPaid ? '#4ade80' : 'white',
+                                                                                                            border: `1px solid ${o.isCommissionPaid ? '#4ade80' : 'rgba(255,255,255,0.2)'}`,
+                                                                                                            padding: '4px 10px',
+                                                                                                            borderRadius: '20px',
+                                                                                                            fontSize: '0.75rem',
+                                                                                                            cursor: 'pointer',
+                                                                                                            fontWeight: 'bold',
+                                                                                                            transition: 'all 0.2s'
+                                                                                                        }}
+                                                                                                    >
+                                                                                                        {o.isCommissionPaid ? 'Yes' : 'No'}
+                                                                                                    </button>
+                                                                                                    {o.commissionHistory && o.commissionHistory.length > 0 && (
+                                                                                                        <div style={{ fontSize: '0.65rem', opacity: 0.7, whiteSpace: 'nowrap', textAlign: 'center', lineHeight: '1.2' }}>
+                                                                                                            By: {o.commissionHistory[o.commissionHistory.length - 1].changedBy}<br/>
+                                                                                                            {new Date(o.commissionHistory[o.commissionHistory.length - 1].date).toLocaleDateString()}
+                                                                                                        </div>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                            </td>
+                                                                                            {adminRole === 'superadmin' && (
+                                                                                                <td style={{ textAlign: 'center', padding: '0.75rem 1rem' }}>
+                                                                                                    <button 
+                                                                                                        onClick={async (e) => {
+                                                                                                            e.stopPropagation();
+                                                                                                            if (window.confirm('Are you sure you want to delete this order?')) {
+                                                                                                                try {
+                                                                                                                    await axios.delete(`${API_URL}/orders/${o._id}`);
+                                                                                                                    fetchOrders();
+                                                                                                                    fetchDetailedPerformance(true);
+                                                                                                                } catch (err) {
+                                                                                                                    alert('Failed to delete order');
+                                                                                                                }
+                                                                                                            }
+                                                                                                        }}
+                                                                                                        style={{ background: '#ef4444', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+                                                                                                    >
+                                                                                                        Delete
+                                                                                                    </button>
+                                                                                                </td>
+                                                                                            )}
+                                                                                        </tr>
+                                                                                    );
+                                                                                })}
+                                                                                {itemUnpaidOrders.length === 0 && (
+                                                                                    <tr><td colSpan={adminRole === 'superadmin' ? "10" : "9"} style={{ textAlign: 'center', opacity: 0.5, padding: '1rem' }}>No unpaid commission orders found.</td></tr>
+                                                                                )}
+                                                                            </tbody>
+                                                                        </table>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })()}
                                                 </React.Fragment>
                                             ))
                                         ) : (
